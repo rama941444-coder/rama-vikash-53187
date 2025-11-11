@@ -178,9 +178,9 @@ const DiagnosticResults = ({ data }: DiagnosticResultsProps) => {
         <div className="analysis-box-green">
           <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
             <span className="w-3 h-3 bg-green-500 rounded-full"></span>
-            Corrected Code
+            ✅ Corrected Code
           </h3>
-          <pre className="whitespace-pre-wrap text-sm font-mono leading-relaxed">
+          <pre className="whitespace-pre-wrap text-sm font-mono leading-relaxed code-separator-style">
             {data.correctedCode || '// No corrections available'}
           </pre>
         </div>
@@ -189,9 +189,9 @@ const DiagnosticResults = ({ data }: DiagnosticResultsProps) => {
         <div className="analysis-box-black">
           <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
             <span className="w-3 h-3 bg-gray-500 rounded-full"></span>
-            Execution Output
+            ⚡ Execution Output
           </h3>
-          <pre className="whitespace-pre-wrap text-sm font-mono leading-relaxed text-white">
+          <pre className="whitespace-pre-wrap text-sm font-mono leading-relaxed text-white code-separator-style">
             {data.output || 'No output available'}
           </pre>
         </div>

@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { LogOut, Shield, User } from "lucide-react";
+import { LogOut, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 
@@ -18,36 +18,12 @@ export const UserMenu = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [email, setEmail] = useState<string>("");
-  const [fullName, setFullName] = useState<string>("");
-  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     const fetchUserData = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
-        // Fetch profile
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("email, full_name")
-          .eq("id", session.user.id)
-          .single();
-
-        if (profile?.email) {
-          setEmail(profile.email);
-        }
-        if (profile?.full_name) {
-          setFullName(profile.full_name);
-        }
-
-        // Check if user is admin
-        const { data: roles } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", session.user.id);
-
-        if (roles?.some(r => r.role === "admin")) {
-          setIsAdmin(true);
-        }
+        setEmail(session.user.email || "");
       }
     };
 
@@ -71,13 +47,11 @@ export const UserMenu = () => {
     }
   };
 
-  const displayName = fullName || email;
-  const initials = displayName
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2) || "U";
+  const displayName = email;
+  const initials = email
+    .split("@")[0]
+    .slice(0, 2)
+    .toUpperCase() || "U";
 
   return (
     <DropdownMenu>
@@ -94,12 +68,6 @@ export const UserMenu = () => {
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">{displayName}</p>
-            {isAdmin && (
-              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                <Shield className="h-3 w-3" />
-                <span>Admin Access</span>
-              </div>
-            )}
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />

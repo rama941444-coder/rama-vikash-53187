@@ -58,21 +58,52 @@ serve(async (req) => {
       instructionText += `Code/Text to analyze:\n${code}\n\n`;
     }
     
-    instructionText += `CRITICAL ANALYSIS REQUIREMENTS:
-1) HANDWRITTEN TEXT: Use ADVANCED OCR to detect ALL handwritten code (neat & messy), detect strikeouts/corrections
-2) PDF/WORD FILES: Extract EVERY code snippet separately (if multiple codes exist, process each one)
-3) MULTIPLE FILES: Process ALL uploaded files comprehensively
-4) IMAGE ANALYSIS: Detect code from screenshots, photos, diagrams, flowcharts, graphs
-5) GRAPH PROBLEMS: For visual problems (Traveling Salesman, graphs), generate complete working code
-6) CORRECTED CODE: Provide ALL corrected code in clean TEXT format (NEVER binary)
-7) LARGE HTML FILES: Handle massive HTML files with embedded CSS and JavaScript - provide COMPLETE code with all styles and scripts integrated
-8) HTML/CSS/JS PREVIEW: Ensure HTML code is 100% ready for iframe preview with all CSS styles and JavaScript functionality included
-9) EXECUTION OUTPUT: Calculate REAL execution results (no placeholders)
-10) FLOWCHARTS: Generate for logic-heavy problems
-11) DSA ANALYSIS: Provide complexity analysis for algorithms
-12) MCQ FORMAT: Generate properly numbered MCQs with A/B/C/D options AND detailed explanations
+    instructionText += `⚠️ CRITICAL ANALYSIS REQUIREMENTS - READ CAREFULLY:
 
-Please analyze and provide complete JSON response.`;
+1) HANDWRITTEN CODE EXTRACTION (MOST IMPORTANT):
+   - Use MAXIMUM OCR power to detect ALL handwritten code (neat AND messy handwriting)
+   - Extract the EXACT code as written in the document - DO NOT IMAGINE OR CREATE CODE
+   - If handwriting has strikeouts/corrections, note them but provide the final intended code
+   - For PDF/Word files with handwritten code: Extract EXACTLY what you see, character by character
+   
+2) MULTIPLE CODE SNIPPETS HANDLING:
+   - If document contains multiple separate codes, extract ALL of them
+   - Separate each code with this EXACT separator line: 
+     ════════════════════════════════════════
+     Code Snippet [Number]
+     ════════════════════════════════════════
+   - Example format:
+     [Code 1]
+     ════════════════════════════════════════
+     Code Snippet 2
+     ════════════════════════════════════════
+     [Code 2]
+   - Use same separators in BOTH "correctedCode" AND "output" sections
+
+3) FILE PROCESSING:
+   - PDF/WORD FILES: Extract EVERY code snippet from ALL pages
+   - IMAGES: Use advanced OCR for handwritten/typed code from photos/screenshots
+   - MULTIPLE FILES: Analyze ALL files comprehensively
+   - LARGE FILES: Process ENTIRE content with NO truncation
+
+4) CODE ACCURACY:
+   - Provide EXACT code from the file - NOT your imagination
+   - Fix only actual syntax/logic errors
+   - Keep variable names, structure, comments as in original
+   - If unsure about a character, provide best OCR interpretation with note
+
+5) OUTPUT REQUIREMENTS:
+   - CORRECTED CODE: Clean, executable version in TEXT format (NEVER binary)
+   - EXECUTION OUTPUT: Real calculated results, not placeholders
+   - For multiple codes: Separate outputs with same separator format
+   - HTML/CSS/JS: Provide COMPLETE code ready for iframe preview
+
+6) ADDITIONAL ANALYSIS:
+   - FLOWCHARTS: Generate for logic-heavy problems
+   - DSA ANALYSIS: Provide complexity analysis for algorithms
+   - MCQ FORMAT: Properly numbered with A/B/C/D options and explanations
+
+Please analyze with MAXIMUM accuracy and provide complete JSON response.`;
 
     // Add text instruction
     userContent.push({
@@ -221,9 +252,9 @@ Please analyze this document as if you're viewing the actual PDF/Word file and e
 {
   "analysis": "COMPREHENSIVE analysis:\n- ALL errors (syntax, logic, security, runtime)\n- Performance bottlenecks\n- Code quality assessment\n- Line-by-line issue breakdown\n- For PDFs: Analysis for EACH code snippet\n- For images: OCR-extracted code + full analysis\n- For handwriting: Detected text + corrections\n- For graphs/diagrams: Problem interpretation + solution approach\n- For HTML: Complete structure, CSS, and JavaScript validation",
   
-  "correctedCode": "COMPLETE corrected code in TEXT format:\n- ALL syntax errors fixed\n- Logic errors resolved\n- Security patches applied\n- Optimizations implemented\n- Clear comments added\n- For HTML/CSS/JS: COMPLETE code with ALL styles and scripts integrated (100% iframe-ready)\n- For large HTML files: Full HTML structure with embedded CSS and JavaScript\n- For multiple snippets: ALL snippets with clear separators:\n  --- Code Snippet 1 ---\n  [corrected code 1]\n  \n  --- Code Snippet 2 ---\n  [corrected code 2]\n- For images: Extracted code from OCR in TEXT\n- For handwriting: Clean corrected TEXT version (detect strikeouts/corrections)\n- For graph problems: Complete working implementation\n- NEVER output binary or gibberish - ALWAYS readable text",
+  "correctedCode": "COMPLETE corrected code in TEXT format:\n- Extract EXACT code from handwritten/typed content - DO NOT IMAGINE\n- ALL syntax errors fixed\n- Logic errors resolved\n- Security patches applied\n- Optimizations implemented\n- Clear comments added\n- For HTML/CSS/JS: COMPLETE code with ALL styles and scripts integrated (100% iframe-ready)\n- For large HTML files: Full HTML structure with embedded CSS and JavaScript\n- For multiple code snippets: Use this EXACT separator format:\n  \n  [First corrected code here]\n  \n  ════════════════════════════════════════\n  Code Snippet 2\n  ════════════════════════════════════════\n  \n  [Second corrected code here]\n  \n  ════════════════════════════════════════\n  Code Snippet 3\n  ════════════════════════════════════════\n  \n  [Third corrected code here]\n  \n- For handwriting: Extract EXACT code as written, then provide clean corrected version\n- For images: Extracted code from OCR in TEXT (exact as visible)\n- For graph problems: Complete working implementation\n- NEVER output binary or gibberish - ALWAYS readable text\n- Remember: Extract exactly what you see, not what you think should be there",
   
-  "output": "ACTUAL execution result:\n- REAL program output (calculated from logic)\n- Console logs\n- Return values\n- For multiple snippets: Output for EACH snippet\n- For text documents: Summary of corrections\n- For HTML: Detailed rendering description\n- For algorithms: Step-by-step execution trace",
+  "output": "ACTUAL execution result:\n- REAL program output (calculated from logic)\n- Console logs\n- Return values\n- For multiple code snippets: Provide output for EACH snippet using SAME separator format:\n  \n  [Output for Code 1]\n  \n  ════════════════════════════════════════\n  Output for Code Snippet 2\n  ════════════════════════════════════════\n  \n  [Output for Code 2]\n  \n- For text documents: Summary of corrections\n- For HTML: Detailed rendering description\n- For algorithms: Step-by-step execution trace",
 
   "flowchart": "Flowchart/logic diagram (if relevant):\n- ASCII art flowchart\n- Logic flow visualization\n- Algorithm step breakdown\n- Control flow diagram\n(empty string if not applicable)",
 

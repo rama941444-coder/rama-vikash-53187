@@ -275,13 +275,13 @@ const CodeInput = ({ onAnalysisComplete }: CodeInputProps) => {
           </div>
           
           <div className="analysis-box-green">
-            <h3 className="font-semibold text-lg mb-2">Corrected Code</h3>
-            <pre className="whitespace-pre-wrap text-sm font-mono">{result.correctedCode}</pre>
+            <h3 className="font-semibold text-lg mb-2">✅ Corrected Code</h3>
+            <pre className="whitespace-pre-wrap text-sm font-mono code-separator-style">{result.correctedCode}</pre>
           </div>
           
           <div className="analysis-box-black">
-            <h3 className="font-semibold text-lg mb-2">Execution Output</h3>
-            <pre className="whitespace-pre-wrap text-sm font-mono">{result.output}</pre>
+            <h3 className="font-semibold text-lg mb-2">⚡ Execution Output</h3>
+            <pre className="whitespace-pre-wrap text-sm font-mono code-separator-style">{result.output}</pre>
           </div>
 
           {result.flowchart && (

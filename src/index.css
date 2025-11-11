@@ -174,4 +174,9 @@ All colors MUST be HSL.
     background-color: hsl(0 0% 8%);
     border-color: hsl(0 0% 20%);
   }
+  
+  /* Code separator styling for multiple code snippets */
+  .code-separator-style {
+    line-height: 1.6;
+  }
 }
