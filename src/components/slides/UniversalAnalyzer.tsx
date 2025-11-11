@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import * as pdfjsLib from 'pdfjs-dist';
 
 const LANGUAGES = [
   'Universal File/Document', 'C', 'C++', 'C#', 'Java', 'JavaScript', 
@@ -266,12 +267,32 @@ const UniversalAnalyzer = () => {
           
           <div className="analysis-box-green">
             <h3 className="font-semibold text-lg mb-2">✅ Corrected Code</h3>
-            <pre className="whitespace-pre-wrap text-sm font-mono code-separator-style">{result.correctedCode}</pre>
+            {String(result.correctedCode || '')
+              .split(/\n?═{10,}[^\n]*\n?/g)
+              .filter((s) => s.trim().length > 0)
+              .map((chunk: string, idx: number, arr: string[]) => (
+                <div key={idx}>
+                  <pre className="whitespace-pre-wrap text-sm font-mono code-separator-style">{chunk.trim()}</pre>
+                  {idx < arr.length - 1 && (
+                    <div className="my-3 border-t-2 border-dotted border-border/40" />
+                  )}
+                </div>
+              ))}
           </div>
           
           <div className="analysis-box-black">
             <h3 className="font-semibold text-lg mb-2">⚡ Execution Output</h3>
-            <pre className="whitespace-pre-wrap text-sm font-mono code-separator-style">{result.output}</pre>
+            {String(result.output || '')
+              .split(/\n?═{10,}[^\n]*\n?/g)
+              .filter((s) => s.trim().length > 0)
+              .map((chunk: string, idx: number, arr: string[]) => (
+                <div key={idx}>
+                  <pre className="whitespace-pre-wrap text-sm font-mono code-separator-style">{chunk.trim()}</pre>
+                  {idx < arr.length - 1 && (
+                    <div className="my-3 border-t-2 border-dotted border-border/40" />
+                  )}
+                </div>
+              ))}
           </div>
 
           {result.flowchart && (
