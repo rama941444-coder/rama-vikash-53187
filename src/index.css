@@ -1,0 +1,177 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
+
+    --card: 220 13% 18%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 220 13% 18%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 263 70% 60%;
+    --primary-foreground: 210 40% 98%;
+    
+    --primary-glow: 263 70% 70%;
+
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 263 70% 60%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 263 70% 60%;
+
+    --radius: 0.75rem;
+
+    /* Analysis Box Colors */
+    --analysis-red: 0 84% 60%;
+    --analysis-green: 160 84% 39%;
+    --analysis-black: 222 47% 11%;
+    --analysis-orange: 25 95% 53%;
+    --analysis-blue: 221 83% 53%;
+    --analysis-cyan: 190 84% 50%;
+    
+    /* Gradient & Effects */
+    --gradient-primary: linear-gradient(135deg, hsl(263 70% 60%), hsl(263 70% 70%));
+    --gradient-glow: linear-gradient(180deg, hsl(263 70% 60% / 0.2), transparent);
+    --neon-glow: 0 0 20px hsl(263 70% 60% / 0.5), 0 0 40px hsl(263 70% 60% / 0.3);
+    
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
+
+    --card: 220 13% 18%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 220 13% 18%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 263 70% 60%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 263 70% 60%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 263 70% 60%;
+    
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+}
+
+@layer utilities {
+  .neon-glow {
+    box-shadow: var(--neon-glow);
+  }
+  
+  .neon-text {
+    text-shadow: 0 0 10px hsl(var(--primary) / 0.7);
+  }
+  
+  .analysis-box {
+    @apply rounded-xl p-6 border-2 transition-all duration-300;
+  }
+  
+  .analysis-box-red {
+    @apply analysis-box;
+    background-color: hsl(var(--analysis-red) / 0.1);
+    border-color: hsl(var(--analysis-red));
+  }
+  
+  .analysis-box-green {
+    @apply analysis-box;
+    background-color: hsl(var(--analysis-green) / 0.1);
+    border-color: hsl(var(--analysis-green));
+  }
+  
+  .analysis-box-black {
+    @apply analysis-box;
+    background-color: hsl(var(--analysis-black));
+    border-color: hsl(var(--border));
+  }
+  
+  .analysis-box-orange {
+    @apply analysis-box;
+    background-color: hsl(var(--analysis-orange) / 0.1);
+    border-color: hsl(var(--analysis-orange));
+  }
+  
+  .analysis-box-blue {
+    @apply analysis-box;
+    background-color: hsl(var(--analysis-blue) / 0.1);
+    border-color: hsl(var(--analysis-blue));
+  }
+
+  .analysis-box-purple {
+    @apply analysis-box;
+    background-color: hsl(280 84% 60% / 0.1);
+    border-color: hsl(280 84% 60%);
+  }
+  
+  .analysis-box-cyan {
+    @apply analysis-box;
+    background-color: hsl(var(--analysis-cyan) / 0.1);
+    border-color: hsl(var(--analysis-cyan));
+  }
+  
+  .analysis-box-dark {
+    @apply analysis-box;
+    background-color: hsl(0 0% 8%);
+    border-color: hsl(0 0% 20%);
+  }
+}
