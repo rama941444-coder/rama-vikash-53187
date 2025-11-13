@@ -6,12 +6,13 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import * as pdfjsLib from 'pdfjs-dist';
 import { parseDocument } from '@/lib/documentParser';
+// @ts-ignore - Vite resolves this to a URL string for the worker file
+import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
 
-// Configure PDF.js worker for browser
+// Configure PDF.js worker for browser using bundled worker URL (avoids CORS/module errors)
 try {
   // @ts-ignore
-  (pdfjsLib as any).GlobalWorkerOptions.workerSrc =
-    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.4.394/pdf.worker.min.js';
+  (pdfjsLib as any).GlobalWorkerOptions.workerSrc = pdfWorker;
 } catch {}
 
 const LANGUAGES = [
