@@ -16,10 +16,12 @@ const RequestSchema = z.object({
     type: z.string().max(200),
     base64: z.string().max(419430400), // 400MB limit for very large files
     content: z.string().max(5000000).optional().default(''), // Increased to 5MB for large HTML files
+    pageImages: z.array(z.string()).optional().default([]), // PDF/Word pages as images
     isImage: z.boolean().optional().default(false),
     isPDF: z.boolean().optional().default(false),
     isWord: z.boolean().optional().default(false)
-  })).max(100).optional() // Increased to 100 files
+  })).max(100).optional(), // Increased to 100 files
+  extractionMode: z.string().optional().default('standard')
 });
 
 serve(async (req) => {
@@ -41,7 +43,8 @@ serve(async (req) => {
       });
     }
 
-    const { code, language, files, fileData } = validation.data;
+    const { code, language, files, fileData, extractionMode } = validation.data;
+    console.log('Analyze request:', { language, hasCode: !!code, fileCount: files?.length || 0, fileDataCount: fileData?.length || 0, extractionMode });
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
 
     if (!LOVABLE_API_KEY) {
@@ -116,7 +119,7 @@ Please analyze with MAXIMUM accuracy and provide complete JSON response.`;
       for (const file of fileData) {
         if (file.base64) {
           if (file.isImage || file.type.startsWith('image/')) {
-            // Only send actual images as image_url
+            // Direct image upload
             userContent.push({
               type: "image_url",
               image_url: {
@@ -124,25 +127,45 @@ Please analyze with MAXIMUM accuracy and provide complete JSON response.`;
               }
             });
           } else if (file.isPDF || file.isWord) {
-            // For PDFs/Word docs, provide detailed text instructions
-            // The AI should be told these are document files that need OCR processing
-            userContent.push({
-              type: "text",
-              text: `\n\n[DOCUMENT FILE: ${file.name}]\nType: ${file.type}\nSize: ${Math.round(file.base64.length / 1024)}KB
+            // PDF/Word: Use pageImages for EXACT OCR
+            if (file.pageImages && file.pageImages.length > 0) {
+              console.log(`Processing ${file.name} with ${file.pageImages.length} page images for OCR`);
+              userContent.push({
+                type: "text",
+                text: `\n\n[${file.isPDF ? 'PDF' : 'WORD'} DOCUMENT: ${file.name}]
+📄 Total Pages: ${file.pageImages.length}
 
-⚠️ IMPORTANT: This is a ${file.isPDF ? 'PDF' : 'Word'} document file.
+⚠️ CRITICAL OCR EXTRACTION MODE:
+- Each page has been converted to an image for pixel-perfect OCR
+- Extract EXACT code as written (handwritten or typed)
+- DO NOT imagine or create code - only extract what you see
+- For handwritten code: Read EVERY character carefully (messy handwriting included)
+- Multiple snippets: Separate with separator lines
+- Process ALL ${file.pageImages.length} pages completely
 
-CRITICAL OCR & EXTRACTION INSTRUCTIONS:
-- This document contains CODE that needs to be extracted
-- Use MAXIMUM OCR power to read ALL text including handwritten code
-- Extract handwritten code (neat AND messy handwriting)
-- Detect strikeouts, corrections, and human errors
-- If multiple code snippets exist, extract ALL separately with "--- Code Snippet 1 ---", "--- Code Snippet 2 ---" separators
-- Process the ENTIRE document thoroughly
-- Provide corrected code in clean TEXT format
-
-Please analyze this document as if you're viewing the actual PDF/Word file and extract all code content from it.`
-            });
+Below are the page images for OCR analysis:`
+              });
+              
+              // Add each page image for vision analysis
+              for (let i = 0; i < file.pageImages.length; i++) {
+                userContent.push({
+                  type: "image_url",
+                  image_url: {
+                    url: file.pageImages[i]
+                  }
+                });
+                userContent.push({
+                  type: "text",
+                  text: `↑ Page ${i + 1} of ${file.pageImages.length}`
+                });
+              }
+            } else {
+              // Fallback if no page images
+              userContent.push({
+                type: "text",
+                text: `\n\n[DOCUMENT: ${file.name}]\nContent: ${file.content || 'Unable to extract text'}`
+              });
+            }
           } else if (file.content) {
             // Text-based files
             userContent.push({
@@ -293,7 +316,8 @@ Please analyze this document as if you're viewing the actual PDF/Word file and e
       hasCode: !!code, 
       fileCount: files?.length || 0,
       fileDataCount: fileData?.length || 0,
-      contentItems: userContent.length
+      contentItems: userContent.length,
+      totalPageImages: fileData?.reduce((sum, f) => sum + (f.pageImages?.length || 0), 0) || 0
     });
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
