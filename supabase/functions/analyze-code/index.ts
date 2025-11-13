@@ -45,6 +45,50 @@ serve(async (req) => {
 
     const { code, language, files, fileData, extractionMode } = validation.data;
     console.log('Analyze request:', { language, hasCode: !!code, fileCount: files?.length || 0, fileDataCount: fileData?.length || 0, extractionMode });
+    
+    // Additional security validation for file uploads
+    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB per file
+    const ALLOWED_TYPES = [
+      'application/pdf',
+      'image/',
+      'text/',
+      'application/vnd.openxmlformats',
+      'application/vnd.ms-',
+      'application/msword'
+    ];
+    
+    if (fileData && fileData.length > 0) {
+      for (const file of fileData) {
+        // Calculate approximate size from base64
+        const fileSize = file.base64.length * 0.75; // Base64 is ~33% larger than binary
+        
+        if (fileSize > MAX_FILE_SIZE) {
+          console.error(`File ${file.name} exceeds size limit: ${(fileSize / 1024 / 1024).toFixed(2)}MB`);
+          return new Response(JSON.stringify({ 
+            error: 'File size limit exceeded',
+            details: `File "${file.name}" exceeds the 50MB limit. Please upload smaller files.`
+          }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        
+        // Validate file type
+        const isAllowedType = ALLOWED_TYPES.some(allowedType => file.type.startsWith(allowedType));
+        if (!isAllowedType) {
+          console.error(`File ${file.name} has disallowed type: ${file.type}`);
+          return new Response(JSON.stringify({ 
+            error: 'File type not allowed',
+            details: `File "${file.name}" has type "${file.type}" which is not allowed. Supported types: PDF, images, text files, Word/Excel documents.`
+          }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+      console.log(`File validation passed for ${fileData.length} file(s)`);
+    }
+    
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
 
     if (!LOVABLE_API_KEY) {
