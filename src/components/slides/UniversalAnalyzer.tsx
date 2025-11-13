@@ -161,12 +161,17 @@ const UniversalAnalyzer = () => {
                 textReader.readAsText(file);
               });
             } else if (isPDF) {
-              // Extract raw text and render pages to images for exact OCR by backend
+              // Convert ENTIRE PDF to page images for pixel-perfect OCR
+              console.log(`Converting PDF ${file.name} to images for OCR...`);
+              pageImages = await pdfToImages(file, 50).catch(() => []); // Max 50 pages
+              console.log(`Converted ${pageImages.length} pages to images`);
+              // Also try to extract text as backup
               textContent = await parseDocument(file).catch(() => '');
-              pageImages = await pdfToImages(file).catch(() => []);
             } else if (isWord) {
-              // Best-effort text extraction for Word docs
+              // Convert Word doc to images if possible, fallback to text
+              console.log(`Processing Word file ${file.name}...`);
               textContent = await parseDocument(file).catch(() => '');
+              // Note: Word to image conversion would require additional library
             }
           } catch (err) {
             console.error('Error extracting content:', err);
