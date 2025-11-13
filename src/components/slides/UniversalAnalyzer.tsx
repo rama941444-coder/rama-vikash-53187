@@ -5,6 +5,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import * as pdfjsLib from 'pdfjs-dist';
+import { parseDocument } from '@/lib/documentParser';
+
+// Configure PDF.js worker for browser
+try {
+  // @ts-ignore
+  (pdfjsLib as any).GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.4.394/pdf.worker.min.js';
+} catch {}
 
 const LANGUAGES = [
   'Universal File/Document', 'C', 'C++', 'C#', 'Java', 'JavaScript', 
@@ -13,6 +21,26 @@ const LANGUAGES = [
   'PL/SQL', 'T-SQL', 'DBMS', 'MongoDB Query Language', 'R',
   'Handwritten Notes', 'Text Document', 'DSA & Algorithms', 'Flowchart Analysis', 'General Analysis'
 ];
+
+// Convert first up to maxPages of a PDF into image data URLs for OCR
+const pdfToImages = async (file: File, maxPages = 10): Promise<string[]> => {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await (pdfjsLib as any).getDocument({ data: arrayBuffer }).promise;
+  const images: string[] = [];
+  const pages = Math.min(pdf.numPages, maxPages);
+  for (let i = 1; i <= pages; i++) {
+    const page = await pdf.getPage(i);
+    const viewport = page.getViewport({ scale: 2 });
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (!context) continue;
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: context, viewport }).promise;
+    images.push(canvas.toDataURL('image/png'));
+  }
+  return images;
+};
 
 const UniversalAnalyzer = () => {
   const [files, setFiles] = useState<File[]>([]);
@@ -87,11 +115,12 @@ const UniversalAnalyzer = () => {
         return new Promise(async (resolve) => {
           let textContent = '';
           let base64Data = '';
+          let pageImages: string[] = [];
           
-          // Read file as base64
+          // Read file as base64 (kept for images and backend compatibility)
           const reader = new FileReader();
           base64Data = await new Promise<string>((res) => {
-            reader.onload = (e) => res(e.target?.result as string || '');
+            reader.onload = (e) => res((e.target?.result as string) || '');
             reader.readAsDataURL(file);
           });
           
@@ -123,16 +152,23 @@ const UniversalAnalyzer = () => {
             file.name.endsWith('.kt')
           );
           
-          if (isTextFile) {
-            try {
+          try {
+            if (isTextFile) {
               const textReader = new FileReader();
               textContent = await new Promise<string>((res) => {
-                textReader.onload = (e) => res(e.target?.result as string || '');
+                textReader.onload = (e) => res((e.target?.result as string) || '');
                 textReader.readAsText(file);
               });
-            } catch (err) {
-              console.error('Error reading text file:', err);
+            } else if (isPDF) {
+              // Extract raw text and render pages to images for exact OCR by backend
+              textContent = await parseDocument(file).catch(() => '');
+              pageImages = await pdfToImages(file).catch(() => []);
+            } else if (isWord) {
+              // Best-effort text extraction for Word docs
+              textContent = await parseDocument(file).catch(() => '');
             }
+          } catch (err) {
+            console.error('Error extracting content:', err);
           }
           
           resolve({
@@ -140,6 +176,7 @@ const UniversalAnalyzer = () => {
             type: file.type,
             base64: base64Data,
             content: textContent || '',
+            pageImages,
             isImage: isImage || false,
             isPDF: isPDF || false,
             isWord: isWord || false
@@ -160,7 +197,8 @@ const UniversalAnalyzer = () => {
           code: '', 
           language,
           files: filesMetadata,
-          fileData: fileData
+          fileData: fileData,
+          extractionMode: 'exact_code_ocr'
         }
       });
 
