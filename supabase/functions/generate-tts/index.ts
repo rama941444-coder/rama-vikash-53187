@@ -17,7 +17,6 @@ serve(async (req) => {
   }
 
   try {
-    // JWT authentication is handled automatically by Supabase with verify_jwt = true
     // Validate input
     const requestBody = await req.json();
     const validation = RequestSchema.safeParse(requestBody);
@@ -57,9 +56,7 @@ serve(async (req) => {
             role: "user",
             content: `Please narrate this text in a clear, professional voice suitable for technical explanation: ${text.substring(0, 1000)}`
           }
-        ],
-        temperature: 0.7,
-        max_tokens: 1000
+        ]
       }),
     });
 

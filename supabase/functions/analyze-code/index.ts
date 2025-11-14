@@ -30,7 +30,6 @@ serve(async (req) => {
   }
 
   try {
-    // JWT authentication is handled automatically by Supabase with verify_jwt = true
     // Validate input
     const requestBody = await req.json();
     const validation = RequestSchema.safeParse(requestBody);
@@ -46,66 +45,11 @@ serve(async (req) => {
 
     const { code, language, files, fileData, extractionMode } = validation.data;
     console.log('Analyze request:', { language, hasCode: !!code, fileCount: files?.length || 0, fileDataCount: fileData?.length || 0, extractionMode });
-    
-    // Additional security validation for file uploads
-    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB per file
-    const ALLOWED_TYPES = [
-      'application/pdf',
-      'image/',
-      'text/',
-      'application/vnd.openxmlformats',
-      'application/vnd.ms-',
-      'application/msword'
-    ];
-    
-    if (fileData && fileData.length > 0) {
-      for (const file of fileData) {
-        // Calculate approximate size from base64
-        const fileSize = file.base64.length * 0.75; // Base64 is ~33% larger than binary
-        
-        if (fileSize > MAX_FILE_SIZE) {
-          console.error(`File ${file.name} exceeds size limit: ${(fileSize / 1024 / 1024).toFixed(2)}MB`);
-          return new Response(JSON.stringify({ 
-            error: 'File size limit exceeded',
-            details: `File "${file.name}" exceeds the 50MB limit. Please upload smaller files.`
-          }), {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
-        }
-        
-        // Validate file type
-        const isAllowedType = ALLOWED_TYPES.some(allowedType => file.type.startsWith(allowedType));
-        if (!isAllowedType) {
-          console.error(`File ${file.name} has disallowed type: ${file.type}`);
-          return new Response(JSON.stringify({ 
-            error: 'File type not allowed',
-            details: `File "${file.name}" has type "${file.type}" which is not allowed. Supported types: PDF, images, text files, Word/Excel documents.`
-          }), {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
-        }
-      }
-      console.log(`File validation passed for ${fileData.length} file(s)`);
-    }
-    
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
 
     if (!LOVABLE_API_KEY) {
-      return new Response(JSON.stringify({ 
-        error: 'AI_NOT_CONFIGURED',
-        analysis: '⚠️ AI service is not configured. Please contact support.',
-        correctedCode: code || '',
-        output: '',
-        ttsNarration: ''
-      }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      throw new Error('LOVABLE_API_KEY is not configured');
     }
-
-    console.log('Starting AI analysis with Lovable gateway...');
 
     // Build multimodal content array
     const userContent: any[] = [];
@@ -383,10 +327,10 @@ Below are the page images for OCR analysis:`
         'Content-Type': 'application/json',
       },
         body: JSON.stringify({
-          model: 'google/gemini-2.5-flash', // Fast and efficient model for quick analysis
+          model: 'google/gemini-2.5-pro', // Using most advanced AI model
           messages,
           response_format: { type: "json_object" },
-          max_tokens: 8192
+          max_tokens: 16384 // Increased for large HTML files
         }),
     });
 
