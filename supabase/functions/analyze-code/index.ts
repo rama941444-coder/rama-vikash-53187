@@ -30,29 +30,7 @@ serve(async (req) => {
   }
 
   try {
-    // Verify authentication
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Authentication required' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: authHeader } } }
-    );
-
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Invalid authentication' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
+    // JWT authentication is handled automatically by Supabase with verify_jwt = true
     // Validate input
     const requestBody = await req.json();
     const validation = RequestSchema.safeParse(requestBody);
@@ -127,7 +105,7 @@ serve(async (req) => {
       });
     }
 
-    console.log('Starting AI analysis with Lovable gateway for user:', user.id);
+    console.log('Starting AI analysis with Lovable gateway...');
 
     // Build multimodal content array
     const userContent: any[] = [];
