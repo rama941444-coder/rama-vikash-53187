@@ -1,1 +1,10 @@
 project_id = "lybjsymhdjgfuieueaef"
+
+[functions]
+enabled = true
+
+[functions.analyze-code]
+verify_jwt = true
+
+[functions.generate-tts]
+verify_jwt = true
