@@ -1,7 +1,9 @@
 import { useState, useCallback } from 'react';
-import { Upload, FileText, Loader2, Volume2, X } from 'lucide-react';
+import { Upload, FileText, Loader2, Volume2, VolumeX, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import * as pdfjsLib from 'pdfjs-dist';
@@ -48,6 +50,8 @@ const UniversalAnalyzer = () => {
   const [language, setLanguage] = useState('Universal File/Document');
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [voiceLanguage, setVoiceLanguage] = useState('en');
   const { toast } = useToast();
 
   const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
@@ -111,6 +115,17 @@ const UniversalAnalyzer = () => {
     setResult(null);
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast({
+          title: "Authentication Required",
+          description: "Please log in to analyze files",
+          variant: "destructive",
+        });
+        setAnalyzing(false);
+        return;
+      }
+
       // Process multiple files
       const fileDataPromises = files.map(async (file) => {
         return new Promise(async (resolve) => {
@@ -208,12 +223,54 @@ const UniversalAnalyzer = () => {
         }
       });
 
+      if (error) {
+        console.error('Function invocation error:', error);
+        if (error.message?.includes('402') || error.message?.includes('PAYMENT_REQUIRED')) {
+          toast({
+            title: "⚠️ Credits Required",
+            description: "Add credits in Settings → Workspace → Usage to enable AI analysis.",
+            variant: "destructive",
+            duration: 6000,
+          });
+        } else if (error.message?.includes('401')) {
+          toast({
+            title: "Authentication Failed",
+            description: "Please log in again to use AI analysis.",
+            variant: "destructive",
+          });
+        } else if (error.message?.includes('429')) {
+          toast({
+            title: "⚠️ Rate Limit",
+            description: "Too many requests. Please wait and try again.",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "❌ Analysis Failed",
+            description: "Failed to connect to analysis service. Please try again.",
+            variant: "destructive",
+          });
+        }
+        return;
+      }
+
       if (data) {
-        setResult(data);
-        toast({
-          title: "Analysis complete!",
-          description: `Successfully analyzed ${files.length} file(s)`,
-        });
+        if (data.error === 'PAYMENT_REQUIRED' || data.error === 'RATE_LIMIT_EXCEEDED') {
+          setResult(data);
+          toast({
+            title: data.error === 'PAYMENT_REQUIRED' ? "⚠️ Credits Required" : "⚠️ Rate Limit",
+            description: data.error === 'PAYMENT_REQUIRED' 
+              ? "Add credits in Settings → Workspace → Usage to enable AI analysis."
+              : "Too many requests. Please wait and try again.",
+            variant: "destructive",
+          });
+        } else {
+          setResult(data);
+          toast({
+            title: "✅ Analysis complete!",
+            description: `Successfully analyzed ${files.length} file(s) with Lovable AI`,
+          });
+        }
       }
     } catch (error: any) {
       console.error('Analysis error:', error);
@@ -228,6 +285,45 @@ const UniversalAnalyzer = () => {
 
   return (
     <div className="space-y-6">
+      {/* Voice Mode Controls */}
+      <div className="bg-card border border-border rounded-lg p-4 mb-6">
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Switch
+              id="voice-mode-universal"
+              checked={voiceEnabled}
+              onCheckedChange={setVoiceEnabled}
+            />
+            <Label htmlFor="voice-mode-universal" className="flex items-center gap-2 cursor-pointer">
+              {voiceEnabled ? (
+                <Volume2 className="w-5 h-5 text-primary" />
+              ) : (
+                <VolumeX className="w-5 h-5 text-muted-foreground" />
+              )}
+              <span className="font-semibold">Voice Mode {voiceEnabled ? 'ON' : 'OFF'}</span>
+            </Label>
+          </div>
+          
+          {voiceEnabled && (
+            <div className="flex items-center gap-2">
+              <Label htmlFor="voice-lang-universal" className="text-sm text-muted-foreground">
+                Language:
+              </Label>
+              <Select value={voiceLanguage} onValueChange={setVoiceLanguage}>
+                <SelectTrigger id="voice-lang-universal" className="w-[140px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="en">🇬🇧 English</SelectItem>
+                  <SelectItem value="te">🇮🇳 Telugu</SelectItem>
+                  <SelectItem value="hi">🇮🇳 Hindi</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+      </div>
+
       <div 
         className="border-2 border-dashed border-primary/50 rounded-xl p-12 text-center cursor-pointer hover:border-primary hover:bg-primary/5 transition-all neon-glow"
         onDrop={handleDrop}
@@ -307,6 +403,30 @@ const UniversalAnalyzer = () => {
           <div className="analysis-box-red">
             <h3 className="font-semibold text-lg mb-2">Analysis Report</h3>
             <pre className="whitespace-pre-wrap text-sm">{result.analysis}</pre>
+            {voiceEnabled && (
+              <Button
+                onClick={() => {
+                  try {
+                    const utterance = new SpeechSynthesisUtterance(result.analysis || '');
+                    utterance.lang = voiceLanguage === 'te' ? 'te-IN' : voiceLanguage === 'hi' ? 'hi-IN' : 'en-US';
+                    utterance.rate = 0.9;
+                    window.speechSynthesis.speak(utterance);
+                    toast({ 
+                      title: '🎙️ Playing Analysis', 
+                      description: `Language: ${voiceLanguage === 'en' ? 'English' : voiceLanguage === 'te' ? 'Telugu' : 'Hindi'}` 
+                    });
+                  } catch (error) {
+                    toast({ title: 'Voice playback failed', variant: 'destructive' });
+                  }
+                }}
+                variant="outline"
+                size="sm"
+                className="gap-2 mt-3"
+              >
+                <Volume2 className="w-4 h-4" />
+                Play Analysis
+              </Button>
+            )}
           </div>
           
           <div className="analysis-box-green">
@@ -363,32 +483,34 @@ const UniversalAnalyzer = () => {
               <pre className="whitespace-pre-wrap text-sm leading-relaxed mb-4">
                 {result.ttsNarration}
               </pre>
-              <Button
-                onClick={async () => {
-                  try {
-                    const utterance = new SpeechSynthesisUtterance(result.ttsNarration);
-                    utterance.rate = 0.9;
-                    utterance.pitch = 1;
-                    utterance.volume = 1;
-                    window.speechSynthesis.speak(utterance);
-                    toast({
-                      title: "Playing narration",
-                      description: "Audio narration started",
-                    });
-                  } catch (error) {
-                    toast({
-                      title: "Audio playback failed",
-                      description: "Could not play narration",
-                      variant: "destructive",
-                    });
-                  }
-                }}
-                variant="outline"
-                className="gap-2"
-              >
-                <Volume2 className="w-4 h-4" />
-                Play Narration
-              </Button>
+              {voiceEnabled && (
+                <Button
+                  onClick={async () => {
+                    try {
+                      const utterance = new SpeechSynthesisUtterance(result.ttsNarration);
+                      utterance.lang = voiceLanguage === 'te' ? 'te-IN' : voiceLanguage === 'hi' ? 'hi-IN' : 'en-US';
+                      utterance.rate = 0.9;
+                      utterance.pitch = 1;
+                      utterance.volume = 1;
+                      window.speechSynthesis.speak(utterance);
+                      toast({
+                        title: "🎙️ Playing Narration",
+                        description: `Language: ${voiceLanguage === 'en' ? 'English' : voiceLanguage === 'te' ? 'Telugu' : 'Hindi'}`,
+                      });
+                    } catch (error) {
+                      toast({
+                        title: "Voice playback failed",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                  variant="outline"
+                  className="gap-2"
+                >
+                  <Volume2 className="w-4 h-4" />
+                  Play Narration
+                </Button>
+              )}
             </div>
           )}
         </div>
