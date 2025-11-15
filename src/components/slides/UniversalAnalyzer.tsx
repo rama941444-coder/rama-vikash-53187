@@ -225,52 +225,21 @@ const UniversalAnalyzer = () => {
 
       if (error) {
         console.error('Function invocation error:', error);
-        if (error.message?.includes('402') || error.message?.includes('PAYMENT_REQUIRED')) {
-          toast({
-            title: "⚠️ AI Service Unavailable",
-            description: "AI analysis is currently unavailable. Please try again later or contact support.",
-            variant: "destructive",
-            duration: 6000,
-          });
-        } else if (error.message?.includes('401')) {
-          toast({
-            title: "Authentication Failed",
-            description: "Please log in again to use AI analysis.",
-            variant: "destructive",
-          });
-        } else if (error.message?.includes('429')) {
-          toast({
-            title: "⚠️ Rate Limit",
-            description: "Too many requests. Please wait and try again.",
-            variant: "destructive",
-          });
-        } else {
-          toast({
-            title: "❌ Analysis Failed",
-            description: "Failed to connect to analysis service. Please try again.",
-            variant: "destructive",
-          });
-        }
+        toast({
+          title: "❌ AI Configuration Required",
+          description: "Please configure your Gemini API key in Settings to enable analysis.",
+          variant: "destructive",
+          duration: 8000,
+        });
         return;
       }
 
       if (data) {
-        if (data.error === 'PAYMENT_REQUIRED' || data.error === 'RATE_LIMIT_EXCEEDED') {
-          setResult(data);
-          toast({
-            title: data.error === 'PAYMENT_REQUIRED' ? "⚠️ Credits Required" : "⚠️ Rate Limit",
-            description: data.error === 'PAYMENT_REQUIRED' 
-              ? "Add credits in Settings → Workspace → Usage to enable AI analysis."
-              : "Too many requests. Please wait and try again.",
-            variant: "destructive",
-          });
-        } else {
-          setResult(data);
-          toast({
-            title: "✅ Analysis complete!",
-            description: `Successfully analyzed ${files.length} file(s) with Lovable AI`,
-          });
-        }
+        setResult(data);
+        toast({
+          title: "✅ Analysis complete!",
+          description: `Successfully analyzed ${files.length} file(s) with ${data.provider === 'gemini' ? 'Google Gemini' : 'AI'}`,
+        });
       }
     } catch (error: any) {
       console.error('Analysis error:', error);

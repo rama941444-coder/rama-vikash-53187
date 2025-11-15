@@ -144,69 +144,22 @@ const CodeInput = ({ onAnalysisComplete }: CodeInputProps) => {
 
       if (error) {
         console.error('Function invocation error:', error);
-        if (error.message?.includes('402') || error.message?.includes('PAYMENT_REQUIRED')) {
-          toast({
-            title: "⚠️ AI Service Unavailable",
-            description: "AI analysis is currently unavailable. Please try again later or contact support.",
-            variant: "destructive",
-            duration: 6000,
-          });
-        } else if (error.message?.includes('401')) {
-          toast({
-            title: "Authentication Failed",
-            description: "Please log in again to use AI analysis.",
-            variant: "destructive",
-          });
-        } else if (error.message?.includes('429')) {
-          toast({
-            title: "⚠️ Rate Limit",
-            description: "Too many requests. Please wait and try again.",
-            variant: "destructive",
-          });
-        } else {
-          toast({
-            title: "❌ Analysis Failed",
-            description: "Failed to connect to analysis service. Please try again.",
-            variant: "destructive",
-          });
-        }
+        toast({
+          title: "❌ AI Configuration Required",
+          description: "Please configure your Gemini API key in Settings to enable analysis.",
+          variant: "destructive",
+          duration: 8000,
+        });
         return;
       }
 
       if (data) {
-        // Check for specific error types
-        if (data.error === 'RATE_LIMIT_EXCEEDED') {
-          setResult(data);
-          onAnalysisComplete(data);
-          toast({
-            title: "⚠️ Rate Limit Exceeded",
-            description: "Too many requests. Please wait a moment and try again.",
-            variant: "destructive",
-          });
-        } else if (data.error === 'PAYMENT_REQUIRED') {
-          setResult(data);
-          onAnalysisComplete(data);
-          toast({
-            title: "⚠️ Credits Required",
-            description: "Add credits in Settings → Workspace → Usage to enable AI analysis.",
-            variant: "destructive",
-          });
-        } else if (data.error) {
-          setResult(data);
-          onAnalysisComplete(data);
-          toast({
-            title: "⚠️ Analysis Error",
-            description: "An error occurred. Check the results for details.",
-            variant: "destructive",
-          });
-        } else {
-          setResult(data);
-          onAnalysisComplete(data);
-          toast({
-            title: "✅ Analysis Complete!",
-            description: "All results are ready. Lovable AI powered analysis.",
-          });
-        }
+        setResult(data);
+        onAnalysisComplete(data);
+        toast({
+          title: "✅ Analysis Complete",
+          description: `Analyzed by ${data.provider === 'gemini' ? 'Google Gemini' : 'AI'}`,
+        });
       }
     } catch (error: any) {
       console.error('Analysis error:', error);
