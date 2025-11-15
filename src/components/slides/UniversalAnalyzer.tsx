@@ -227,8 +227,8 @@ const UniversalAnalyzer = () => {
         console.error('Function invocation error:', error);
         if (error.message?.includes('402') || error.message?.includes('PAYMENT_REQUIRED')) {
           toast({
-            title: "⚠️ Credits Required",
-            description: "Add credits in Settings → Workspace → Usage to enable AI analysis.",
+            title: "⚠️ AI Service Unavailable",
+            description: "AI analysis is currently unavailable. Please try again later or contact support.",
             variant: "destructive",
             duration: 6000,
           });
