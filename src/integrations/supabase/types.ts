@@ -14,16 +14,232 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      free_trials: {
+        Row: {
+          created_at: string
+          device_fingerprint: string | null
+          id: string
+          trial_date: string
+          usage_count: number
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          device_fingerprint?: string | null
+          id?: string
+          trial_date?: string
+          usage_count?: number
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          device_fingerprint?: string | null
+          id?: string
+          trial_date?: string
+          usage_count?: number
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      pricing_config: {
+        Row: {
+          admin_name: string | null
+          admin_phone: string | null
+          admin_region: string | null
+          amount: number
+          created_at: string
+          currency: string
+          id: string
+          is_active: boolean | null
+          plan_type: string
+          updated_at: string
+          upi_id: string | null
+        }
+        Insert: {
+          admin_name?: string | null
+          admin_phone?: string | null
+          admin_region?: string | null
+          amount: number
+          created_at?: string
+          currency: string
+          id?: string
+          is_active?: boolean | null
+          plan_type: string
+          updated_at?: string
+          upi_id?: string | null
+        }
+        Update: {
+          admin_name?: string | null
+          admin_phone?: string | null
+          admin_region?: string | null
+          amount?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          is_active?: boolean | null
+          plan_type?: string
+          updated_at?: string
+          upi_id?: string | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string | null
+          full_name: string | null
+          id: string
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      subscriptions: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string | null
+          end_date: string | null
+          id: string
+          payment_method: string | null
+          payment_screenshot_url: string | null
+          plan_type: string
+          qr_code_url: string | null
+          start_date: string | null
+          status: string
+          transaction_id: string | null
+          updated_at: string
+          user_email: string | null
+          user_id: string
+          user_phone: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          currency?: string | null
+          end_date?: string | null
+          id?: string
+          payment_method?: string | null
+          payment_screenshot_url?: string | null
+          plan_type: string
+          qr_code_url?: string | null
+          start_date?: string | null
+          status?: string
+          transaction_id?: string | null
+          updated_at?: string
+          user_email?: string | null
+          user_id: string
+          user_phone: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string | null
+          end_date?: string | null
+          id?: string
+          payment_method?: string | null
+          payment_screenshot_url?: string | null
+          plan_type?: string
+          qr_code_url?: string | null
+          start_date?: string | null
+          status?: string
+          transaction_id?: string | null
+          updated_at?: string
+          user_email?: string | null
+          user_id?: string
+          user_phone?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
-      [_ in never]: never
+      pricing_public: {
+        Row: {
+          amount: number | null
+          created_at: string | null
+          currency: string | null
+          id: string | null
+          is_active: boolean | null
+          plan_type: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string | null
+          currency?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          plan_type?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string | null
+          currency?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          plan_type?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
-      [_ in never]: never
+      check_trial_eligibility: {
+        Args: { _device_fingerprint: string; _user_id: string }
+        Returns: boolean
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      increment_trial_usage: {
+        Args: { _device_fingerprint: string; _user_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +366,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "user"],
+    },
   },
 } as const
