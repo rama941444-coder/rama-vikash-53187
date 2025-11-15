@@ -7,7 +7,7 @@ import CodeInput from '@/components/slides/CodeInput';
 import DiagnosticResults from '@/components/slides/DiagnosticResults';
 import SlideIndicator from '@/components/SlideIndicator';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Settings } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import aiHeaderIcon from '@/assets/ai-3d-icon.png';
 import { UserMenu } from '@/components/auth/UserMenu';
 
@@ -81,15 +81,6 @@ const Index = () => {
             AI Code Analysis & Diagnostic Suite
           </h1>
           <div className="flex items-center gap-4">
-            <Button
-              onClick={() => navigate("/settings")}
-              variant="outline"
-              size="sm"
-              className="gap-2"
-            >
-              <Settings className="w-4 h-4" />
-              Settings
-            </Button>
             <img src={aiHeaderIcon} alt="AI Icon" className="w-12 h-12 md:w-16 md:h-16 neon-glow" />
             <UserMenu />
           </div>
