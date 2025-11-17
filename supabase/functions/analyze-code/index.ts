@@ -90,12 +90,12 @@ serve(async (req) => {
       console.log(`File validation passed for ${fileData.length} file(s)`);
     }
     
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
 
-    if (!LOVABLE_API_KEY) {
+    if (!GEMINI_API_KEY) {
       return new Response(JSON.stringify({ 
         error: 'AI_NOT_CONFIGURED',
-        analysis: '⚠️ AI service is not configured. Please contact support.',
+        analysis: '⚠️ Gemini API key is not configured. Please add your API key.',
         correctedCode: code || '',
         output: '',
         ttsNarration: ''
@@ -105,7 +105,7 @@ serve(async (req) => {
       });
     }
 
-    console.log('Starting AI analysis with Lovable gateway...');
+    console.log('Starting AI analysis with Gemini API...');
 
     // Build multimodal content array
     const userContent: any[] = [];
@@ -367,7 +367,7 @@ Below are the page images for OCR analysis:`
       }
     ];
 
-    console.log('Calling Lovable AI with multimodal content:', { 
+    console.log('Calling Gemini API with multimodal content:', { 
       language, 
       hasCode: !!code, 
       fileCount: files?.length || 0,
@@ -376,18 +376,56 @@ Below are the page images for OCR analysis:`
       totalPageImages: fileData?.reduce((sum, f) => sum + (f.pageImages?.length || 0), 0) || 0
     });
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    // Convert messages to Gemini format
+    const geminiContents = messages.map(msg => {
+      if (msg.role === 'system') {
+        return {
+          role: 'user',
+          parts: [{ text: msg.content }]
+        };
+      }
+      if (typeof msg.content === 'string') {
+        return {
+          role: msg.role === 'user' ? 'user' : 'model',
+          parts: [{ text: msg.content }]
+        };
+      }
+      // Handle multimodal content
+      return {
+        role: 'user',
+        parts: msg.content.map((item: any) => {
+          if (item.type === 'text') {
+            return { text: item.text };
+          }
+          if (item.type === 'image_url') {
+            // Extract base64 data
+            const base64Data = item.image_url.url.replace(/^data:image\/\w+;base64,/, '');
+            const mimeType = item.image_url.url.match(/^data:(image\/\w+);base64,/)?.[1] || 'image/jpeg';
+            return {
+              inlineData: {
+                mimeType,
+                data: base64Data
+              }
+            };
+          }
+          return { text: '' };
+        })
+      };
+    });
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
-        body: JSON.stringify({
-          model: 'google/gemini-2.5-flash', // Fast and efficient model for quick analysis
-          messages,
-          response_format: { type: "json_object" },
-          max_tokens: 8192
-        }),
+      body: JSON.stringify({
+        contents: geminiContents,
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 8192,
+          responseMimeType: "application/json"
+        }
+      }),
     });
 
     if (!response.ok) {
@@ -438,7 +476,7 @@ Below are the page images for OCR analysis:`
     }
 
     const data = await response.json();
-    const content = data.choices[0].message.content;
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
     
     console.log('AI Response received');
 
