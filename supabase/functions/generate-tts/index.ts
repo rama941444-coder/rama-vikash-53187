@@ -32,34 +32,38 @@ serve(async (req) => {
     }
 
     const { text } = validation.data;
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
 
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+    if (!GEMINI_API_KEY) {
+      throw new Error('GEMINI_API_KEY is not configured');
     }
 
     console.log('Generating TTS for text length:', text.length);
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
+        contents: [
           {
-            role: "system",
-            content: "You are a helpful assistant that explains technical content clearly and concisely."
+            role: 'user',
+            parts: [
+              { text: "You are a helpful assistant that explains technical content clearly and concisely." }
+            ]
           },
           {
-            role: "user",
-            content: `Please narrate this text in a clear, professional voice suitable for technical explanation: ${text.substring(0, 1000)}`
+            role: 'user',
+            parts: [
+              { text: `Please narrate this text in a clear, professional voice suitable for technical explanation: ${text.substring(0, 1000)}` }
+            ]
           }
         ],
-        temperature: 0.7,
-        max_tokens: 1000
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 1000
+        }
       }),
     });
 
@@ -74,7 +78,7 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    const narrationText = data.choices[0].message.content;
+    const narrationText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
     
     console.log('TTS generated successfully');
 
