@@ -32,66 +32,49 @@ serve(async (req) => {
     }
 
     const { text } = validation.data;
-    const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
 
-    if (!GEMINI_API_KEY) {
-      throw new Error('GEMINI_API_KEY is not configured');
+    if (!LOVABLE_API_KEY) {
+      throw new Error('LOVABLE_API_KEY is not configured');
     }
 
     console.log('Generating TTS for text length:', text.length);
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
+        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        contents: [
+        model: 'google/gemini-2.5-flash',
+        messages: [
           {
-            role: 'user',
-            parts: [
-              { text: "You are a helpful assistant that explains technical content clearly and concisely." }
-            ]
+            role: "system",
+            content: "You are a helpful assistant that explains technical content clearly and concisely."
           },
           {
-            role: 'user',
-            parts: [
-              { text: `Please narrate this text in a clear, professional voice suitable for technical explanation: ${text.substring(0, 1000)}` }
-            ]
+            role: "user",
+            content: `Please narrate this text in a clear, professional voice suitable for technical explanation: ${text.substring(0, 1000)}`
           }
         ],
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 1000
-        }
+        temperature: 0.7,
+        max_tokens: 1000
       }),
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Gemini API error:', response.status, errorText);
-      
       if (response.status === 429) {
         return new Response(JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }), {
           status: 429,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      
-      if (response.status === 400 && errorText.includes('API_KEY_INVALID')) {
-        return new Response(JSON.stringify({ 
-          error: 'Invalid GEMINI_API_KEY. Please update your API key in project secrets.' 
-        }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      
-      throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
+      throw new Error(`AI gateway error: ${response.status}`);
     }
 
     const data = await response.json();
-    const narrationText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const narrationText = data.choices[0].message.content;
     
     console.log('TTS generated successfully');
 
