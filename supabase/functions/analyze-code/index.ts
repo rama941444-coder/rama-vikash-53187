@@ -430,13 +430,13 @@ Below are the page images for OCR analysis:`
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('AI gateway error:', response.status, errorText);
+      console.error('Gemini API error:', response.status, errorText);
       
       // Handle specific error codes
       if (response.status === 429) {
         return new Response(JSON.stringify({
           error: 'RATE_LIMIT_EXCEEDED',
-          analysis: '⚠️ Rate limit exceeded. You are sending too many requests.\n\n📌 Please wait a moment and try again.\n\nIf this persists, contact support@lovable.dev to increase your rate limit.',
+          analysis: '⚠️ Rate limit exceeded. You are sending too many requests to Gemini API.\n\n📌 Please wait a moment and try again.',
           correctedCode: code || '// Rate limit exceeded',
           output: '💡 Tip: Space out your requests to avoid rate limiting.',
           ttsNarration: 'Rate limit exceeded. Please wait a moment before trying again.',
@@ -447,24 +447,24 @@ Below are the page images for OCR analysis:`
         });
       }
       
-      if (response.status === 402) {
+      if (response.status === 400 && errorText.includes('API_KEY_INVALID')) {
         return new Response(JSON.stringify({
-          error: 'PAYMENT_REQUIRED',
-          analysis: '⚠️ AI Analysis requires credits. Your Lovable workspace needs more AI credits to analyze code.\n\n📌 How to add credits:\n1. Go to Settings → Workspace → Usage\n2. Add credits to your workspace\n3. You get free monthly AI usage included!\n\nOnce credits are added, all AI features will work automatically across ALL slides.',
-          correctedCode: code || '// Add credits to enable AI analysis',
-          output: '💡 Tip: Lovable AI is already configured - just add credits to your workspace to start analyzing code!',
-          ttsNarration: 'AI analysis requires workspace credits. Add credits in Settings to enable AI features.',
+          error: 'INVALID_API_KEY',
+          analysis: '⚠️ Invalid Gemini API Key\n\n📌 Your GEMINI_API_KEY is not valid.\n\nTo fix:\n1. Get a valid API key from https://aistudio.google.com/app/apikey\n2. Update the GEMINI_API_KEY secret in your project\n3. Try again',
+          correctedCode: code || '// Invalid API key',
+          output: 'Please update your GEMINI_API_KEY with a valid key from Google AI Studio.',
+          ttsNarration: 'Invalid API key. Please update your Gemini API key.',
           mcq: ''
         }), {
-          status: 402,
+          status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
       
       // Generic error for other cases
       return new Response(JSON.stringify({
-        error: 'AI_GATEWAY_ERROR',
-        analysis: `⚠️ AI Gateway Error (${response.status})\n\n${errorText}\n\nPlease try again or contact support if the issue persists.`,
+        error: 'GEMINI_API_ERROR',
+        analysis: `⚠️ Gemini API Error (${response.status})\n\n${errorText}\n\nPlease check your API key and try again.`,
         correctedCode: code || '// Error occurred',
         output: 'An error occurred during analysis.',
         ttsNarration: 'An error occurred. Please try again.',
