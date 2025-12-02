@@ -30,29 +30,6 @@ serve(async (req) => {
   }
 
   try {
-    // Verify authentication
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Authentication required' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: authHeader } } }
-    );
-
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Invalid authentication' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
     // Validate input
     const requestBody = await req.json();
     const validation = RequestSchema.safeParse(requestBody);
@@ -115,19 +92,8 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
 
     if (!LOVABLE_API_KEY) {
-      return new Response(JSON.stringify({ 
-        error: 'AI_NOT_CONFIGURED',
-        analysis: '⚠️ AI service is not configured. Please contact support.',
-        correctedCode: code || '',
-        output: '',
-        ttsNarration: ''
-      }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      throw new Error('LOVABLE_API_KEY is not configured');
     }
-
-    console.log('Starting AI analysis with Lovable gateway for user:', user.id);
 
     // Build multimodal content array
     const userContent: any[] = [];
@@ -405,10 +371,10 @@ Below are the page images for OCR analysis:`
         'Content-Type': 'application/json',
       },
         body: JSON.stringify({
-          model: 'google/gemini-2.5-flash', // Fast and efficient model for quick analysis
+          model: 'google/gemini-2.5-pro', // Using most advanced AI model
           messages,
           response_format: { type: "json_object" },
-          max_tokens: 8192
+          max_tokens: 16384 // Increased for large HTML files
         }),
     });
 

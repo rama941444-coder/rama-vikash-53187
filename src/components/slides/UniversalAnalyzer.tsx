@@ -111,17 +111,6 @@ const UniversalAnalyzer = () => {
     setResult(null);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        toast({
-          title: "Authentication Required",
-          description: "Please log in to analyze files",
-          variant: "destructive",
-        });
-        setAnalyzing(false);
-        return;
-      }
-
       // Process multiple files
       const fileDataPromises = files.map(async (file) => {
         return new Promise(async (resolve) => {
@@ -219,54 +208,12 @@ const UniversalAnalyzer = () => {
         }
       });
 
-      if (error) {
-        console.error('Function invocation error:', error);
-        if (error.message?.includes('402') || error.message?.includes('PAYMENT_REQUIRED')) {
-          toast({
-            title: "⚠️ Credits Required",
-            description: "Add credits in Settings → Workspace → Usage to enable AI analysis.",
-            variant: "destructive",
-            duration: 6000,
-          });
-        } else if (error.message?.includes('401')) {
-          toast({
-            title: "Authentication Failed",
-            description: "Please log in again to use AI analysis.",
-            variant: "destructive",
-          });
-        } else if (error.message?.includes('429')) {
-          toast({
-            title: "⚠️ Rate Limit",
-            description: "Too many requests. Please wait and try again.",
-            variant: "destructive",
-          });
-        } else {
-          toast({
-            title: "❌ Analysis Failed",
-            description: "Failed to connect to analysis service. Please try again.",
-            variant: "destructive",
-          });
-        }
-        return;
-      }
-
       if (data) {
-        if (data.error === 'PAYMENT_REQUIRED' || data.error === 'RATE_LIMIT_EXCEEDED') {
-          setResult(data);
-          toast({
-            title: data.error === 'PAYMENT_REQUIRED' ? "⚠️ Credits Required" : "⚠️ Rate Limit",
-            description: data.error === 'PAYMENT_REQUIRED' 
-              ? "Add credits in Settings → Workspace → Usage to enable AI analysis."
-              : "Too many requests. Please wait and try again.",
-            variant: "destructive",
-          });
-        } else {
-          setResult(data);
-          toast({
-            title: "✅ Analysis complete!",
-            description: `Successfully analyzed ${files.length} file(s) with Lovable AI`,
-          });
-        }
+        setResult(data);
+        toast({
+          title: "Analysis complete!",
+          description: `Successfully analyzed ${files.length} file(s)`,
+        });
       }
     } catch (error: any) {
       console.error('Analysis error:', error);

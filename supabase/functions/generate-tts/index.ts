@@ -17,29 +17,6 @@ serve(async (req) => {
   }
 
   try {
-    // Verify authentication
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Authentication required' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: authHeader } } }
-    );
-
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Invalid authentication' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
     // Validate input
     const requestBody = await req.json();
     const validation = RequestSchema.safeParse(requestBody);
@@ -79,9 +56,7 @@ serve(async (req) => {
             role: "user",
             content: `Please narrate this text in a clear, professional voice suitable for technical explanation: ${text.substring(0, 1000)}`
           }
-        ],
-        temperature: 0.7,
-        max_tokens: 1000
+        ]
       }),
     });
 
