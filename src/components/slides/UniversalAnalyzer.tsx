@@ -1,11 +1,12 @@
 import { useState, useCallback } from 'react';
-import { Upload, FileText, Loader2, Volume2, X } from 'lucide-react';
+import { Upload, FileText, Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import * as pdfjsLib from 'pdfjs-dist';
 import { parseDocument } from '@/lib/documentParser';
+import NarrationControls from '@/components/NarrationControls';
 // @ts-ignore - Vite resolves this to a URL string for the worker file
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
 
@@ -353,42 +354,14 @@ const UniversalAnalyzer = () => {
             </div>
           )}
 
-          {/* Orange Box - TTS Narration */}
+          {/* Orange Box - TTS Narration with Multi-Language */}
           {result.ttsNarration && (
             <div className="analysis-box-orange">
               <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
                 <span className="w-3 h-3 bg-orange-500 rounded-full"></span>
                 TTS Narration
               </h3>
-              <pre className="whitespace-pre-wrap text-sm leading-relaxed mb-4">
-                {result.ttsNarration}
-              </pre>
-              <Button
-                onClick={async () => {
-                  try {
-                    const utterance = new SpeechSynthesisUtterance(result.ttsNarration);
-                    utterance.rate = 0.9;
-                    utterance.pitch = 1;
-                    utterance.volume = 1;
-                    window.speechSynthesis.speak(utterance);
-                    toast({
-                      title: "Playing narration",
-                      description: "Audio narration started",
-                    });
-                  } catch (error) {
-                    toast({
-                      title: "Audio playback failed",
-                      description: "Could not play narration",
-                      variant: "destructive",
-                    });
-                  }
-                }}
-                variant="outline"
-                className="gap-2"
-              >
-                <Volume2 className="w-4 h-4" />
-                Play Narration
-              </Button>
+              <NarrationControls text={result.ttsNarration} />
             </div>
           )}
         </div>
