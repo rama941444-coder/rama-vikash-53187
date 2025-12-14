@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Volume2, Loader2, Download } from 'lucide-react';
+import { Download } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import jsPDF from 'jspdf';
@@ -164,35 +164,13 @@ const DiagnosticResults = ({ data }: DiagnosticResultsProps) => {
       </div>
 
       <div className="grid gap-6">
+        {/* Red Box - Errors & Analysis with Narration Controls */}
         <div className="analysis-box-red">
           <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
             <span className="w-3 h-3 bg-red-500 rounded-full"></span>
             Errors & Execution Analysis
           </h3>
-          <pre className="whitespace-pre-wrap text-sm leading-relaxed">
-            {data.analysis || 'No errors detected'}
-          </pre>
-          <div className="mt-3">
-            <Button
-              onClick={() => {
-                try {
-                  const utterance = new SpeechSynthesisUtterance(data.analysis || '');
-                  utterance.rate = 0.95;
-                  utterance.pitch = 1;
-                  utterance.volume = 1;
-                  window.speechSynthesis.speak(utterance);
-                  toast({ title: 'Playing analysis narration', description: 'Audio narration started' });
-                } catch (error) {
-                  toast({ title: 'Audio playback failed', description: 'Could not play narration', variant: 'destructive' });
-                }
-              }}
-              variant="outline"
-              className="gap-2"
-            >
-              <Volume2 className="w-4 h-4" />
-              Play Analysis (Voice)
-            </Button>
-          </div>
+          <NarrationControls text={data.analysis || 'No errors detected'} />
         </div>
 
         {/* Green Box - Corrected Code */}
