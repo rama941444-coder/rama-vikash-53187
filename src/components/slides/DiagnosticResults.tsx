@@ -4,6 +4,7 @@ import { Volume2, Loader2, Download } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import jsPDF from 'jspdf';
+import NarrationControls from '@/components/NarrationControls';
 
 interface DiagnosticResultsProps {
   data: any;
@@ -216,42 +217,13 @@ const DiagnosticResults = ({ data }: DiagnosticResultsProps) => {
           </pre>
         </div>
 
-        {/* Orange Box - Code Explanation with Voice */}
+        {/* Orange Box - Code Explanation with Voice & Multi-Language */}
         <div className="analysis-box-orange">
           <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
             <span className="w-3 h-3 bg-orange-500 rounded-full"></span>
             Code Explanation (Voice Narration)
           </h3>
-          <pre className="whitespace-pre-wrap text-sm leading-relaxed mb-4">
-            {data.ttsNarration || 'No explanation available'}
-          </pre>
-          <Button
-            onClick={() => {
-              try {
-                const utterance = new SpeechSynthesisUtterance(data.ttsNarration);
-                utterance.rate = 0.9;
-                utterance.pitch = 1;
-                utterance.volume = 1;
-                window.speechSynthesis.speak(utterance);
-                toast({
-                  title: "Playing narration",
-                  description: "Audio narration started",
-                });
-              } catch (error) {
-                toast({
-                  title: "Audio playback failed",
-                  description: "Could not play narration",
-                  variant: "destructive",
-                });
-              }
-            }}
-            disabled={isGeneratingTTS || !data.ttsNarration}
-            variant="outline"
-            className="gap-2"
-          >
-            <Volume2 className="w-4 h-4" />
-            Play Voice Explanation
-          </Button>
+          <NarrationControls text={data.ttsNarration || 'No explanation available'} />
         </div>
 
         {/* Blue Box - MCQ Questions */}
