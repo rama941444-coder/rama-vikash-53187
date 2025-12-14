@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Upload, FileText, Loader2, X, Download } from 'lucide-react';
+import { Upload, FileText, Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
@@ -7,7 +7,6 @@ import { supabase } from '@/integrations/supabase/client';
 import * as pdfjsLib from 'pdfjs-dist';
 import { parseDocument } from '@/lib/documentParser';
 import NarrationControls from '@/components/NarrationControls';
-import jsPDF from 'jspdf';
 // @ts-ignore - Vite resolves this to a URL string for the worker file
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
 
@@ -306,73 +305,9 @@ const UniversalAnalyzer = () => {
 
       {result && (
         <div className="grid gap-4 mt-8">
-          {/* Download All Report Button */}
-          <div className="flex justify-end">
-            <Button
-              onClick={() => {
-                try {
-                  const doc = new jsPDF();
-                  let yPos = 20;
-                  const pageHeight = doc.internal.pageSize.height;
-                  const margin = 20;
-                  const maxWidth = 170;
-
-                  const addSection = (title: string, content: string, color: [number, number, number]) => {
-                    if (yPos > pageHeight - 40) {
-                      doc.addPage();
-                      yPos = 20;
-                    }
-                    doc.setFontSize(14);
-                    doc.setTextColor(...color);
-                    doc.text(title, margin, yPos);
-                    yPos += 10;
-                    doc.setFontSize(10);
-                    doc.setTextColor(0, 0, 0);
-                    const lines = doc.splitTextToSize(content || 'N/A', maxWidth);
-                    lines.forEach((line: string) => {
-                      if (yPos > pageHeight - 20) {
-                        doc.addPage();
-                        yPos = 20;
-                      }
-                      doc.text(line, margin, yPos);
-                      yPos += 7;
-                    });
-                    yPos += 10;
-                  };
-
-                  doc.setFontSize(18);
-                  doc.setTextColor(0, 0, 0);
-                  doc.text('Universal Analyzer Report', margin, yPos);
-                  yPos += 15;
-
-                  addSection('Analysis Report', result.analysis || '', [220, 38, 38]);
-                  addSection('Corrected Code', result.correctedCode || '', [34, 197, 94]);
-                  addSection('Execution Output', result.output || '', [0, 0, 0]);
-                  if (result.flowchart) addSection('Flowchart / Logic', result.flowchart, [59, 130, 246]);
-                  if (result.dsa) addSection('DSA Analysis', result.dsa, [147, 51, 234]);
-                  if (result.ttsNarration) addSection('TTS Narration', result.ttsNarration, [249, 115, 22]);
-
-                  doc.save('universal-analyzer-report.pdf');
-                  toast({ title: 'Report Downloaded', description: 'PDF saved successfully' });
-                } catch (error) {
-                  toast({ title: 'Download failed', description: 'Could not generate PDF', variant: 'destructive' });
-                }
-              }}
-              variant="outline"
-              className="gap-2"
-            >
-              <Download className="w-4 h-4" />
-              Download All Report
-            </Button>
-          </div>
-
-          {/* Red Box - Analysis with Narration Controls */}
           <div className="analysis-box-red">
-            <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
-              <span className="w-3 h-3 bg-red-500 rounded-full"></span>
-              Analysis Report
-            </h3>
-            <NarrationControls text={result.analysis || 'No analysis available'} />
+            <h3 className="font-semibold text-lg mb-2">Analysis Report</h3>
+            <pre className="whitespace-pre-wrap text-sm">{result.analysis}</pre>
           </div>
           
           <div className="analysis-box-green">
