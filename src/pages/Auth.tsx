@@ -243,7 +243,7 @@ const Auth = () => {
                   <Input
                     id="signup-password"
                     type="password"
-                    placeholder="Create a password (min 6 characters)"
+                    placeholder="Min 12 chars, uppercase, lowercase, number, special char"
                     value={signupPassword}
                     onChange={(e) => setSignupPassword(e.target.value)}
                     required
