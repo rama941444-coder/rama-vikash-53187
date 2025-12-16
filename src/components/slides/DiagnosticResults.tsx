@@ -5,6 +5,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import jsPDF from 'jspdf';
 import NarrationControls from '@/components/NarrationControls';
+import DOMPurify from 'dompurify';
 
 interface DiagnosticResultsProps {
   data: any;
@@ -283,7 +284,11 @@ const DiagnosticResults = ({ data }: DiagnosticResultsProps) => {
                 <h4 className="text-md font-semibold mb-2">HTML/CSS/JavaScript Preview</h4>
                 <div className="bg-white rounded-lg p-4 border-l-4 border-cyan-400">
                   <iframe 
-                    srcDoc={data.correctedCode}
+                    srcDoc={DOMPurify.sanitize(data.correctedCode, { 
+                      WHOLE_DOCUMENT: true,
+                      ADD_TAGS: ['style', 'link'],
+                      ADD_ATTR: ['target', 'rel']
+                    })}
                     className="w-full min-h-[400px] border-0 rounded"
                     sandbox="allow-scripts"
                     title="HTML Preview"

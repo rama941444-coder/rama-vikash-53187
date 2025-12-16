@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Upload, Loader2, Play } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import DOMPurify from 'dompurify';
 
 interface CodeInputProps {
   onAnalysisComplete: (data: any) => void;
@@ -303,7 +304,11 @@ const CodeInput = ({ onAnalysisComplete }: CodeInputProps) => {
               <h3 className="font-semibold text-lg mb-2">HTML Preview</h3>
               <div className="bg-white rounded-lg p-4">
                 <iframe 
-                  srcDoc={result.correctedCode}
+                  srcDoc={DOMPurify.sanitize(result.correctedCode, { 
+                    WHOLE_DOCUMENT: true,
+                    ADD_TAGS: ['style', 'link'],
+                    ADD_ATTR: ['target', 'rel']
+                  })}
                   className="w-full min-h-[400px] border-0 rounded"
                   sandbox="allow-scripts"
                   title="HTML Preview"
