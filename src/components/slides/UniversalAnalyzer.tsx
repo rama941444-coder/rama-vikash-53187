@@ -40,10 +40,18 @@ const pdfToImages = async (file: File, maxPages = 10): Promise<string[]> => {
 
 const UniversalAnalyzer = () => {
   const [files, setFiles] = useState<File[]>([]);
-  const [language, setLanguage] = useState('Universal File/Document');
+  const [language, setLanguage] = useState('Auto-Detect');
+  const [languageSearch, setLanguageSearch] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<any>(null);
   const { toast } = useToast();
+
+  // Filter languages based on search
+  const filteredLanguages = languageSearch
+    ? ALL_PROGRAMMING_LANGUAGES.filter(lang => 
+        lang.toLowerCase().includes(languageSearch.toLowerCase())
+      ).slice(0, 50)
+    : ALL_PROGRAMMING_LANGUAGES.slice(0, 100);
 
   const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -264,13 +272,24 @@ const UniversalAnalyzer = () => {
 
       <div className="flex flex-col md:flex-row gap-4 items-end">
         <div className="flex-1">
-          <label className="block text-sm font-medium mb-2">File Language/Type</label>
+          <label className="block text-sm font-medium mb-2">Select Language/Context (1600+ Languages)</label>
           <Select value={language} onValueChange={setLanguage}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
-              {LANGUAGES.map((lang) => (
+            <SelectContent className="max-h-[300px]">
+              <div className="px-2 py-1 sticky top-0 bg-background z-10">
+                <div className="relative">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search 1600+ languages..."
+                    value={languageSearch}
+                    onChange={(e) => setLanguageSearch(e.target.value)}
+                    className="pl-8 h-9"
+                  />
+                </div>
+              </div>
+              {filteredLanguages.map((lang) => (
                 <SelectItem key={lang} value={lang}>{lang}</SelectItem>
               ))}
             </SelectContent>
