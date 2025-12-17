@@ -1,12 +1,14 @@
-import { useState, useCallback } from 'react';
-import { Upload, FileText, Loader2, X } from 'lucide-react';
+import { useState, useCallback, useRef } from 'react';
+import { Upload, FileText, Loader2, X, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import * as pdfjsLib from 'pdfjs-dist';
 import { parseDocument } from '@/lib/documentParser';
 import NarrationControls from '@/components/NarrationControls';
+import { ALL_PROGRAMMING_LANGUAGES } from '@/lib/programmingLanguages';
 // @ts-ignore - Vite resolves this to a URL string for the worker file
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
 
@@ -15,14 +17,6 @@ try {
   // @ts-ignore
   (pdfjsLib as any).GlobalWorkerOptions.workerSrc = pdfWorker;
 } catch {}
-
-const LANGUAGES = [
-  'Universal File/Document', 'C', 'C++', 'C#', 'Java', 'JavaScript', 
-  'HTML', 'CSS', 'Python', 'Swift', 'Golang', 'Kotlin', 'PHP', 
-  'SQL-DDL', 'SQL-DML', 'SQL-DCL', 'SQL-TCL', 'SQL-Triggers', 'SQL-Joins',
-  'PL/SQL', 'T-SQL', 'DBMS', 'MongoDB Query Language', 'R',
-  'Handwritten Notes', 'Text Document', 'DSA & Algorithms', 'Flowchart Analysis', 'General Analysis'
-];
 
 // Convert first up to maxPages of a PDF into image data URLs for OCR
 const pdfToImages = async (file: File, maxPages = 10): Promise<string[]> => {
