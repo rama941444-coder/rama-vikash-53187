@@ -1,36 +1,30 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Upload, Loader2, Play, Search } from 'lucide-react';
-import { Input } from '@/components/ui/input';
+import { Upload, Loader2, Play } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import DOMPurify from 'dompurify';
-import { ALL_PROGRAMMING_LANGUAGES } from '@/lib/programmingLanguages';
-import { withRetry, withTimeout } from '@/lib/retryUtils';
 
 interface CodeInputProps {
   onAnalysisComplete: (data: any) => void;
 }
 
+const LANGUAGES = [
+  'Python', 'JavaScript', 'C', 'C++', 'Java', 'HTML', 'CSS',
+  'SQL-DDL', 'SQL-DML', 'SQL-DCL', 'SQL-TCL', 'SQL-Triggers', 'SQL-Joins',
+  'PL/SQL', 'T-SQL', 'MongoDB Query Language', 'R', 
+  'Swift', 'Kotlin', 'PHP', 'DBMS', 'DSA & Algorithms', 'Flowchart Analysis', 'General Document'
+];
+
 const CodeInput = ({ onAnalysisComplete }: CodeInputProps) => {
   const [code, setCode] = useState('');
-  const [language, setLanguage] = useState('Auto-Detect');
-  const [languageSearch, setLanguageSearch] = useState('');
+  const [language, setLanguage] = useState('Python');
   const [files, setFiles] = useState<File[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<any>(null);
   const { toast } = useToast();
-  const retryCount = useRef(0);
-  const maxRetries = 3;
-
-  // Filter languages based on search
-  const filteredLanguages = languageSearch
-    ? ALL_PROGRAMMING_LANGUAGES.filter(lang => 
-        lang.toLowerCase().includes(languageSearch.toLowerCase())
-      ).slice(0, 50) // Limit to 50 results for performance
-    : ALL_PROGRAMMING_LANGUAGES.slice(0, 100); // Show first 100 by default
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const uploadedFiles = Array.from(e.target.files || []);
@@ -130,21 +124,14 @@ const CodeInput = ({ onAnalysisComplete }: CodeInputProps) => {
       
       const fileData = await Promise.all(fileDataPromises);
       
-      // Use retry logic with timeout for reliability
-      const { data, error } = await withRetry(
-        () => withTimeout(
-          supabase.functions.invoke('analyze-code', {
-            body: {
-              code: code || '',
-              language,
-              files: filesData,
-              fileData: fileData
-            }
-          }),
-          60000 // 60 second timeout
-        ),
-        { maxRetries: 3, initialDelay: 1000 }
-      );
+      const { data, error } = await supabase.functions.invoke('analyze-code', {
+        body: {
+          code: code || '',
+          language,
+          files: filesData,
+          fileData: fileData
+        }
+      });
 
       if (data) {
         // Check for specific error types
@@ -197,24 +184,13 @@ const CodeInput = ({ onAnalysisComplete }: CodeInputProps) => {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row gap-4">
         <div className="flex-1">
-          <label className="block text-sm font-medium mb-2">Select Language/Context (1600+ Languages)</label>
+          <label className="block text-sm font-medium mb-2">Select Language/Context</label>
           <Select value={language} onValueChange={setLanguage}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className="max-h-[300px]">
-              <div className="px-2 py-1 sticky top-0 bg-background z-10">
-                <div className="relative">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search 1600+ languages..."
-                    value={languageSearch}
-                    onChange={(e) => setLanguageSearch(e.target.value)}
-                    className="pl-8 h-9"
-                  />
-                </div>
-              </div>
-              {filteredLanguages.map((lang) => (
+            <SelectContent>
+              {LANGUAGES.map((lang) => (
                 <SelectItem key={lang} value={lang}>{lang}</SelectItem>
               ))}
             </SelectContent>
