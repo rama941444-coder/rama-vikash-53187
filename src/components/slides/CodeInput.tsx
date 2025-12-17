@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import DOMPurify from 'dompurify';
 import { ALL_PROGRAMMING_LANGUAGES } from '@/lib/programmingLanguages';
+import { withRetry, withTimeout } from '@/lib/retryUtils';
 
 interface CodeInputProps {
   onAnalysisComplete: (data: any) => void;
@@ -129,14 +130,21 @@ const CodeInput = ({ onAnalysisComplete }: CodeInputProps) => {
       
       const fileData = await Promise.all(fileDataPromises);
       
-      const { data, error } = await supabase.functions.invoke('analyze-code', {
-        body: {
-          code: code || '',
-          language,
-          files: filesData,
-          fileData: fileData
-        }
-      });
+      // Use retry logic with timeout for reliability
+      const { data, error } = await withRetry(
+        () => withTimeout(
+          supabase.functions.invoke('analyze-code', {
+            body: {
+              code: code || '',
+              language,
+              files: filesData,
+              fileData: fileData
+            }
+          }),
+          60000 // 60 second timeout
+        ),
+        { maxRetries: 3, initialDelay: 1000 }
+      );
 
       if (data) {
         // Check for specific error types

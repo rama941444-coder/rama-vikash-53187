@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { Upload, FileText, Loader2, X, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -9,6 +9,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 import { parseDocument } from '@/lib/documentParser';
 import NarrationControls from '@/components/NarrationControls';
 import { ALL_PROGRAMMING_LANGUAGES } from '@/lib/programmingLanguages';
+import { withRetry, withTimeout } from '@/lib/retryUtils';
 // @ts-ignore - Vite resolves this to a URL string for the worker file
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
 
@@ -201,15 +202,22 @@ const UniversalAnalyzer = () => {
         description: `Analyzing ${files.length} file(s) with advanced AI`,
       });
       
-      const { data, error } = await supabase.functions.invoke('analyze-code', {
-        body: { 
-          code: '', 
-          language,
-          files: filesMetadata,
-          fileData: fileData,
-          extractionMode: 'exact_code_ocr'
-        }
-      });
+      // Use retry logic with timeout for reliability
+      const { data, error } = await withRetry(
+        () => withTimeout(
+          supabase.functions.invoke('analyze-code', {
+            body: { 
+              code: '', 
+              language,
+              files: filesMetadata,
+              fileData: fileData,
+              extractionMode: 'exact_code_ocr'
+            }
+          }),
+          60000 // 60 second timeout
+        ),
+        { maxRetries: 3, initialDelay: 1000 }
+      );
 
       if (data) {
         setResult(data);
