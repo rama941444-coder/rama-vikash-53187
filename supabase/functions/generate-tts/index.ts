@@ -31,34 +31,48 @@ serve(async (req) => {
     }
 
     const { text } = validation.data;
+    
+    // Try user's Gemini API key first, fallback to Lovable AI
+    const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    const useGeminiDirect = !!GEMINI_API_KEY;
+    const apiKey = GEMINI_API_KEY || LOVABLE_API_KEY;
 
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+    if (!apiKey) {
+      throw new Error('No API key configured');
     }
 
-    console.log('Generating TTS for text length:', text.length);
+    console.log('Generating TTS for text length:', text.length, 'using:', useGeminiDirect ? 'Gemini Direct' : 'Lovable AI');
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          {
-            role: "system",
-            content: "You are a helpful assistant that explains technical content clearly and concisely."
-          },
-          {
-            role: "user",
-            content: `Please narrate this text in a clear, professional voice suitable for technical explanation: ${text.substring(0, 1000)}`
-          }
-        ]
-      }),
-    });
+    let response;
+    
+    if (useGeminiDirect) {
+      response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + apiKey, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{ text: `You are a helpful assistant that explains technical content clearly and concisely. Please narrate this text in a clear, professional voice suitable for technical explanation: ${text.substring(0, 1000)}` }]
+          }],
+          generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
+        }),
+      });
+    } else {
+      response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'google/gemini-2.5-flash',
+          messages: [
+            { role: "system", content: "You are a helpful assistant that explains technical content clearly and concisely." },
+            { role: "user", content: `Please narrate this text in a clear, professional voice suitable for technical explanation: ${text.substring(0, 1000)}` }
+          ]
+        }),
+      });
+    }
 
     if (!response.ok) {
       if (response.status === 429) {
@@ -71,7 +85,9 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    const narrationText = data.choices[0].message.content;
+    const narrationText = useGeminiDirect 
+      ? data.candidates?.[0]?.content?.parts?.[0]?.text || ''
+      : data.choices?.[0]?.message?.content || '';
     
     console.log('TTS generated successfully');
 
