@@ -32,14 +32,11 @@ serve(async (req) => {
 
     const { text, targetLanguage } = validation.data;
     
-    // Try user's Gemini API key first, fallback to Lovable AI
-    const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
+    // Use Lovable AI Gateway (always available and working)
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    const useGeminiDirect = !!GEMINI_API_KEY;
-    const apiKey = GEMINI_API_KEY || LOVABLE_API_KEY;
 
-    if (!apiKey) {
-      throw new Error('No API key configured');
+    if (!LOVABLE_API_KEY) {
+      throw new Error('LOVABLE_API_KEY not configured');
     }
 
     // If already English, return as-is
@@ -49,38 +46,24 @@ serve(async (req) => {
       });
     }
 
-    console.log(`Translating to ${targetLanguage}, text length: ${text.length}, using: ${useGeminiDirect ? 'Gemini Direct' : 'Lovable AI'}`);
+    console.log(`Translating to ${targetLanguage}, text length: ${text.length}`);
 
-    let response;
     const systemPrompt = `You are a professional translator. Translate the given technical explanation into ${targetLanguage}. Keep technical terms in English when appropriate but explain them in ${targetLanguage}. Maintain the same structure and formatting. Only output the translation, nothing else.`;
     
-    if (useGeminiDirect) {
-      response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + apiKey, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{ text: `${systemPrompt}\n\nText to translate:\n${text}` }]
-          }],
-          generationConfig: { temperature: 0.3, maxOutputTokens: 8192 }
-        }),
-      });
-    } else {
-      response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: text }
-          ]
-        }),
-      });
-    }
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash',
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: text }
+        ]
+      }),
+    });
 
     if (!response.ok) {
       if (response.status === 429) {
@@ -99,9 +82,7 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    const translatedText = useGeminiDirect 
-      ? data.candidates?.[0]?.content?.parts?.[0]?.text || ''
-      : data.choices?.[0]?.message?.content || '';
+    const translatedText = data.choices?.[0]?.message?.content || '';
     
     console.log('Translation completed successfully');
 
