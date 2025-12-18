@@ -89,18 +89,18 @@ serve(async (req) => {
       console.log(`File validation passed for ${fileData.length} file(s)`);
     }
     
-    // Try user's Gemini API key first, fallback to Lovable AI
-    const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
+    // Use Lovable AI Gateway (always available and working)
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    
-    const useGeminiDirect = !!GEMINI_API_KEY;
-    const apiKey = GEMINI_API_KEY || LOVABLE_API_KEY;
 
-    if (!apiKey) {
-      throw new Error('No API key configured. Please add GEMINI_API_KEY or LOVABLE_API_KEY');
+    if (!LOVABLE_API_KEY) {
+      throw new Error('LOVABLE_API_KEY not configured');
     }
     
-    console.log('Using API:', useGeminiDirect ? 'Google Gemini Direct' : 'Lovable AI Gateway');
+    // Always use Lovable AI Gateway for reliability
+    const useGeminiDirect = false;
+    const apiKey = LOVABLE_API_KEY;
+    
+    console.log('Using API: Lovable AI Gateway');
 
     // Build multimodal content array
     const userContent: any[] = [];
