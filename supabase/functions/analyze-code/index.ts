@@ -89,14 +89,11 @@ serve(async (req) => {
       console.log(`File validation passed for ${fileData.length} file(s)`);
     }
     
-    // Use OpenAI API with user's key
-    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
 
-    if (!OPENAI_API_KEY) {
-      throw new Error('OPENAI_API_KEY not configured');
+    if (!LOVABLE_API_KEY) {
+      throw new Error('LOVABLE_API_KEY is not configured');
     }
-    
-    console.log('Using API: OpenAI GPT-4o');
 
     // Build multimodal content array
     const userContent: any[] = [];
@@ -358,7 +355,7 @@ Below are the page images for OCR analysis:`
       }
     ];
 
-    console.log('Calling OpenAI GPT-4o with multimodal content:', { 
+    console.log('Calling Lovable AI with multimodal content:', { 
       language, 
       hasCode: !!code, 
       fileCount: files?.length || 0,
@@ -367,19 +364,18 @@ Below are the page images for OCR analysis:`
       totalPageImages: fileData?.reduce((sum, f) => sum + (f.pageImages?.length || 0), 0) || 0
     });
 
-    // Use OpenAI API
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        messages,
-        response_format: { type: "json_object" },
-        max_tokens: 16384
-      }),
+        body: JSON.stringify({
+          model: 'google/gemini-2.5-pro', // Using most advanced AI model
+          messages,
+          response_format: { type: "json_object" },
+          max_tokens: 16384 // Increased for large HTML files
+        }),
     });
 
     if (!response.ok) {
@@ -430,11 +426,9 @@ Below are the page images for OCR analysis:`
     }
 
     const data = await response.json();
+    const content = data.choices[0].message.content;
     
-    // OpenAI response format
-    const content = data.choices?.[0]?.message?.content || '';
-    
-    console.log('OpenAI Response received');
+    console.log('AI Response received');
 
     // Parse the JSON response
     let analysisResult;

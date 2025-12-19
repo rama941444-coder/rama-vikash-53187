@@ -31,12 +31,10 @@ serve(async (req) => {
     }
 
     const { text } = validation.data;
-    
-    // Use Lovable AI Gateway (always available and working)
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
 
     if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
+      throw new Error('LOVABLE_API_KEY is not configured');
     }
 
     console.log('Generating TTS for text length:', text.length);
@@ -50,8 +48,14 @@ serve(async (req) => {
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash',
         messages: [
-          { role: "system", content: "You are a helpful assistant that explains technical content clearly and concisely." },
-          { role: "user", content: `Please narrate this text in a clear, professional voice suitable for technical explanation: ${text.substring(0, 1000)}` }
+          {
+            role: "system",
+            content: "You are a helpful assistant that explains technical content clearly and concisely."
+          },
+          {
+            role: "user",
+            content: `Please narrate this text in a clear, professional voice suitable for technical explanation: ${text.substring(0, 1000)}`
+          }
         ]
       }),
     });
@@ -67,7 +71,7 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    const narrationText = data.choices?.[0]?.message?.content || '';
+    const narrationText = data.choices[0].message.content;
     
     console.log('TTS generated successfully');
 

@@ -141,55 +141,51 @@ const CodeInput = ({ onAnalysisComplete }: CodeInputProps) => {
               fileData: fileData
             }
           }),
-          90000 // 90 second timeout for faster response
+          60000 // 60 second timeout
         ),
-        { maxRetries: 2, initialDelay: 500 }
+        { maxRetries: 3, initialDelay: 1000 }
       );
-
-      if (error) {
-        console.error('Supabase function error:', error);
-        toast({
-          title: "❌ Analysis Failed",
-          description: error.message || "Failed to analyze. Please try again.",
-          variant: "destructive",
-        });
-        return;
-      }
 
       if (data) {
         // Check for specific error types
         if (data.error === 'RATE_LIMIT_EXCEEDED') {
+          setResult(data);
+          onAnalysisComplete(data);
           toast({
-            title: "⚠️ Rate Limit",
-            description: "Too many requests. Please wait and try again.",
+            title: "⚠️ Rate Limit Exceeded",
+            description: "Too many requests. Please wait a moment and try again.",
             variant: "destructive",
           });
-        } else if (data.error === 'PAYMENT_REQUIRED' || data.error?.includes?.('402') || data.details?.includes?.('credits')) {
+        } else if (data.error === 'PAYMENT_REQUIRED') {
+          setResult(data);
+          onAnalysisComplete(data);
           toast({
             title: "⚠️ Credits Required",
-            description: "Add credits in Settings → Workspace → Usage.",
+            description: "Add credits in Settings → Workspace → Usage to enable AI analysis.",
             variant: "destructive",
           });
         } else if (data.error) {
+          setResult(data);
+          onAnalysisComplete(data);
           toast({
             title: "⚠️ Analysis Error",
-            description: typeof data.error === 'string' ? data.error : "Check results for details.",
+            description: "An error occurred. Check the results for details.",
             variant: "destructive",
           });
         } else {
+          setResult(data);
+          onAnalysisComplete(data);
           toast({
             title: "✅ Analysis Complete!",
-            description: "Results ready. Powered by Lovable AI.",
+            description: "All results are ready. Lovable AI powered analysis.",
           });
         }
-        setResult(data);
-        onAnalysisComplete(data);
       }
     } catch (error: any) {
       console.error('Analysis error:', error);
       toast({
         title: "❌ Analysis Failed",
-        description: error.message || "Network error. Check connection and retry.",
+        description: error.message || "Network error. Please check your connection and try again.",
         variant: "destructive",
       });
     } finally {

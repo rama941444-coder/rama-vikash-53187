@@ -31,12 +31,10 @@ serve(async (req) => {
     }
 
     const { text, targetLanguage } = validation.data;
-    
-    // Use Lovable AI Gateway (always available and working)
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
 
     if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
+      throw new Error('LOVABLE_API_KEY is not configured');
     }
 
     // If already English, return as-is
@@ -48,8 +46,6 @@ serve(async (req) => {
 
     console.log(`Translating to ${targetLanguage}, text length: ${text.length}`);
 
-    const systemPrompt = `You are a professional translator. Translate the given technical explanation into ${targetLanguage}. Keep technical terms in English when appropriate but explain them in ${targetLanguage}. Maintain the same structure and formatting. Only output the translation, nothing else.`;
-    
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -59,8 +55,14 @@ serve(async (req) => {
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash',
         messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: text }
+          {
+            role: "system",
+            content: `You are a professional translator. Translate the given technical explanation into ${targetLanguage}. Keep technical terms in English when appropriate but explain them in ${targetLanguage}. Maintain the same structure and formatting. Only output the translation, nothing else.`
+          },
+          {
+            role: "user",
+            content: text
+          }
         ]
       }),
     });
@@ -82,7 +84,7 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    const translatedText = data.choices?.[0]?.message?.content || '';
+    const translatedText = data.choices[0].message.content;
     
     console.log('Translation completed successfully');
 

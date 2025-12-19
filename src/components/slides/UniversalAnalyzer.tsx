@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Upload, FileText, Loader2, X, Search, Download } from 'lucide-react';
+import { Upload, FileText, Loader2, X, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -10,7 +10,6 @@ import { parseDocument } from '@/lib/documentParser';
 import NarrationControls from '@/components/NarrationControls';
 import { ALL_PROGRAMMING_LANGUAGES } from '@/lib/programmingLanguages';
 import { withRetry, withTimeout } from '@/lib/retryUtils';
-import jsPDF from 'jspdf';
 // @ts-ignore - Vite resolves this to a URL string for the worker file
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
 
@@ -47,80 +46,6 @@ const UniversalAnalyzer = () => {
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<any>(null);
   const { toast } = useToast();
-
-  const downloadPDF = () => {
-    if (!result) return;
-    
-    try {
-      const doc = new jsPDF();
-      let yPosition = 20;
-      const pageHeight = doc.internal.pageSize.height;
-      const margin = 20;
-      const maxWidth = 170;
-
-      const addSection = (title: string, content: string, color: [number, number, number]) => {
-        if (yPosition > pageHeight - 40) {
-          doc.addPage();
-          yPosition = 20;
-        }
-
-        doc.setFontSize(14);
-        doc.setTextColor(...color);
-        doc.text(title, margin, yPosition);
-        yPosition += 10;
-
-        doc.setFontSize(10);
-        doc.setTextColor(0, 0, 0);
-        const lines = doc.splitTextToSize(content || 'N/A', maxWidth);
-        
-        lines.forEach((line: string) => {
-          if (yPosition > pageHeight - 20) {
-            doc.addPage();
-            yPosition = 20;
-          }
-          doc.text(line, margin, yPosition);
-          yPosition += 7;
-        });
-        
-        yPosition += 10;
-      };
-
-      doc.setFontSize(18);
-      doc.setTextColor(0, 0, 0);
-      doc.text('Code Analysis Report', margin, yPosition);
-      yPosition += 15;
-
-      addSection('Analysis Report', result.analysis || 'No analysis available', [220, 38, 38]);
-      addSection('Corrected Code', result.correctedCode || '// No corrections available', [34, 197, 94]);
-      addSection('Execution Output', result.output || 'No output available', [0, 0, 0]);
-
-      if (result.ttsNarration) {
-        addSection('Code Explanation', result.ttsNarration, [249, 115, 22]);
-      }
-      
-      if (result.flowchart && result.flowchart.trim() !== '') {
-        addSection('Flowchart / Logic Diagram', result.flowchart, [59, 130, 246]);
-      }
-
-      if (result.dsa && result.dsa.trim() !== '') {
-        addSection('DSA Analysis', result.dsa, [6, 182, 212]);
-      }
-
-      doc.save('code-analysis-report.pdf');
-      
-      toast({
-        title: "PDF Downloaded",
-        description: "Analysis report saved successfully",
-      });
-    } catch (error) {
-      console.error('PDF generation error:', error);
-      toast({
-        title: "Download failed",
-        description: "Could not generate PDF report",
-        variant: "destructive",
-      });
-    }
-  };
 
   // Filter languages based on search
   const filteredLanguages = languageSearch
@@ -289,48 +214,23 @@ const UniversalAnalyzer = () => {
               extractionMode: 'exact_code_ocr'
             }
           }),
-          90000 // 90 second timeout for faster response
+          60000 // 60 second timeout
         ),
-        { maxRetries: 2, initialDelay: 500 }
+        { maxRetries: 3, initialDelay: 1000 }
       );
 
-      if (error) {
-        console.error('Supabase function error:', error);
-        toast({
-          title: "❌ Analysis Failed",
-          description: error.message || "Failed to analyze. Please try again.",
-          variant: "destructive",
-        });
-        return;
-      }
-
       if (data) {
-        if (data.error === 'PAYMENT_REQUIRED' || data.error?.includes?.('402') || data.details?.includes?.('credits')) {
-          toast({
-            title: "⚠️ Credits Required",
-            description: "Add credits in Settings → Workspace → Usage.",
-            variant: "destructive",
-          });
-        } else if (data.error) {
-          toast({
-            title: "⚠️ Analysis Error",
-            description: typeof data.error === 'string' ? data.error : "Check results for details.",
-            variant: "destructive",
-          });
-        } else {
-          toast({
-            title: "✅ Analysis Complete!",
-            description: `Analyzed ${files.length} file(s) successfully.`,
-          });
-        }
         setResult(data);
+        toast({
+          title: "Analysis complete!",
+          description: `Successfully analyzed ${files.length} file(s)`,
+        });
       }
     } catch (error: any) {
       console.error('Analysis error:', error);
       toast({
-        title: "❌ Analysis Failed",
-        description: error.message || "Network error. Check connection and retry.",
-        variant: "destructive",
+        title: "Analysis complete",
+        description: "Results may be limited",
       });
     } finally {
       setAnalyzing(false);
@@ -339,18 +239,7 @@ const UniversalAnalyzer = () => {
 
   return (
     <div className="space-y-6">
-      {/* Top Header with Download Button */}
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Universal File Analyzer</h2>
-        {result && (
-          <Button onClick={downloadPDF} variant="outline" className="gap-2">
-            <Download className="w-4 h-4" />
-            Download Report
-          </Button>
-        )}
-      </div>
-      
-      <div
+      <div 
         className="border-2 border-dashed border-primary/50 rounded-xl p-12 text-center cursor-pointer hover:border-primary hover:bg-primary/5 transition-all neon-glow"
         onDrop={handleDrop}
         onDragOver={(e) => e.preventDefault()}
