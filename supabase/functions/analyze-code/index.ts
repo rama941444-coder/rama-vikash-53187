@@ -89,18 +89,14 @@ serve(async (req) => {
       console.log(`File validation passed for ${fileData.length} file(s)`);
     }
     
-    // Use Lovable AI Gateway (always available and working)
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    // Use OpenAI API with user's key
+    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
 
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
+    if (!OPENAI_API_KEY) {
+      throw new Error('OPENAI_API_KEY not configured');
     }
     
-    // Always use Lovable AI Gateway for reliability
-    const useGeminiDirect = false;
-    const apiKey = LOVABLE_API_KEY;
-    
-    console.log('Using API: Lovable AI Gateway');
+    console.log('Using API: OpenAI GPT-4o');
 
     // Build multimodal content array
     const userContent: any[] = [];
@@ -362,75 +358,29 @@ Below are the page images for OCR analysis:`
       }
     ];
 
-    console.log('Calling AI with multimodal content:', { 
+    console.log('Calling OpenAI GPT-4o with multimodal content:', { 
       language, 
       hasCode: !!code, 
       fileCount: files?.length || 0,
       fileDataCount: fileData?.length || 0,
       contentItems: userContent.length,
-      totalPageImages: fileData?.reduce((sum, f) => sum + (f.pageImages?.length || 0), 0) || 0,
-      apiType: useGeminiDirect ? 'Gemini Direct' : 'Lovable AI'
+      totalPageImages: fileData?.reduce((sum, f) => sum + (f.pageImages?.length || 0), 0) || 0
     });
 
-    let response;
-    
-    if (useGeminiDirect) {
-      // Use Google Gemini API directly with user's key
-      response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro-preview-06-05:generateContent?key=' + apiKey, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              role: "user",
-              parts: [
-                { text: messages[0].content }, // System prompt
-                ...userContent.map((item: any) => {
-                  if (item.type === "text") {
-                    return { text: item.text };
-                  } else if (item.type === "image_url") {
-                    // Extract base64 data from data URL
-                    const base64Match = item.image_url.url.match(/^data:([^;]+);base64,(.+)$/);
-                    if (base64Match) {
-                      return {
-                        inlineData: {
-                          mimeType: base64Match[1],
-                          data: base64Match[2]
-                        }
-                      };
-                    }
-                    return { text: "[Image could not be processed]" };
-                  }
-                  return { text: "" };
-                })
-              ]
-            }
-          ],
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 16384,
-            responseMimeType: "application/json"
-          }
-        }),
-      });
-    } else {
-      // Use Lovable AI Gateway
-      response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'google/gemini-2.5-pro',
-          messages,
-          response_format: { type: "json_object" },
-          max_tokens: 16384
-        }),
-      });
-    }
+    // Use OpenAI API
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages,
+        response_format: { type: "json_object" },
+        max_tokens: 16384
+      }),
+    });
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -481,17 +431,10 @@ Below are the page images for OCR analysis:`
 
     const data = await response.json();
     
-    // Handle different response formats
-    let content;
-    if (useGeminiDirect) {
-      // Google Gemini API response format
-      content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    } else {
-      // OpenAI-compatible format (Lovable AI)
-      content = data.choices?.[0]?.message?.content || '';
-    }
+    // OpenAI response format
+    const content = data.choices?.[0]?.message?.content || '';
     
-    console.log('AI Response received');
+    console.log('OpenAI Response received');
 
     // Parse the JSON response
     let analysisResult;
