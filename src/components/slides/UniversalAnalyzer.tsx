@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Upload, FileText, Loader2, X, Search } from 'lucide-react';
+import { Upload, FileText, Loader2, X, Search, Sparkles, Cpu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -18,6 +18,8 @@ try {
   // @ts-ignore
   (pdfjsLib as any).GlobalWorkerOptions.workerSrc = pdfWorker;
 } catch {}
+
+type AIModel = 'gemini' | 'gpt5';
 
 // Convert first up to maxPages of a PDF into image data URLs for OCR
 const pdfToImages = async (file: File, maxPages = 10): Promise<string[]> => {
@@ -43,6 +45,7 @@ const UniversalAnalyzer = () => {
   const [files, setFiles] = useState<File[]>([]);
   const [language, setLanguage] = useState('Auto-Detect');
   const [languageSearch, setLanguageSearch] = useState('');
+  const [aiModel, setAiModel] = useState<AIModel>('gemini');
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<any>(null);
   const { toast } = useToast();
@@ -209,6 +212,7 @@ const UniversalAnalyzer = () => {
             body: { 
               code: '', 
               language,
+              aiModel,
               files: filesMetadata,
               fileData: fileData,
               extractionMode: 'exact_code_ocr'
@@ -300,6 +304,29 @@ const UniversalAnalyzer = () => {
               {filteredLanguages.map((lang) => (
                 <SelectItem key={lang} value={lang}>{lang}</SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex-1">
+          <label className="block text-sm font-medium mb-2">AI Model</label>
+          <Select value={aiModel} onValueChange={(val) => setAiModel(val as AIModel)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="gemini">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-blue-500" />
+                  <span>Gemini 2.5 Pro</span>
+                </div>
+              </SelectItem>
+              <SelectItem value="gpt5">
+                <div className="flex items-center gap-2">
+                  <Cpu className="w-4 h-4 text-green-500" />
+                  <span>GPT-5</span>
+                </div>
+              </SelectItem>
             </SelectContent>
           </Select>
         </div>
