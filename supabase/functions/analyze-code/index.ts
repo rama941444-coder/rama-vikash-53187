@@ -10,7 +10,6 @@ const corsHeaders = {
 const RequestSchema = z.object({
   code: z.string().max(2000000).optional().default(''), // Increased to 2MB for large HTML files
   language: z.string(),
-  aiModel: z.enum(['gemini', 'gpt5']).optional().default('gemini'), // AI model selection
   files: z.array(z.object({ name: z.string(), type: z.string() })).max(100).optional(), // Increased to 100 files
   fileData: z.array(z.object({
     name: z.string().max(500),
@@ -44,8 +43,8 @@ serve(async (req) => {
       });
     }
 
-    const { code, language, aiModel, files, fileData, extractionMode } = validation.data;
-    console.log('Analyze request:', { language, aiModel, hasCode: !!code, fileCount: files?.length || 0, fileDataCount: fileData?.length || 0, extractionMode });
+    const { code, language, files, fileData, extractionMode } = validation.data;
+    console.log('Analyze request:', { language, hasCode: !!code, fileCount: files?.length || 0, fileDataCount: fileData?.length || 0, extractionMode });
     
     // Additional security validation for file uploads
     const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB per file
@@ -365,24 +364,18 @@ Below are the page images for OCR analysis:`
       totalPageImages: fileData?.reduce((sum, f) => sum + (f.pageImages?.length || 0), 0) || 0
     });
 
-    // Select model based on user preference
-    const modelId = aiModel === 'gpt5' ? 'openai/gpt-5' : 'google/gemini-2.5-pro';
-    console.log(`Using AI model: ${modelId}`);
-
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model: modelId,
-        messages,
-        response_format: { type: "json_object" },
-        ...(aiModel === 'gpt5' 
-          ? { max_completion_tokens: 16384 } // GPT-5 uses max_completion_tokens
-          : { max_tokens: 16384 }) // Gemini uses max_tokens
-      }),
+        body: JSON.stringify({
+          model: 'google/gemini-2.5-pro', // Using most advanced AI model
+          messages,
+          response_format: { type: "json_object" },
+          max_tokens: 16384 // Increased for large HTML files
+        }),
     });
 
     if (!response.ok) {
