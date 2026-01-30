@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Download } from 'lucide-react';
+import { Volume2, Loader2, Download } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import jsPDF from 'jspdf';
 import NarrationControls from '@/components/NarrationControls';
-import VoiceControls from '@/components/VoiceControls';
 import DOMPurify from 'dompurify';
 
 interface DiagnosticResultsProps {
@@ -12,6 +12,8 @@ interface DiagnosticResultsProps {
 }
 
 const DiagnosticResults = ({ data }: DiagnosticResultsProps) => {
+  const [isGeneratingTTS, setIsGeneratingTTS] = useState(false);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const { toast } = useToast();
 
   if (!data) {
@@ -23,6 +25,36 @@ const DiagnosticResults = ({ data }: DiagnosticResultsProps) => {
       </div>
     );
   }
+
+  const generateTTS = async () => {
+    if (!data.ttsNarration) return;
+
+    setIsGeneratingTTS(true);
+
+    try {
+      const { data: ttsData, error } = await supabase.functions.invoke('generate-tts', {
+        body: { text: data.ttsNarration }
+      });
+
+      if (error) throw error;
+
+      // For now, just show a success message
+      // In a real implementation, you would handle the audio data
+      toast({
+        title: "TTS Generated",
+        description: "Text-to-speech narration is ready",
+      });
+    } catch (error: any) {
+      console.error('TTS error:', error);
+      toast({
+        title: "TTS failed",
+        description: error.message || "Failed to generate audio",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingTTS(false);
+    }
+  };
 
   const downloadPDF = () => {
     try {
@@ -133,7 +165,6 @@ const DiagnosticResults = ({ data }: DiagnosticResultsProps) => {
       </div>
 
       <div className="grid gap-6">
-        {/* Red Box - Errors & Analysis with Voice Mode */}
         <div className="analysis-box-red">
           <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
             <span className="w-3 h-3 bg-red-500 rounded-full"></span>
@@ -143,7 +174,25 @@ const DiagnosticResults = ({ data }: DiagnosticResultsProps) => {
             {data.analysis || 'No errors detected'}
           </pre>
           <div className="mt-3">
-            <VoiceControls text={data.analysis || ''} showInput={false} />
+            <Button
+              onClick={() => {
+                try {
+                  const utterance = new SpeechSynthesisUtterance(data.analysis || '');
+                  utterance.rate = 0.95;
+                  utterance.pitch = 1;
+                  utterance.volume = 1;
+                  window.speechSynthesis.speak(utterance);
+                  toast({ title: 'Playing analysis narration', description: 'Audio narration started' });
+                } catch (error) {
+                  toast({ title: 'Audio playback failed', description: 'Could not play narration', variant: 'destructive' });
+                }
+              }}
+              variant="outline"
+              className="gap-2"
+            >
+              <Volume2 className="w-4 h-4" />
+              Play Analysis (Voice)
+            </Button>
           </div>
         </div>
 
@@ -176,10 +225,6 @@ const DiagnosticResults = ({ data }: DiagnosticResultsProps) => {
             Code Explanation (Voice Narration)
           </h3>
           <NarrationControls text={data.ttsNarration || 'No explanation available'} />
-          {/* Additional Voice Controls */}
-          <div className="mt-3">
-            <VoiceControls text={data.ttsNarration || ''} showInput={false} />
-          </div>
         </div>
 
         {/* Blue Box - MCQ Questions */}
@@ -191,9 +236,6 @@ const DiagnosticResults = ({ data }: DiagnosticResultsProps) => {
             </h3>
             <div className="whitespace-pre-wrap text-sm leading-relaxed font-sans">
               {typeof data.mcq === 'string' ? data.mcq : JSON.stringify(data.mcq, null, 2)}
-            </div>
-            <div className="mt-3">
-              <VoiceControls text={typeof data.mcq === 'string' ? data.mcq : JSON.stringify(data.mcq)} showInput={false} />
             </div>
           </div>
         )}
@@ -217,9 +259,6 @@ const DiagnosticResults = ({ data }: DiagnosticResultsProps) => {
                     {data.flowchart}
                   </pre>
                 </div>
-                <div className="mt-2">
-                  <VoiceControls text={data.flowchart} showInput={false} />
-                </div>
                 <div className="my-4 border-t-2 border-dotted border-cyan-400/50"></div>
               </div>
             )}
@@ -232,9 +271,6 @@ const DiagnosticResults = ({ data }: DiagnosticResultsProps) => {
                   <pre className="whitespace-pre-wrap text-sm leading-relaxed">
                     {data.dsa}
                   </pre>
-                </div>
-                <div className="mt-2">
-                  <VoiceControls text={data.dsa} showInput={false} />
                 </div>
                 {(data.correctedCode && (data.correctedCode.includes('<html') || data.correctedCode.includes('<!DOCTYPE'))) && (
                   <div className="my-4 border-t-2 border-dotted border-cyan-400/50"></div>
