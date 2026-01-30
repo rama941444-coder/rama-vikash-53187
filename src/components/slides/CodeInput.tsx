@@ -1,30 +1,35 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Upload, Loader2, Play } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import DOMPurify from 'dompurify';
+import LanguageSelector from '@/components/LanguageSelector';
+import EnhancedCodeEditor from '@/components/EnhancedCodeEditor';
+import VoiceControls from '@/components/VoiceControls';
+import { detectLanguage } from '@/lib/programmingLanguages';
 
 interface CodeInputProps {
   onAnalysisComplete: (data: any) => void;
 }
 
-const LANGUAGES = [
-  'Python', 'JavaScript', 'C', 'C++', 'Java', 'HTML', 'CSS',
-  'SQL-DDL', 'SQL-DML', 'SQL-DCL', 'SQL-TCL', 'SQL-Triggers', 'SQL-Joins',
-  'PL/SQL', 'T-SQL', 'MongoDB Query Language', 'R', 
-  'Swift', 'Kotlin', 'PHP', 'DBMS', 'DSA & Algorithms', 'Flowchart Analysis', 'General Document'
-];
-
 const CodeInput = ({ onAnalysisComplete }: CodeInputProps) => {
   const [code, setCode] = useState('');
-  const [language, setLanguage] = useState('Python');
+  const [language, setLanguage] = useState('Auto-Detect');
   const [files, setFiles] = useState<File[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<any>(null);
   const { toast } = useToast();
+
+  // Auto-detect language when code changes
+  useEffect(() => {
+    if (language === 'Auto-Detect' && code.trim().length > 50) {
+      const detected = detectLanguage(code);
+      if (detected !== 'Auto-Detect') {
+        // Show detection but don't auto-change to preserve user choice
+      }
+    }
+  }, [code, language]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const uploadedFiles = Array.from(e.target.files || []);
@@ -49,6 +54,10 @@ const CodeInput = ({ onAnalysisComplete }: CodeInputProps) => {
     setFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const handleVoiceInput = (transcript: string) => {
+    setCode(prev => prev + ' ' + transcript);
+  };
+
   const runAnalysis = async () => {
     if (!code && files.length === 0) {
       toast({
@@ -64,6 +73,15 @@ const CodeInput = ({ onAnalysisComplete }: CodeInputProps) => {
 
     try {
       const filesData = files.map((f) => ({ name: f.name, type: f.type }));
+      
+      // Determine actual language for analysis
+      let analysisLanguage = language;
+      if (language === 'Auto-Detect' && code.trim()) {
+        const detected = detectLanguage(code);
+        if (detected !== 'Auto-Detect') {
+          analysisLanguage = detected;
+        }
+      }
       
       // Read file contents properly based on type
       const fileDataPromises = files.map(async (file) => {
@@ -127,7 +145,7 @@ const CodeInput = ({ onAnalysisComplete }: CodeInputProps) => {
       const { data, error } = await supabase.functions.invoke('analyze-code', {
         body: {
           code: code || '',
-          language,
+          language: analysisLanguage,
           files: filesData,
           fileData: fileData
         }
@@ -164,7 +182,7 @@ const CodeInput = ({ onAnalysisComplete }: CodeInputProps) => {
           onAnalysisComplete(data);
           toast({
             title: "✅ Analysis Complete!",
-            description: "All results are ready. Lovable AI powered analysis.",
+            description: `Analyzed as ${analysisLanguage}. Results ready.`,
           });
         }
       }
@@ -184,17 +202,12 @@ const CodeInput = ({ onAnalysisComplete }: CodeInputProps) => {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row gap-4">
         <div className="flex-1">
-          <label className="block text-sm font-medium mb-2">Select Language/Context</label>
-          <Select value={language} onValueChange={setLanguage}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {LANGUAGES.map((lang) => (
-                <SelectItem key={lang} value={lang}>{lang}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <label className="block text-sm font-medium mb-2">Select Language/Context (1600+ Languages)</label>
+          <LanguageSelector 
+            value={language} 
+            onChange={setLanguage}
+            code={code}
+          />
         </div>
 
         <div className="flex-1">
@@ -224,13 +237,21 @@ const CodeInput = ({ onAnalysisComplete }: CodeInputProps) => {
         <label className="block text-lg font-semibold mb-2">
           Manual Code/Text Editor
         </label>
-        <Textarea
+        <EnhancedCodeEditor
           value={code}
-          onChange={(e) => setCode(e.target.value)}
+          onChange={setCode}
           placeholder="Paste your code or document text here. The AI will analyze this code and provide dynamic output..."
-          rows={12}
-          className="font-mono text-sm"
+          minHeight="350px"
         />
+        
+        {/* Voice Input */}
+        <div className="mt-4">
+          <VoiceControls 
+            text={code} 
+            onVoiceInput={handleVoiceInput}
+            showInput={true}
+          />
+        </div>
       </div>
 
       <div
