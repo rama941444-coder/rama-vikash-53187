@@ -1,12 +1,13 @@
 import { useState, useCallback } from 'react';
 import { Upload, FileText, Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import * as pdfjsLib from 'pdfjs-dist';
 import { parseDocument } from '@/lib/documentParser';
 import NarrationControls from '@/components/NarrationControls';
+import LanguageSelector from '@/components/LanguageSelector';
+import VoiceControls from '@/components/VoiceControls';
 // @ts-ignore - Vite resolves this to a URL string for the worker file
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
 
@@ -15,14 +16,6 @@ try {
   // @ts-ignore
   (pdfjsLib as any).GlobalWorkerOptions.workerSrc = pdfWorker;
 } catch {}
-
-const LANGUAGES = [
-  'Universal File/Document', 'C', 'C++', 'C#', 'Java', 'JavaScript', 
-  'HTML', 'CSS', 'Python', 'Swift', 'Golang', 'Kotlin', 'PHP', 
-  'SQL-DDL', 'SQL-DML', 'SQL-DCL', 'SQL-TCL', 'SQL-Triggers', 'SQL-Joins',
-  'PL/SQL', 'T-SQL', 'DBMS', 'MongoDB Query Language', 'R',
-  'Handwritten Notes', 'Text Document', 'DSA & Algorithms', 'Flowchart Analysis', 'General Analysis'
-];
 
 // Convert first up to maxPages of a PDF into image data URLs for OCR
 const pdfToImages = async (file: File, maxPages = 10): Promise<string[]> => {
@@ -46,7 +39,7 @@ const pdfToImages = async (file: File, maxPages = 10): Promise<string[]> => {
 
 const UniversalAnalyzer = () => {
   const [files, setFiles] = useState<File[]>([]);
-  const [language, setLanguage] = useState('Universal File/Document');
+  const [language, setLanguage] = useState('Auto-Detect');
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<any>(null);
   const { toast } = useToast();
@@ -270,17 +263,11 @@ const UniversalAnalyzer = () => {
 
       <div className="flex flex-col md:flex-row gap-4 items-end">
         <div className="flex-1">
-          <label className="block text-sm font-medium mb-2">File Language/Type</label>
-          <Select value={language} onValueChange={setLanguage}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {LANGUAGES.map((lang) => (
-                <SelectItem key={lang} value={lang}>{lang}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <label className="block text-sm font-medium mb-2">File Language/Type (1600+ Languages)</label>
+          <LanguageSelector 
+            value={language} 
+            onChange={setLanguage}
+          />
         </div>
 
         <Button 
@@ -308,6 +295,10 @@ const UniversalAnalyzer = () => {
           <div className="analysis-box-red">
             <h3 className="font-semibold text-lg mb-2">Analysis Report</h3>
             <pre className="whitespace-pre-wrap text-sm">{result.analysis}</pre>
+            {/* Voice Mode for Analysis */}
+            <div className="mt-3">
+              <VoiceControls text={result.analysis || ''} showInput={false} />
+            </div>
           </div>
           
           <div className="analysis-box-green">
@@ -354,7 +345,7 @@ const UniversalAnalyzer = () => {
             </div>
           )}
 
-          {/* Orange Box - TTS Narration with Multi-Language */}
+          {/* Orange Box - TTS Narration with Multi-Language & Voice Mode */}
           {result.ttsNarration && (
             <div className="analysis-box-orange">
               <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
@@ -362,6 +353,10 @@ const UniversalAnalyzer = () => {
                 TTS Narration
               </h3>
               <NarrationControls text={result.ttsNarration} />
+              {/* Additional Voice Mode */}
+              <div className="mt-3">
+                <VoiceControls text={result.ttsNarration} showInput={false} />
+              </div>
             </div>
           )}
         </div>
