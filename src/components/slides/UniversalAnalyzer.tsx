@@ -1,12 +1,12 @@
 import { useState, useCallback } from 'react';
 import { Upload, FileText, Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import * as pdfjsLib from 'pdfjs-dist';
 import { parseDocument } from '@/lib/documentParser';
 import NarrationControls from '@/components/NarrationControls';
+import LanguageSelector from '@/components/LanguageSelector';
 // @ts-ignore - Vite resolves this to a URL string for the worker file
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
 
@@ -15,14 +15,6 @@ try {
   // @ts-ignore
   (pdfjsLib as any).GlobalWorkerOptions.workerSrc = pdfWorker;
 } catch {}
-
-const LANGUAGES = [
-  'Universal File/Document', 'C', 'C++', 'C#', 'Java', 'JavaScript', 
-  'HTML', 'CSS', 'Python', 'Swift', 'Golang', 'Kotlin', 'PHP', 
-  'SQL-DDL', 'SQL-DML', 'SQL-DCL', 'SQL-TCL', 'SQL-Triggers', 'SQL-Joins',
-  'PL/SQL', 'T-SQL', 'DBMS', 'MongoDB Query Language', 'R',
-  'Handwritten Notes', 'Text Document', 'DSA & Algorithms', 'Flowchart Analysis', 'General Analysis'
-];
 
 // Convert first up to maxPages of a PDF into image data URLs for OCR
 const pdfToImages = async (file: File, maxPages = 10): Promise<string[]> => {
@@ -46,7 +38,7 @@ const pdfToImages = async (file: File, maxPages = 10): Promise<string[]> => {
 
 const UniversalAnalyzer = () => {
   const [files, setFiles] = useState<File[]>([]);
-  const [language, setLanguage] = useState('Universal File/Document');
+  const [language, setLanguage] = useState('Auto-Detect');
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<any>(null);
   const { toast } = useToast();
@@ -270,17 +262,12 @@ const UniversalAnalyzer = () => {
 
       <div className="flex flex-col md:flex-row gap-4 items-end">
         <div className="flex-1">
-          <label className="block text-sm font-medium mb-2">File Language/Type</label>
-          <Select value={language} onValueChange={setLanguage}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {LANGUAGES.map((lang) => (
-                <SelectItem key={lang} value={lang}>{lang}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <label className="block text-sm font-medium mb-2">File Language/Type (1600+ Languages)</label>
+          <LanguageSelector 
+            value={language} 
+            onChange={setLanguage}
+            placeholder="Auto-Detect"
+          />
         </div>
 
         <Button 
@@ -359,7 +346,7 @@ const UniversalAnalyzer = () => {
             <div className="analysis-box-orange">
               <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
                 <span className="w-3 h-3 bg-orange-500 rounded-full"></span>
-                TTS Narration
+                Voice Narration (All Indian Languages)
               </h3>
               <NarrationControls text={result.ttsNarration} />
             </div>

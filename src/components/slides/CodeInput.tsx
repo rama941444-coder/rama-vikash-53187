@@ -1,26 +1,19 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Upload, Loader2, Play } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import DOMPurify from 'dompurify';
+import LanguageSelector from '@/components/LanguageSelector';
+import EnhancedCodeEditor from '@/components/EnhancedCodeEditor';
 
 interface CodeInputProps {
   onAnalysisComplete: (data: any) => void;
 }
 
-const LANGUAGES = [
-  'Python', 'JavaScript', 'C', 'C++', 'Java', 'HTML', 'CSS',
-  'SQL-DDL', 'SQL-DML', 'SQL-DCL', 'SQL-TCL', 'SQL-Triggers', 'SQL-Joins',
-  'PL/SQL', 'T-SQL', 'MongoDB Query Language', 'R', 
-  'Swift', 'Kotlin', 'PHP', 'DBMS', 'DSA & Algorithms', 'Flowchart Analysis', 'General Document'
-];
-
 const CodeInput = ({ onAnalysisComplete }: CodeInputProps) => {
   const [code, setCode] = useState('');
-  const [language, setLanguage] = useState('Python');
+  const [language, setLanguage] = useState('Auto-Detect');
   const [files, setFiles] = useState<File[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<any>(null);
@@ -184,17 +177,12 @@ const CodeInput = ({ onAnalysisComplete }: CodeInputProps) => {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row gap-4">
         <div className="flex-1">
-          <label className="block text-sm font-medium mb-2">Select Language/Context</label>
-          <Select value={language} onValueChange={setLanguage}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {LANGUAGES.map((lang) => (
-                <SelectItem key={lang} value={lang}>{lang}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <label className="block text-sm font-medium mb-2">Select Language/Context (1600+ Languages)</label>
+          <LanguageSelector 
+            value={language} 
+            onChange={setLanguage}
+            placeholder="Auto-Detect"
+          />
         </div>
 
         <div className="flex-1">
@@ -222,14 +210,12 @@ const CodeInput = ({ onAnalysisComplete }: CodeInputProps) => {
 
       <div>
         <label className="block text-lg font-semibold mb-2">
-          Manual Code/Text Editor
+          Manual Code/Text Editor (Notepad Style)
         </label>
-        <Textarea
+        <EnhancedCodeEditor
           value={code}
-          onChange={(e) => setCode(e.target.value)}
-          placeholder="Paste your code or document text here. The AI will analyze this code and provide dynamic output..."
-          rows={12}
-          className="font-mono text-sm"
+          onChange={setCode}
+          placeholder={"// Paste or type your code here...\n// Supports up to 300,000 lines\n// Features: Line numbers, auto-indent, bracket matching\n// Press Tab for indentation, Shift+Tab to unindent\n// Auto-closes: () [] {} '' \"\" ``"}
         />
       </div>
 
