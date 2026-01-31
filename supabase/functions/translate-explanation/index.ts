@@ -8,7 +8,12 @@ const corsHeaders = {
 
 const RequestSchema = z.object({
   text: z.string().min(1).max(10000),
-  targetLanguage: z.enum(['English', 'Telugu', 'Hindi', 'Tamil', 'Kannada', 'Malayalam', 'Bengali'])
+  targetLanguage: z.enum([
+    'English', 'Hindi', 'Telugu', 'Tamil', 'Kannada', 'Malayalam', 'Bengali',
+    'Gujarati', 'Marathi', 'Punjabi', 'Odia', 'Assamese', 'Urdu', 'Sanskrit',
+    'Nepali', 'Konkani', 'Maithili', 'Sindhi', 'Kashmiri', 'Manipuri', 'Bodo',
+    'Santali', 'Dogri'
+  ])
 });
 
 serve(async (req) => {
