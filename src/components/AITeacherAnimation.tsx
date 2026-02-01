@@ -1,8 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { 
   Volume2, VolumeX, Loader2, Globe, Play, Pause, Square, 
   Gauge, SkipBack, SkipForward, Download, Subtitles, Sparkles,
-  ChevronDown, ChevronUp
+  ChevronDown, ChevronUp, Mic
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -60,10 +60,14 @@ const AITeacherAnimation = ({ text, className = '' }: AITeacherAnimationProps) =
   const [progress, setProgress] = useState(0);
   const [isExpanded, setIsExpanded] = useState(true);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [waveformData, setWaveformData] = useState<number[]>(new Array(24).fill(0));
+  const [mouthOpenness, setMouthOpenness] = useState(0);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const waveformIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const textChunksRef = useRef<string[]>([]);
   const currentChunkIndexRef = useRef(0);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const { toast } = useToast();
 
   // Load available voices
@@ -91,6 +95,68 @@ const AITeacherAnimation = ({ text, className = '' }: AITeacherAnimationProps) =
     const sentences = displayText.split(/(?<=[.!?।])\s+/);
     textChunksRef.current = sentences;
   }, [text, translatedText]);
+
+  // Waveform animation effect
+  const animateWaveform = useCallback(() => {
+    if (isPlaying && !isPaused) {
+      const newData = Array.from({ length: 24 }, () => 
+        Math.random() * 0.8 + 0.2
+      );
+      setWaveformData(newData);
+      setMouthOpenness(Math.random() * 0.6 + 0.2);
+    } else {
+      setWaveformData(new Array(24).fill(0.1));
+      setMouthOpenness(0);
+    }
+  }, [isPlaying, isPaused]);
+
+  useEffect(() => {
+    if (isPlaying && !isPaused) {
+      waveformIntervalRef.current = setInterval(animateWaveform, 80);
+    } else {
+      if (waveformIntervalRef.current) {
+        clearInterval(waveformIntervalRef.current);
+      }
+      setWaveformData(new Array(24).fill(0.1));
+      setMouthOpenness(0);
+    }
+    return () => {
+      if (waveformIntervalRef.current) {
+        clearInterval(waveformIntervalRef.current);
+      }
+    };
+  }, [isPlaying, isPaused, animateWaveform]);
+
+  // Draw waveform on canvas
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const width = canvas.width;
+    const height = canvas.height;
+    const barWidth = (width / waveformData.length) - 3;
+
+    ctx.clearRect(0, 0, width, height);
+
+    // Create gradient
+    const gradient = ctx.createLinearGradient(0, 0, 0, height);
+    gradient.addColorStop(0, '#22c55e');
+    gradient.addColorStop(0.5, '#3b82f6');
+    gradient.addColorStop(1, '#8b5cf6');
+
+    waveformData.forEach((value, index) => {
+      const barHeight = value * height * 0.85;
+      const x = index * (barWidth + 3);
+      const y = (height - barHeight) / 2;
+
+      ctx.fillStyle = isPlaying && !isPaused ? gradient : '#4b5563';
+      ctx.beginPath();
+      ctx.roundRect(x, y, barWidth, barHeight, 2);
+      ctx.fill();
+    });
+  }, [waveformData, isPlaying, isPaused]);
 
   const getVoicesForLanguage = (langCode: string) => {
     return availableVoices.filter(v => 
@@ -336,17 +402,18 @@ const AITeacherAnimation = ({ text, className = '' }: AITeacherAnimationProps) =
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="relative">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center animate-pulse">
+              <div className={`w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center ${isPlaying && !isPaused ? 'animate-pulse' : ''}`}>
                 <Sparkles className="w-6 h-6 text-white" />
               </div>
-              {isPlaying && (
+              {isPlaying && !isPaused && (
                 <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full animate-ping" />
               )}
             </div>
             <div>
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
                 🤖 AI Teacher
-                {isPlaying && <span className="text-xs text-green-400 animate-pulse">Speaking...</span>}
+                {isPlaying && !isPaused && <span className="text-xs text-green-400 animate-pulse">Speaking...</span>}
+                {isPaused && <span className="text-xs text-yellow-400">Paused</span>}
               </h3>
               <p className="text-xs text-gray-400">Interactive Code Explanation</p>
             </div>
@@ -365,11 +432,62 @@ const AITeacherAnimation = ({ text, className = '' }: AITeacherAnimationProps) =
 
       {isExpanded && (
         <>
+          {/* Animated Avatar Section */}
+          <div className="p-4 bg-gradient-to-b from-gray-900 to-gray-800 border-b border-gray-700">
+            <div className="flex items-center gap-6">
+              {/* 3D-style Animated Avatar */}
+              <div className="relative flex-shrink-0">
+                <div className={`w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 p-1 ${isPlaying && !isPaused ? 'animate-pulse' : ''}`}>
+                  <div className="w-full h-full rounded-full bg-gray-800 flex items-center justify-center relative overflow-hidden">
+                    {/* Avatar Face */}
+                    <div className="relative w-16 h-16">
+                      {/* Eyes */}
+                      <div className="absolute top-3 left-2 w-3 h-3 bg-white rounded-full flex items-center justify-center">
+                        <div className={`w-1.5 h-1.5 bg-gray-800 rounded-full ${isPlaying && !isPaused ? 'animate-bounce' : ''}`} style={{ animationDuration: '2s' }} />
+                      </div>
+                      <div className="absolute top-3 right-2 w-3 h-3 bg-white rounded-full flex items-center justify-center">
+                        <div className={`w-1.5 h-1.5 bg-gray-800 rounded-full ${isPlaying && !isPaused ? 'animate-bounce' : ''}`} style={{ animationDuration: '2s' }} />
+                      </div>
+                      {/* Nose */}
+                      <div className="absolute top-7 left-1/2 -translate-x-1/2 w-1 h-2 bg-gray-600 rounded-full" />
+                      {/* Animated Mouth */}
+                      <div 
+                        className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-red-400 rounded-full transition-all duration-75"
+                        style={{ 
+                          width: `${8 + mouthOpenness * 12}px`,
+                          height: `${2 + mouthOpenness * 10}px`,
+                          borderRadius: mouthOpenness > 0.3 ? '50%' : '9999px'
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+                {/* Speaking Indicator */}
+                {isPlaying && !isPaused && (
+                  <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-green-600 text-white text-xs px-2 py-0.5 rounded-full">
+                    <Mic className="w-3 h-3" />
+                    <span className="text-[10px]">Live</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Waveform Visualization */}
+              <div className="flex-1">
+                <canvas 
+                  ref={canvasRef}
+                  width={400}
+                  height={60}
+                  className="w-full h-[60px] rounded-lg bg-gray-900/50"
+                />
+              </div>
+            </div>
+          </div>
+
           {/* Video-like Progress Bar */}
           <div className="px-4 pt-3">
             <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
               <div 
-                className="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-300"
+                className="h-full bg-gradient-to-r from-green-500 via-blue-500 to-purple-500 transition-all duration-300"
                 style={{ width: `${progress}%` }}
               />
             </div>
