@@ -5,6 +5,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import jsPDF from 'jspdf';
 import NarrationControls from '@/components/NarrationControls';
+import AITeacherAnimation from '@/components/AITeacherAnimation';
 import DOMPurify from 'dompurify';
 
 interface DiagnosticResultsProps {
@@ -226,6 +227,12 @@ const DiagnosticResults = ({ data }: DiagnosticResultsProps) => {
           </h3>
           <NarrationControls text={data.ttsNarration || 'No explanation available'} />
         </div>
+
+        {/* Grey Box - AI Teacher Animation */}
+        <AITeacherAnimation 
+          text={data.ttsNarration || 'No explanation available'} 
+          className="mt-6"
+        />
 
         {/* Blue Box - MCQ Questions */}
         {data.mcq && data.mcq.trim() !== '' && (

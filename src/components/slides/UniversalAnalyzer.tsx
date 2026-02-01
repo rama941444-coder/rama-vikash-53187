@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import * as pdfjsLib from 'pdfjs-dist';
 import { parseDocument } from '@/lib/documentParser';
 import NarrationControls from '@/components/NarrationControls';
+import AITeacherAnimation from '@/components/AITeacherAnimation';
 import LanguageSelector from '@/components/LanguageSelector';
 // @ts-ignore - Vite resolves this to a URL string for the worker file
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
@@ -350,6 +351,14 @@ const UniversalAnalyzer = () => {
               </h3>
               <NarrationControls text={result.ttsNarration} />
             </div>
+          )}
+
+          {/* Grey Box - AI Teacher Animation */}
+          {result.ttsNarration && (
+            <AITeacherAnimation 
+              text={result.ttsNarration} 
+              className="mt-6"
+            />
           )}
         </div>
       )}
