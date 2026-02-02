@@ -157,7 +157,7 @@ const CodeInput = ({ onAnalysisComplete }: CodeInputProps) => {
           onAnalysisComplete(data);
           toast({
             title: "✅ Analysis Complete!",
-            description: "All results are ready. Lovable AI powered analysis.",
+            description: "All results are ready.",
           });
         }
       }

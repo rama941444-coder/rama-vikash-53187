@@ -1,10 +1,14 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Eraser, Pen, Download, Trash2, Undo, Redo } from 'lucide-react';
+import { Eraser, Pen, Download, Trash2, Undo, Redo, Code } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { jsPDF } from 'jspdf';
 
-const DraftBoard = () => {
+interface DraftBoardProps {
+  onOpenLiveCode?: () => void;
+}
+
+const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [mode, setMode] = useState<'pen' | 'eraser'>('pen');
@@ -12,6 +16,7 @@ const DraftBoard = () => {
   const [thickness, setThickness] = useState(5);
   const [history, setHistory] = useState<string[]>([]);
   const [historyStep, setHistoryStep] = useState(-1);
+  const lastPointRef = useRef<{ x: number; y: number } | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -32,19 +37,56 @@ const DraftBoard = () => {
     }
   }, []);
 
+  const getCanvasPoint = useCallback((e: React.TouchEvent<HTMLCanvasElement> | React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+
+    if ('touches' in e) {
+      const touch = e.touches[0] || e.changedTouches[0];
+      return {
+        x: (touch.clientX - rect.left) * scaleX,
+        y: (touch.clientY - rect.top) * scaleY
+      };
+    } else {
+      return {
+        x: (e.clientX - rect.left) * scaleX,
+        y: (e.clientY - rect.top) * scaleY
+      };
+    }
+  }, []);
+
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
     setIsDrawing(true);
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const point = getCanvasPoint(e);
+    lastPointRef.current = point;
 
     const ctx = canvas.getContext('2d');
     if (ctx) {
       ctx.beginPath();
-      ctx.moveTo(x, y);
+      ctx.moveTo(point.x, point.y);
+    }
+  };
+
+  const startDrawingTouch = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    setIsDrawing(true);
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const point = getCanvasPoint(e);
+    lastPointRef.current = point;
+
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.beginPath();
+      ctx.moveTo(point.x, point.y);
     }
   };
 
@@ -54,12 +96,27 @@ const DraftBoard = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const point = getCanvasPoint(e);
+    drawLine(point);
+  };
+
+  const drawTouch = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    if (!isDrawing) return;
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const point = getCanvasPoint(e);
+    drawLine(point);
+  };
+
+  const drawLine = useCallback((point: { x: number; y: number }) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
-    if (ctx) {
+    if (ctx && lastPointRef.current) {
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
       ctx.lineWidth = thickness;
@@ -71,19 +128,30 @@ const DraftBoard = () => {
         ctx.globalCompositeOperation = 'destination-out';
       }
       
-      // Immediate rendering for faster response
-      ctx.lineTo(x, y);
+      // Smooth line drawing with quadratic curve
+      const midX = (lastPointRef.current.x + point.x) / 2;
+      const midY = (lastPointRef.current.y + point.y) / 2;
+      
+      ctx.quadraticCurveTo(lastPointRef.current.x, lastPointRef.current.y, midX, midY);
       ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(x, y);
+      ctx.moveTo(midX, midY);
+      
+      lastPointRef.current = point;
+    }
+  }, [thickness, mode, color]);
+
+  const stopDrawing = () => {
+    if (isDrawing) {
+      setIsDrawing(false);
+      lastPointRef.current = null;
+      saveToHistory();
     }
   };
 
-  const stopDrawing = () => {
-    setIsDrawing(false);
-    if (isDrawing) {
-      saveToHistory();
-    }
+  const stopDrawingTouch = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    stopDrawing();
   };
 
   const saveToHistory = () => {
@@ -203,6 +271,20 @@ const DraftBoard = () => {
 
   return (
     <div className="space-y-6">
+      {/* Live Code Button - Top Right */}
+      {onOpenLiveCode && (
+        <div className="flex justify-end">
+          <Button 
+            onClick={onOpenLiveCode}
+            className="gap-2 neon-glow"
+            size="lg"
+          >
+            <Code className="w-5 h-5" />
+            Live Code IDE
+          </Button>
+        </div>
+      )}
+
       <div className="flex flex-col lg:flex-row gap-4">
         <div className="lg:w-1/4 bg-card p-6 rounded-xl border border-border space-y-4">
           <h3 className="text-xl font-semibold mb-4">Canvas Tools</h3>
@@ -306,6 +388,10 @@ const DraftBoard = () => {
             onMouseMove={draw}
             onMouseUp={stopDrawing}
             onMouseLeave={stopDrawing}
+            onTouchStart={startDrawingTouch}
+            onTouchMove={drawTouch}
+            onTouchEnd={stopDrawingTouch}
+            onTouchCancel={stopDrawingTouch}
           />
         </div>
       </div>

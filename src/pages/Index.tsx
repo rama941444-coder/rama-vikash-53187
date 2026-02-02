@@ -5,6 +5,7 @@ import UniversalAnalyzer from '@/components/slides/UniversalAnalyzer';
 import DraftBoard from '@/components/slides/DraftBoard';
 import CodeInput from '@/components/slides/CodeInput';
 import DiagnosticResults from '@/components/slides/DiagnosticResults';
+import LiveCodeIDE from '@/components/slides/LiveCodeIDE';
 import SlideIndicator from '@/components/SlideIndicator';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -40,8 +41,15 @@ const Index = () => {
     return () => subscription.unsubscribe();
   }, [navigate]);
 
+  const goToLiveCodeSlide = () => {
+    setCurrentSlide(4); // Live Code IDE is at index 4
+  };
+
   const slides = [
-    { component: <DraftBoard />, title: "Draft Board" },
+    { 
+      component: <DraftBoard onOpenLiveCode={goToLiveCodeSlide} />, 
+      title: "Draft Board" 
+    },
     { 
       component: <CodeInput onAnalysisComplete={(data) => {
         setAnalysisData(data);
@@ -51,6 +59,13 @@ const Index = () => {
     },
     { component: <DiagnosticResults data={analysisData} />, title: "AI Diagnostic Results" },
     { component: <UniversalAnalyzer />, title: "Universal File Analyzer" },
+    { 
+      component: <LiveCodeIDE onAnalysisComplete={(data) => {
+        setAnalysisData(data);
+        setCurrentSlide(2);
+      }} />, 
+      title: "Live Code IDE" 
+    },
   ];
 
   const nextSlide = () => {
