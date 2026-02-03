@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Upload, Loader2, Play } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
