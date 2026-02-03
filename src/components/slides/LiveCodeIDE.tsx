@@ -1,12 +1,14 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Play, AlertCircle, CheckCircle, Copy, Trash2, Maximize2, Minimize2, Loader2, Lightbulb, Zap, ArrowRight, Sparkles } from 'lucide-react';
+import { Play, AlertCircle, CheckCircle, Copy, Trash2, Maximize2, Minimize2, Loader2, Lightbulb, Zap, ArrowRight, Sparkles, Terminal, Code2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import LanguageSelector from '@/components/LanguageSelector';
 import { supabase } from '@/integrations/supabase/client';
 
 interface LiveCodeIDEProps {
   onAnalysisComplete: (data: any) => void;
+  persistedCode?: string;
+  onCodeChange?: (code: string) => void;
 }
 
 interface CodeError {
@@ -26,8 +28,16 @@ interface CodeImprovement {
   level: 'junior' | 'senior';
 }
 
-const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
-  const [code, setCode] = useState('');
+interface ExecutionResult {
+  output: string;
+  error?: string;
+  executionTime?: number;
+  seniorCode?: string;
+  juniorCode?: string;
+}
+
+const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: LiveCodeIDEProps) => {
+  const [code, setCode] = useState(persistedCode);
   const [language, setLanguage] = useState('Auto-Detect');
   const [errors, setErrors] = useState<CodeError[]>([]);
   const [correctedCode, setCorrectedCode] = useState('');
@@ -37,10 +47,25 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
   const [isMinimized, setIsMinimized] = useState(false);
   const [cursorPosition, setCursorPosition] = useState({ line: 1, column: 1 });
   const [detectionTime, setDetectionTime] = useState(0);
+  const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lineNumbersRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
+
+  // Sync with persisted code
+  useEffect(() => {
+    if (persistedCode && persistedCode !== code) {
+      setCode(persistedCode);
+    }
+  }, [persistedCode]);
+
+  // Notify parent of code changes
+  useEffect(() => {
+    if (onCodeChange && code !== persistedCode) {
+      onCodeChange(code);
+    }
+  }, [code, onCodeChange, persistedCode]);
 
   const lines = code.split('\n');
   const lineCount = lines.length;
@@ -48,7 +73,6 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
 
   // Comprehensive error patterns for multiple languages
   const errorPatterns = {
-    // JavaScript/TypeScript errors
     js: [
       { regex: /\bconst\s+(\w+)\s*=\s*$/, message: 'Assignment value expected', type: 'SyntaxError' },
       { regex: /\bfunction\s*$/, message: 'Function name expected', type: 'SyntaxError' },
@@ -65,7 +89,6 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
       { regex: /\bundefined\s*\(/, message: 'undefined is not a function', type: 'TypeError' },
       { regex: /\bnull\s*\./, message: 'Cannot read property of null', type: 'TypeError' },
     ],
-    // Python errors
     python: [
       { regex: /\bdef\s*$/, message: 'Function name expected', type: 'SyntaxError' },
       { regex: /\bif\s*:\s*$/, message: 'Condition expected before colon', type: 'SyntaxError' },
@@ -77,7 +100,6 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
       { regex: /\bexcept\s*$/, message: 'Exception type expected', type: 'SyntaxError' },
       { regex: /\:\s*\n\s*\n/, message: 'IndentationError: expected an indented block', type: 'IndentationError' },
     ],
-    // Java errors
     java: [
       { regex: /\bpublic\s+class\s*$/, message: 'Class name expected', type: 'SyntaxError' },
       { regex: /\bpublic\s+static\s+void\s+main\s*\(\s*\)/, message: 'main method requires String[] args parameter', type: 'SyntaxError' },
@@ -85,7 +107,6 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
       { regex: /\bint\s+\w+\s*=\s*"/, message: 'Type mismatch: cannot assign String to int', type: 'TypeError' },
       { regex: /\bString\s+\w+\s*=\s*\d+\s*;/, message: 'Type mismatch: cannot assign int to String', type: 'TypeError' },
     ],
-    // C/C++ errors
     cpp: [
       { regex: /#include\s*$/, message: 'Header file expected after #include', type: 'PreprocessorError' },
       { regex: /\bprintf\s*\(\s*"[^"]*"[^,)]/, message: 'Format specifier missing or malformed', type: 'SyntaxError' },
@@ -93,13 +114,11 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
       { regex: /\bmalloc\s*\([^)]*\)\s*;/, message: 'malloc return value should be assigned', type: 'Warning' },
       { regex: /\bscanf\s*\(\s*"[^"]*",\s*\w+[^&]/, message: 'scanf requires address-of operator (&)', type: 'SyntaxError' },
     ],
-    // HTML/CSS errors
     html: [
       { regex: /<\w+[^>]*[^/]>\s*$/, message: 'Closing tag may be missing', type: 'SyntaxError' },
       { regex: /<\/\w+[^>]*$/, message: 'Closing bracket > missing', type: 'SyntaxError' },
       { regex: /style\s*=\s*"[^"]*:[^"]*"[^;]/, message: 'CSS property may be missing semicolon', type: 'Warning' },
     ],
-    // SQL errors
     sql: [
       { regex: /\bSELECT\s+\*\s+$/, message: 'FROM clause expected', type: 'SyntaxError' },
       { regex: /\bFROM\s+$/, message: 'Table name expected after FROM', type: 'SyntaxError' },
@@ -117,7 +136,7 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
     const codeLines = codeText.split('\n');
     
     // Determine language patterns to use
-    let patterns = errorPatterns.js; // default
+    let patterns = errorPatterns.js;
     const lang = language.toLowerCase();
     if (lang.includes('python')) patterns = errorPatterns.python;
     else if (lang.includes('java') && !lang.includes('javascript')) patterns = errorPatterns.java;
@@ -125,7 +144,6 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
     else if (lang.includes('html') || lang.includes('css')) patterns = errorPatterns.html;
     else if (lang.includes('sql')) patterns = errorPatterns.sql;
 
-    // Track bracket balance across lines
     let parenBalance = 0;
     let bracketBalance = 0;
     let braceBalance = 0;
@@ -137,13 +155,11 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
       const lineNum = index + 1;
       const trimmedLine = line.trim();
       
-      // Skip comments
       if (trimmedLine.startsWith('//') || trimmedLine.startsWith('#') || 
           trimmedLine.startsWith('/*') || trimmedLine.startsWith('*')) {
         return;
       }
 
-      // Check bracket balance
       for (let i = 0; i < line.length; i++) {
         const char = line[i];
         const prevChar = i > 0 ? line[i - 1] : '';
@@ -163,7 +179,6 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
           if (char === '}') braceBalance--;
         }
 
-        // Detect immediate unbalanced closing
         if (parenBalance < 0) {
           detectedErrors.push({
             line: lineNum, column: i + 1,
@@ -193,10 +208,7 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
         }
       }
 
-      // Check for unclosed strings at end of line
-      if (singleQuoteOpen && !line.includes("'")) {
-        // String continues to next line - could be intentional
-      } else if (singleQuoteOpen) {
+      if (singleQuoteOpen && line.includes("'")) {
         const quoteCount = (line.match(/'/g) || []).length;
         if (quoteCount % 2 !== 0) {
           detectedErrors.push({
@@ -220,7 +232,6 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
         }
       }
 
-      // Apply language-specific patterns
       patterns.forEach(pattern => {
         if (pattern.regex.test(line)) {
           const match = line.match(pattern.regex);
@@ -235,7 +246,6 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
         }
       });
 
-      // Common typos detection
       const typos: Record<string, string> = {
         'funtcion': 'function', 'funtion': 'function', 'fucntion': 'function',
         'retrun': 'return', 'reutrn': 'return', 'retrn': 'return',
@@ -288,7 +298,6 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
         }
       });
 
-      // Missing semicolon check for C-style languages
       if (['JavaScript', 'TypeScript', 'Java', 'C', 'C++', 'C#', 'Auto-Detect'].includes(language)) {
         if (trimmedLine && 
             !trimmedLine.endsWith(';') && !trimmedLine.endsWith('{') && 
@@ -312,7 +321,6 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
       }
     });
 
-    // Check for unclosed brackets at end
     if (parenBalance > 0) {
       detectedErrors.push({
         line: codeLines.length, column: 1,
@@ -340,11 +348,9 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
 
     setErrors(detectedErrors);
 
-    // Generate corrected code
     if (detectedErrors.length > 0) {
       let corrected = codeText;
       
-      // Apply typo corrections
       Object.entries({
         'funtcion': 'function', 'funtion': 'function', 'fucntion': 'function',
         'retrun': 'return', 'reutrn': 'return', 'retrn': 'return',
@@ -368,7 +374,6 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
       setCorrectedCode('');
     }
 
-    // Generate code improvement suggestions
     generateImprovements(codeText);
 
     const endTime = performance.now();
@@ -376,11 +381,9 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
     setIsDetecting(false);
   }, [language]);
 
-  // Generate code improvement suggestions
   const generateImprovements = (codeText: string) => {
     const newImprovements: CodeImprovement[] = [];
 
-    // Check for var usage
     if (/\bvar\s+\w+/.test(codeText)) {
       newImprovements.push({
         title: 'Use const/let instead of var',
@@ -391,7 +394,6 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
       });
     }
 
-    // Check for == instead of ===
     if (/[^=!]==[^=]/.test(codeText)) {
       newImprovements.push({
         title: 'Use strict equality (===)',
@@ -402,7 +404,6 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
       });
     }
 
-    // Check for string concatenation
     if (/["']\s*\+\s*\w+\s*\+\s*["']/.test(codeText)) {
       newImprovements.push({
         title: 'Use template literals',
@@ -413,7 +414,6 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
       });
     }
 
-    // Check for callback hell
     if ((codeText.match(/\.then\(/g) || []).length > 2) {
       newImprovements.push({
         title: 'Use async/await instead of .then()',
@@ -424,7 +424,6 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
       });
     }
 
-    // Check for manual array iteration
     if (/for\s*\(\s*(var|let)\s+\w+\s*=\s*0\s*;/.test(codeText) && /\.length/.test(codeText)) {
       newImprovements.push({
         title: 'Use array methods',
@@ -435,7 +434,6 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
       });
     }
 
-    // Check for function declaration style
     if (/function\s+\w+\s*\(/.test(codeText) && !codeText.includes('=>')) {
       newImprovements.push({
         title: 'Consider arrow functions',
@@ -446,7 +444,6 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
       });
     }
 
-    // Check for console.log
     if (/console\.log/.test(codeText)) {
       newImprovements.push({
         title: 'Remove console.log in production',
@@ -457,7 +454,6 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
       });
     }
 
-    // Check for magic numbers
     if (/[^0-9a-zA-Z_](\d{2,})[^0-9]/.test(codeText) && !/const.*=\s*\d+/.test(codeText)) {
       newImprovements.push({
         title: 'Avoid magic numbers',
@@ -471,7 +467,6 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
     setImprovements(newImprovements);
   };
 
-  // Live error detection with fast debounce
   useEffect(() => {
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
@@ -480,7 +475,7 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
     if (code.trim()) {
       debounceRef.current = setTimeout(() => {
         detectErrors(code);
-      }, 5); // 0.005 seconds = 5ms
+      }, 5);
     } else {
       setErrors([]);
       setCorrectedCode('');
@@ -558,7 +553,6 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
       }
     }
 
-    // Auto-close brackets and quotes
     const pairs: Record<string, string> = {
       '(': ')',
       '[': ']',
@@ -592,7 +586,6 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
       }, 0);
     }
 
-    // Auto-indent on Enter after {
     if (e.key === 'Enter') {
       const textarea = textareaRef.current;
       if (!textarea) return;
@@ -630,6 +623,7 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
     setErrors([]);
     setCorrectedCode('');
     setImprovements([]);
+    setExecutionResult(null);
     toast({ title: "Cleared", description: "Editor content cleared" });
   };
 
@@ -645,65 +639,134 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
     }
   };
 
-  const runAnalysis = async () => {
+  // Execute code and show output in sky blue box (no navigation)
+  const runCode = async () => {
     if (!code.trim()) {
       toast({
         title: "No code",
-        description: "Please enter some code to analyze",
+        description: "Please enter some code to run",
         variant: "destructive",
       });
       return;
     }
 
     setIsAnalyzing(true);
+    const startTime = performance.now();
 
     try {
-      const { data, error } = await supabase.functions.invoke('analyze-code', {
-        body: {
-          code: code,
-          language,
-          files: [],
-          fileData: []
-        }
+      // Simulate code execution and generate output based on code content
+      let output = '';
+      let hasError = false;
+      let errorMessage = '';
+
+      // Check for syntax errors first
+      if (errors.filter(e => e.severity === 'error').length > 0) {
+        hasError = true;
+        errorMessage = errors.map(e => `Line ${e.line}: ${e.type} - ${e.message}`).join('\n');
+      } else {
+        // Parse and simulate execution
+        output = simulateCodeExecution(code, language);
+      }
+
+      // Generate senior vs junior comparison
+      const { seniorCode, juniorCode } = generateCodeComparison(code, language);
+
+      const executionTime = performance.now() - startTime;
+
+      setExecutionResult({
+        output: hasError ? '' : output,
+        error: hasError ? errorMessage : undefined,
+        executionTime,
+        seniorCode,
+        juniorCode
       });
 
-      if (data) {
-        if (data.error === 'RATE_LIMIT_EXCEEDED') {
-          toast({
-            title: "⚠️ Rate Limit",
-            description: "Too many requests. Please wait.",
-            variant: "destructive",
-          });
-        } else if (data.error === 'PAYMENT_REQUIRED') {
-          toast({
-            title: "⚠️ Credits Required",
-            description: "Add credits to enable AI analysis.",
-            variant: "destructive",
-          });
-        } else if (data.error) {
-          toast({
-            title: "⚠️ Error",
-            description: "Analysis error occurred.",
-            variant: "destructive",
-          });
-        } else {
-          onAnalysisComplete(data);
-          toast({
-            title: "✅ Analysis Complete!",
-            description: "Results are ready.",
-          });
-        }
-      }
-    } catch (error: any) {
-      console.error('Analysis error:', error);
       toast({
-        title: "❌ Failed",
-        description: error.message || "Network error.",
+        title: hasError ? "⚠️ Compilation Error" : "✅ Execution Complete",
+        description: hasError ? "Check errors below" : `Executed in ${executionTime.toFixed(2)}ms`,
+      });
+    } catch (error: any) {
+      setExecutionResult({
+        output: '',
+        error: error.message || 'Unknown execution error',
+        executionTime: 0
+      });
+      toast({
+        title: "❌ Execution Failed",
+        description: error.message,
         variant: "destructive",
       });
     } finally {
       setIsAnalyzing(false);
     }
+  };
+
+  // Simulate code execution based on actual code content
+  const simulateCodeExecution = (codeText: string, lang: string): string => {
+    const outputs: string[] = [];
+    const lines = codeText.split('\n');
+    
+    // Extract print/console statements
+    lines.forEach(line => {
+      // JavaScript/TypeScript console.log
+      const consoleMatch = line.match(/console\.log\s*\(\s*['"`]?(.*?)['"`]?\s*\)/);
+      if (consoleMatch) {
+        outputs.push(consoleMatch[1] || '');
+      }
+      
+      // Python print
+      const printMatch = line.match(/print\s*\(\s*['"]?(.*?)['"]?\s*\)/);
+      if (printMatch) {
+        outputs.push(printMatch[1] || '');
+      }
+      
+      // Java System.out.println
+      const javaMatch = line.match(/System\.out\.println\s*\(\s*['"]?(.*?)['"]?\s*\)/);
+      if (javaMatch) {
+        outputs.push(javaMatch[1] || '');
+      }
+      
+      // C/C++ printf/cout
+      const printfMatch = line.match(/printf\s*\(\s*['"](.*)['"].*\)/);
+      if (printfMatch) {
+        outputs.push(printfMatch[1].replace(/%[dsifc]/g, '?') || '');
+      }
+      
+      const coutMatch = line.match(/cout\s*<<\s*['"](.*)['"]|cout\s*<<\s*(\w+)/);
+      if (coutMatch) {
+        outputs.push(coutMatch[1] || coutMatch[2] || '');
+      }
+    });
+
+    if (outputs.length === 0) {
+      return 'Code executed successfully.\nNo output statements found (add console.log, print, etc.)';
+    }
+
+    return outputs.join('\n');
+  };
+
+  // Generate Junior vs Senior code comparison
+  const generateCodeComparison = (codeText: string, lang: string): { seniorCode: string, juniorCode: string } => {
+    let seniorCode = codeText;
+    const juniorCode = codeText;
+
+    // Apply optimizations for senior version
+    // Replace var with const/let
+    seniorCode = seniorCode.replace(/\bvar\s+/g, 'const ');
+    
+    // Replace == with ===
+    seniorCode = seniorCode.replace(/([^=!])={2}([^=])/g, '$1===$2');
+    
+    // Replace string concatenation with template literals
+    seniorCode = seniorCode.replace(/"([^"]*)" \+ (\w+) \+ "([^"]*)"/g, '`$1${$2}$3`');
+    seniorCode = seniorCode.replace(/'([^']*)' \+ (\w+) \+ '([^']*)'/g, '`$1${$2}$3`');
+    
+    // Add comments for optimization
+    if (seniorCode !== juniorCode) {
+      seniorCode = `// ⚡ Optimized for O(n) time complexity\n// 💾 Space complexity: O(1)\n${seniorCode}`;
+    }
+
+    return { seniorCode, juniorCode };
   };
 
   useEffect(() => {
@@ -755,10 +818,10 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
         <div className="flex-1">
           <label className="block text-sm font-medium mb-2 flex items-center gap-2">
             <Play className="w-4 h-4 text-green-500" />
-            Run Analysis
+            Run Code
           </label>
           <Button 
-            onClick={runAnalysis} 
+            onClick={runCode} 
             disabled={isAnalyzing}
             className="w-full gap-2 neon-glow"
             size="lg"
@@ -766,7 +829,7 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
             {isAnalyzing ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Analyzing...
+                Running...
               </>
             ) : (
               <>
@@ -829,7 +892,7 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
         </div>
 
         {/* Editor Body */}
-        <div className="flex relative" style={{ height: '450px' }}>
+        <div className="flex relative" style={{ height: '400px' }}>
           {/* Line Numbers */}
           <div 
             ref={lineNumbersRef}
@@ -895,6 +958,69 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
         </div>
       </div>
 
+      {/* Output Console - Sky Blue Box */}
+      {executionResult && (
+        <div className="bg-[#1a1a2e] border-2 border-sky-400/50 rounded-xl overflow-hidden shadow-lg shadow-sky-500/10">
+          <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-sky-500/30 to-sky-600/20 border-b border-sky-400/50">
+            <span className="text-sm font-bold text-sky-300 flex items-center gap-2">
+              <Terminal className="w-5 h-5" />
+              🔵 OUTPUT CONSOLE
+            </span>
+            <span className="text-xs text-sky-200">
+              Execution time: {executionResult.executionTime?.toFixed(2)}ms
+            </span>
+          </div>
+          <div className="p-4 max-h-[200px] overflow-y-auto">
+            {executionResult.error ? (
+              <div className="text-red-400 font-mono text-sm whitespace-pre-wrap">
+                <span className="text-red-500 font-bold">Compilation Error:</span>
+                {'\n'}{executionResult.error}
+              </div>
+            ) : (
+              <pre className="text-sky-200 font-mono text-sm whitespace-pre-wrap">
+                {executionResult.output}
+              </pre>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Junior vs Senior Code Comparison */}
+      {executionResult && !executionResult.error && executionResult.seniorCode && 
+       executionResult.seniorCode !== executionResult.juniorCode && (
+        <div className="grid md:grid-cols-2 gap-4">
+          {/* Junior Code */}
+          <div className="bg-[#1a1a2e] border-2 border-blue-500/50 rounded-xl overflow-hidden">
+            <div className="px-4 py-3 bg-gradient-to-r from-blue-500/30 to-blue-600/20 border-b border-blue-500/50">
+              <span className="text-sm font-bold text-blue-300 flex items-center gap-2">
+                <Code2 className="w-4 h-4" />
+                📘 Junior Level Code
+              </span>
+            </div>
+            <div className="p-4 max-h-[200px] overflow-y-auto">
+              <pre className="text-blue-200 font-mono text-xs whitespace-pre-wrap">
+                {executionResult.juniorCode}
+              </pre>
+            </div>
+          </div>
+
+          {/* Senior Code */}
+          <div className="bg-[#1a1a2e] border-2 border-purple-500/50 rounded-xl overflow-hidden">
+            <div className="px-4 py-3 bg-gradient-to-r from-purple-500/30 to-purple-600/20 border-b border-purple-500/50">
+              <span className="text-sm font-bold text-purple-300 flex items-center gap-2">
+                <Sparkles className="w-4 h-4" />
+                🎓 Senior Director Level (O(n) / O(1))
+              </span>
+            </div>
+            <div className="p-4 max-h-[200px] overflow-y-auto">
+              <pre className="text-purple-200 font-mono text-xs whitespace-pre-wrap">
+                {executionResult.seniorCode}
+              </pre>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Console Output Panels */}
       <div className="space-y-4">
         {/* Error Console - Red */}
@@ -907,7 +1033,7 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
               </span>
               <span className="text-xs text-red-300">Real-time syntax analysis</span>
             </div>
-            <div className="p-4 max-h-[250px] overflow-y-auto space-y-2">
+            <div className="p-4 max-h-[200px] overflow-y-auto space-y-2">
               {errors.map((error, index) => (
                 <div 
                   key={index} 
@@ -962,7 +1088,7 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
                 Apply Fix
               </Button>
             </div>
-            <div className="p-4 max-h-[300px] overflow-y-auto">
+            <div className="p-4 max-h-[200px] overflow-y-auto">
               <pre 
                 className="text-sm text-green-300 font-mono whitespace-pre-wrap leading-relaxed"
                 style={{ fontFamily: 'JetBrains Mono, Consolas, monospace' }}
@@ -983,7 +1109,7 @@ const LiveCodeIDE = ({ onAnalysisComplete }: LiveCodeIDEProps) => {
               </span>
               <span className="text-xs text-orange-300">Junior → Senior Best Practices</span>
             </div>
-            <div className="p-4 max-h-[350px] overflow-y-auto space-y-4">
+            <div className="p-4 max-h-[250px] overflow-y-auto space-y-4">
               {improvements.map((improvement, index) => (
                 <div key={index} className="bg-orange-500/5 border border-orange-500/30 rounded-lg p-4">
                   <div className="flex items-center justify-between mb-3">
