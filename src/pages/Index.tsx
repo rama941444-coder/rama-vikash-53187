@@ -6,6 +6,7 @@ import DraftBoard from '@/components/slides/DraftBoard';
 import CodeInput from '@/components/slides/CodeInput';
 import DiagnosticResults from '@/components/slides/DiagnosticResults';
 import LiveCodeIDE from '@/components/slides/LiveCodeIDE';
+import MasteryChallenge from '@/components/slides/MasteryChallenge';
 import SlideIndicator from '@/components/SlideIndicator';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -17,6 +18,10 @@ const Index = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [analysisData, setAnalysisData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Persisted state for each notepad (code is preserved across slide navigation)
+  const [codeInputCode, setCodeInputCode] = useState('');
+  const [liveCodeIDECode, setLiveCodeIDECode] = useState('');
 
   useEffect(() => {
     // Check authentication
@@ -51,21 +56,33 @@ const Index = () => {
       title: "Draft Board" 
     },
     { 
-      component: <CodeInput onAnalysisComplete={(data) => {
-        setAnalysisData(data);
-        setCurrentSlide(2);
-      }} />, 
+      component: <CodeInput 
+        onAnalysisComplete={(data) => {
+          setAnalysisData(data);
+          setCurrentSlide(2);
+        }}
+        persistedCode={codeInputCode}
+        onCodeChange={setCodeInputCode}
+      />, 
       title: "Code/Document Input" 
     },
     { component: <DiagnosticResults data={analysisData} />, title: "AI Diagnostic Results" },
     { component: <UniversalAnalyzer />, title: "Universal File Analyzer" },
     { 
-      component: <LiveCodeIDE onAnalysisComplete={(data) => {
-        setAnalysisData(data);
-        setCurrentSlide(2);
-      }} />, 
+      component: <LiveCodeIDE 
+        onAnalysisComplete={(data) => {
+          setAnalysisData(data);
+          // Don't navigate to slide 3 - keep in slide 5 with output console
+        }}
+        persistedCode={liveCodeIDECode}
+        onCodeChange={setLiveCodeIDECode}
+      />, 
       title: "Live Code IDE" 
     },
+    {
+      component: <MasteryChallenge />,
+      title: "Mastery Challenge"
+    }
   ];
 
   const nextSlide = () => {

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Upload, Loader2, Play } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -9,15 +9,31 @@ import EnhancedCodeEditor from '@/components/EnhancedCodeEditor';
 
 interface CodeInputProps {
   onAnalysisComplete: (data: any) => void;
+  persistedCode?: string;
+  onCodeChange?: (code: string) => void;
 }
 
-const CodeInput = ({ onAnalysisComplete }: CodeInputProps) => {
-  const [code, setCode] = useState('');
+const CodeInput = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: CodeInputProps) => {
+  const [code, setCode] = useState(persistedCode);
   const [language, setLanguage] = useState('Auto-Detect');
   const [files, setFiles] = useState<File[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<any>(null);
   const { toast } = useToast();
+
+  // Sync with persisted code when it changes
+  useEffect(() => {
+    if (persistedCode && persistedCode !== code) {
+      setCode(persistedCode);
+    }
+  }, [persistedCode]);
+
+  // Notify parent of code changes for persistence
+  useEffect(() => {
+    if (onCodeChange && code !== persistedCode) {
+      onCodeChange(code);
+    }
+  }, [code, onCodeChange, persistedCode]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const uploadedFiles = Array.from(e.target.files || []);
