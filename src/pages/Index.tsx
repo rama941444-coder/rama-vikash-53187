@@ -7,6 +7,7 @@ import CodeInput from '@/components/slides/CodeInput';
 import DiagnosticResults from '@/components/slides/DiagnosticResults';
 import LiveCodeIDE from '@/components/slides/LiveCodeIDE';
 import MasteryChallenge from '@/components/slides/MasteryChallenge';
+import WebPreview from '@/components/slides/WebPreview';
 import SlideIndicator from '@/components/SlideIndicator';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -22,6 +23,9 @@ const Index = () => {
   // Persisted state for each notepad (code is preserved across slide navigation)
   const [codeInputCode, setCodeInputCode] = useState('');
   const [liveCodeIDECode, setLiveCodeIDECode] = useState('');
+  
+  // Web preview code - extracted from analysis results
+  const [webPreviewCode, setWebPreviewCode] = useState('');
 
   useEffect(() => {
     // Check authentication
@@ -50,6 +54,16 @@ const Index = () => {
     setCurrentSlide(4); // Live Code IDE is at index 4
   };
 
+  // Check if code is web development (HTML/CSS/JS)
+  const isWebCode = (code: string): boolean => {
+    return code.includes('<html') || 
+           code.includes('<!DOCTYPE') || 
+           code.includes('<body') ||
+           code.includes('<div') ||
+           code.includes('<style>') ||
+           code.includes('<script>');
+  };
+
   const slides = [
     { 
       component: <DraftBoard onOpenLiveCode={goToLiveCodeSlide} />, 
@@ -59,6 +73,12 @@ const Index = () => {
       component: <CodeInput 
         onAnalysisComplete={(data) => {
           setAnalysisData(data);
+          // Check if it's web code and set preview
+          if (data?.correctedCode && isWebCode(data.correctedCode)) {
+            setWebPreviewCode(data.correctedCode);
+          } else if (codeInputCode && isWebCode(codeInputCode)) {
+            setWebPreviewCode(codeInputCode);
+          }
           setCurrentSlide(2);
         }}
         persistedCode={codeInputCode}
@@ -72,16 +92,30 @@ const Index = () => {
       component: <LiveCodeIDE 
         onAnalysisComplete={(data) => {
           setAnalysisData(data);
+          // Check if it's web code and set preview
+          if (liveCodeIDECode && isWebCode(liveCodeIDECode)) {
+            setWebPreviewCode(liveCodeIDECode);
+          }
           // Don't navigate to slide 3 - keep in slide 5 with output console
         }}
         persistedCode={liveCodeIDECode}
-        onCodeChange={setLiveCodeIDECode}
+        onCodeChange={(code) => {
+          setLiveCodeIDECode(code);
+          // Auto-update web preview if it's HTML
+          if (isWebCode(code)) {
+            setWebPreviewCode(code);
+          }
+        }}
       />, 
       title: "Live Code IDE" 
     },
     {
       component: <MasteryChallenge />,
       title: "Mastery Challenge"
+    },
+    {
+      component: <WebPreview combinedCode={webPreviewCode} />,
+      title: "Web Preview"
     }
   ];
 

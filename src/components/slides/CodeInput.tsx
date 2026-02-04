@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Upload, Loader2, Play } from 'lucide-react';
+import { Upload, Loader2, Play, Image, Wand2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import DOMPurify from 'dompurify';
@@ -18,6 +18,7 @@ const CodeInput = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: Cod
   const [language, setLanguage] = useState('Auto-Detect');
   const [files, setFiles] = useState<File[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
+  const [extracting, setExtracting] = useState(false);
   const [result, setResult] = useState<any>(null);
   const { toast } = useToast();
 
@@ -44,18 +45,96 @@ const CodeInput = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: Cod
     });
   };
 
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     const droppedFiles = Array.from(e.dataTransfer.files);
+    
+    // Check if any dropped files are images
+    const imageFiles = droppedFiles.filter(f => f.type.startsWith('image/'));
+    const otherFiles = droppedFiles.filter(f => !f.type.startsWith('image/'));
+    
+    if (imageFiles.length > 0) {
+      toast({
+        title: "📸 Image detected!",
+        description: "Click 'Extract Code from Image' to extract code using AI",
+      });
+    }
+    
     setFiles((prev) => [...prev, ...droppedFiles]);
-    toast({
-      title: "Files uploaded",
-      description: `${droppedFiles.length} file(s) added`,
-    });
+    
+    if (otherFiles.length > 0) {
+      toast({
+        title: "Files uploaded",
+        description: `${otherFiles.length} file(s) added`,
+      });
+    }
   };
 
   const removeFile = (index: number) => {
     setFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // Extract code from images using Gemini 3
+  const extractCodeFromImages = async () => {
+    const imageFiles = files.filter(f => f.type.startsWith('image/'));
+    
+    if (imageFiles.length === 0) {
+      toast({
+        title: "No images",
+        description: "Please upload image files to extract code from",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setExtracting(true);
+    let extractedCodes: string[] = [];
+
+    try {
+      for (const file of imageFiles) {
+        const base64 = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target?.result as string);
+          reader.readAsDataURL(file);
+        });
+
+        const { data, error } = await supabase.functions.invoke('extract-code-from-image', {
+          body: { imageBase64: base64, language }
+        });
+
+        if (error) {
+          console.error('Extraction error:', error);
+          toast({
+            title: `❌ Failed to extract from ${file.name}`,
+            description: error.message,
+            variant: "destructive",
+          });
+          continue;
+        }
+
+        if (data?.code) {
+          extractedCodes.push(`// Extracted from: ${file.name}\n${data.code}`);
+        }
+      }
+
+      if (extractedCodes.length > 0) {
+        const combinedCode = extractedCodes.join('\n\n// -------------------\n\n');
+        setCode(prev => prev ? `${prev}\n\n${combinedCode}` : combinedCode);
+        toast({
+          title: "✅ Code Extracted!",
+          description: `Extracted code from ${extractedCodes.length} image(s)`,
+        });
+      }
+    } catch (error: any) {
+      console.error('Extraction error:', error);
+      toast({
+        title: "❌ Extraction Failed",
+        description: error.message || "Failed to extract code from images",
+        variant: "destructive",
+      });
+    } finally {
+      setExtracting(false);
+    }
   };
 
   const runAnalysis = async () => {
@@ -189,6 +268,8 @@ const CodeInput = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: Cod
     }
   };
 
+  const hasImages = files.some(f => f.type.startsWith('image/'));
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row gap-4">
@@ -244,6 +325,7 @@ const CodeInput = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: Cod
         <Upload className="w-12 h-12 mx-auto mb-3 text-primary" />
         <p className="text-lg font-medium mb-2">Drag & Drop Files (Images, PDF, Word, Code)</p>
         <p className="text-sm text-muted-foreground">Supports handwritten text, screenshots, and multiple code snippets</p>
+        <p className="text-xs text-primary mt-2">📸 Drop images to extract code using Gemini 3 AI</p>
         <input
           type="file"
           id="code-file-input"
@@ -254,19 +336,45 @@ const CodeInput = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: Cod
       </div>
 
       {files.length > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          {files.map((file, index) => (
-            <div key={index} className="bg-card p-3 rounded-lg border border-border relative">
-              <button
-                onClick={() => removeFile(index)}
-                className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground w-6 h-6 rounded-full flex items-center justify-center text-xs"
-              >
-                ×
-              </button>
-              <p className="text-sm truncate font-medium">{file.name}</p>
-              <p className="text-xs text-muted-foreground">{(file.size / 1024).toFixed(1)} KB</p>
-            </div>
-          ))}
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {files.map((file, index) => (
+              <div key={index} className="bg-card p-3 rounded-lg border border-border relative">
+                <button
+                  onClick={() => removeFile(index)}
+                  className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground w-6 h-6 rounded-full flex items-center justify-center text-xs"
+                >
+                  ×
+                </button>
+                {file.type.startsWith('image/') && (
+                  <Image className="w-4 h-4 text-primary absolute top-2 left-2" />
+                )}
+                <p className="text-sm truncate font-medium">{file.name}</p>
+                <p className="text-xs text-muted-foreground">{(file.size / 1024).toFixed(1)} KB</p>
+              </div>
+            ))}
+          </div>
+
+          {hasImages && (
+            <Button
+              onClick={extractCodeFromImages}
+              disabled={extracting}
+              variant="outline"
+              className="w-full gap-2 border-primary/50 hover:bg-primary/10"
+            >
+              {extracting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Extracting Code from Images...
+                </>
+              ) : (
+                <>
+                  <Wand2 className="w-4 h-4" />
+                  Extract Code from Images (Gemini 3 AI)
+                </>
+              )}
+            </Button>
+          )}
         </div>
       )}
 
