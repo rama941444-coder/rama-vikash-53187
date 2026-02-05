@@ -8,6 +8,7 @@ import DiagnosticResults from '@/components/slides/DiagnosticResults';
 import LiveCodeIDE from '@/components/slides/LiveCodeIDE';
 import MasteryChallenge from '@/components/slides/MasteryChallenge';
 import WebPreview from '@/components/slides/WebPreview';
+import ImageOutput from '@/components/slides/ImageOutput';
 import SlideIndicator from '@/components/SlideIndicator';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -116,6 +117,10 @@ const Index = () => {
     {
       component: <WebPreview combinedCode={webPreviewCode} />,
       title: "Web Preview"
+    },
+    {
+      component: <ImageOutput code={codeInputCode || liveCodeIDECode} language="Auto-Detect" />,
+      title: "Image Output"
     }
   ];
 
