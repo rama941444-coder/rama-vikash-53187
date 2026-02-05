@@ -697,51 +697,6 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     return outputs.join('\n');
   };
 
-  // Generate Junior vs Senior code comparison - Senior is CONDENSED and OPTIMIZED
-  const generateCodeComparison = (codeText: string, lang: string): { seniorCode: string, juniorCode: string } => {
-    const juniorCode = codeText; // Original is junior (verbose)
-    let seniorCode = codeText;
-
-    // Apply aggressive optimizations for senior version - make it SHORTER
-    
-    // Replace var with const/let
-    seniorCode = seniorCode.replace(/\bvar\s+/g, 'const ');
-    
-    // Replace == with ===
-    seniorCode = seniorCode.replace(/([^=!])={2}([^=])/g, '$1===$2');
-    
-    // Replace string concatenation with template literals
-    seniorCode = seniorCode.replace(/"([^"]*)" \+ (\w+) \+ "([^"]*)"/g, '`$1${$2}$3`');
-    seniorCode = seniorCode.replace(/'([^']*)' \+ (\w+) \+ '([^']*)'/g, '`$1${$2}$3`');
-    
-    // Replace function declarations with arrow functions
-    seniorCode = seniorCode.replace(/function\s+(\w+)\s*\(([^)]*)\)\s*\{\s*return\s+([^;]+);\s*\}/g, 'const $1 = ($2) => $3;');
-    
-    // Replace multi-line if-else with ternary
-    seniorCode = seniorCode.replace(/if\s*\(([^)]+)\)\s*\{\s*return\s+([^;]+);\s*\}\s*else\s*\{\s*return\s+([^;]+);\s*\}/g, 'return $1 ? $2 : $3;');
-    
-    // Condense multiple console.log to single
-    const consoleMatches = seniorCode.match(/console\.log\([^)]+\);/g);
-    if (consoleMatches && consoleMatches.length > 2) {
-      seniorCode = seniorCode.replace(/console\.log\([^)]+\);\n?/g, '');
-      seniorCode += '\n// Removed verbose logging for production';
-    }
-    
-    // Remove empty lines
-    seniorCode = seniorCode.split('\n').filter(line => line.trim()).join('\n');
-    
-    // Add optimization comments at top
-    if (seniorCode !== juniorCode) {
-      const lineCountJunior = juniorCode.split('\n').length;
-      const lineCountSenior = seniorCode.split('\n').length;
-      const reduction = Math.round((1 - lineCountSenior / lineCountJunior) * 100);
-      
-      seniorCode = `// ⚡ OPTIMIZED: ${reduction}% fewer lines\n// ⏱️ Time: O(n) → O(1) where possible\n// 💾 Space: Minimal memory footprint\n\n${seniorCode}`;
-    }
-
-    return { seniorCode, juniorCode };
-  };
-
   useEffect(() => {
     updateCursorPosition();
   }, [code, updateCursorPosition]);
