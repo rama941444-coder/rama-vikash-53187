@@ -524,7 +524,6 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     setCode('');
     setErrors([]);
     setCorrectedCode('');
-    setImprovements([]);
     setExecutionResult(null);
     toast({ title: "Cleared", description: "Editor content cleared" });
   };
