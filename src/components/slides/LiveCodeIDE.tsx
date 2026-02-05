@@ -991,52 +991,6 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
           </div>
         )}
 
-        {/* Code Improvements Console - Orange */}
-        {improvements.length > 0 && (
-          <div className="bg-[#1a1a2e] border-2 border-orange-500/50 rounded-xl overflow-hidden shadow-lg shadow-orange-500/10">
-            <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-orange-500/30 to-orange-600/20 border-b border-orange-500/50">
-              <span className="text-sm font-bold text-orange-400 flex items-center gap-2">
-                <Lightbulb className="w-5 h-5" />
-                🟠 CODE IMPROVEMENT SUGGESTIONS
-              </span>
-              <span className="text-xs text-orange-300">Junior → Senior Best Practices</span>
-            </div>
-            <div className="p-4 max-h-[250px] overflow-y-auto space-y-4">
-              {improvements.map((improvement, index) => (
-                <div key={index} className="bg-orange-500/5 border border-orange-500/30 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-sm font-bold text-orange-300 flex items-center gap-2">
-                      <Sparkles className="w-4 h-4" />
-                      {improvement.title}
-                    </h4>
-                    <span className={`text-xs px-2 py-1 rounded-full ${
-                      improvement.level === 'senior' 
-                        ? 'bg-purple-500/20 text-purple-300' 
-                        : 'bg-blue-500/20 text-blue-300'
-                    }`}>
-                      {improvement.level === 'senior' ? '🎓 Senior Level' : '📚 Junior Level'}
-                    </span>
-                  </div>
-                  <div className="grid md:grid-cols-2 gap-3">
-                    <div className="bg-red-500/10 rounded-lg p-3 border border-red-500/30">
-                      <span className="text-xs text-red-400 font-medium block mb-2">❌ Before (Avoid):</span>
-                      <code className="text-xs text-red-300 font-mono">{improvement.original}</code>
-                    </div>
-                    <div className="bg-green-500/10 rounded-lg p-3 border border-green-500/30">
-                      <span className="text-xs text-green-400 font-medium block mb-2">✅ After (Better):</span>
-                      <code className="text-xs text-green-300 font-mono whitespace-pre-wrap">{improvement.improved}</code>
-                    </div>
-                  </div>
-                  <p className="text-xs text-orange-200/80 mt-3 flex items-start gap-2">
-                    <span className="mt-0.5">💡</span>
-                    {improvement.explanation}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* No Errors Message */}
         {code.trim() && errors.length === 0 && (
           <div className="bg-[#1a1a2e] border-2 border-green-500/50 rounded-xl p-4">
