@@ -913,42 +913,6 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
         </div>
       )}
 
-      {/* Junior vs Senior Code Comparison */}
-      {executionResult && !executionResult.error && executionResult.seniorCode && 
-       executionResult.seniorCode !== executionResult.juniorCode && (
-        <div className="grid md:grid-cols-2 gap-4">
-          {/* Junior Code */}
-          <div className="bg-[#1a1a2e] border-2 border-blue-500/50 rounded-xl overflow-hidden">
-            <div className="px-4 py-3 bg-gradient-to-r from-blue-500/30 to-blue-600/20 border-b border-blue-500/50">
-              <span className="text-sm font-bold text-blue-300 flex items-center gap-2">
-                <Code2 className="w-4 h-4" />
-                📘 Junior Level Code
-              </span>
-            </div>
-            <div className="p-4 max-h-[200px] overflow-y-auto">
-              <pre className="text-blue-200 font-mono text-xs whitespace-pre-wrap">
-                {executionResult.juniorCode}
-              </pre>
-            </div>
-          </div>
-
-          {/* Senior Code */}
-          <div className="bg-[#1a1a2e] border-2 border-purple-500/50 rounded-xl overflow-hidden">
-            <div className="px-4 py-3 bg-gradient-to-r from-purple-500/30 to-purple-600/20 border-b border-purple-500/50">
-              <span className="text-sm font-bold text-purple-300 flex items-center gap-2">
-                <Sparkles className="w-4 h-4" />
-                🎓 Senior Director Level (O(n) / O(1))
-              </span>
-            </div>
-            <div className="p-4 max-h-[200px] overflow-y-auto">
-              <pre className="text-purple-200 font-mono text-xs whitespace-pre-wrap">
-                {executionResult.seniorCode}
-              </pre>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Console Output Panels */}
       <div className="space-y-4">
         {/* Error Console - Red */}
