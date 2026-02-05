@@ -365,98 +365,10 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       setCorrectedCode('');
     }
 
-    generateImprovements(codeText);
-
     const endTime = performance.now();
     setDetectionTime(endTime - startTime);
     setIsDetecting(false);
   }, [language]);
-
-  const generateImprovements = (codeText: string) => {
-    const newImprovements: CodeImprovement[] = [];
-
-    if (/\bvar\s+\w+/.test(codeText)) {
-      newImprovements.push({
-        title: 'Use const/let instead of var',
-        original: 'var x = 10;',
-        improved: 'const x = 10; // or let x = 10;',
-        explanation: 'var has function scope which can lead to bugs. const/let have block scope and are safer.',
-        level: 'junior'
-      });
-    }
-
-    if (/[^=!]==[^=]/.test(codeText)) {
-      newImprovements.push({
-        title: 'Use strict equality (===)',
-        original: 'if (x == 5)',
-        improved: 'if (x === 5)',
-        explanation: '=== checks both value and type, preventing unexpected type coercion bugs.',
-        level: 'junior'
-      });
-    }
-
-    if (/["']\s*\+\s*\w+\s*\+\s*["']/.test(codeText)) {
-      newImprovements.push({
-        title: 'Use template literals',
-        original: '"Hello " + name + "!"',
-        improved: '`Hello ${name}!`',
-        explanation: 'Template literals are more readable and allow multi-line strings.',
-        level: 'junior'
-      });
-    }
-
-    if ((codeText.match(/\.then\(/g) || []).length > 2) {
-      newImprovements.push({
-        title: 'Use async/await instead of .then()',
-        original: 'fetch().then().then().then()',
-        improved: 'const result = await fetch();\nconst data = await result.json();',
-        explanation: 'async/await makes asynchronous code more readable and easier to debug.',
-        level: 'senior'
-      });
-    }
-
-    if (/for\s*\(\s*(var|let)\s+\w+\s*=\s*0\s*;/.test(codeText) && /\.length/.test(codeText)) {
-      newImprovements.push({
-        title: 'Use array methods',
-        original: 'for (let i = 0; i < arr.length; i++)',
-        improved: 'arr.forEach((item) => { }) // or arr.map()',
-        explanation: 'Array methods like forEach, map, filter are more expressive and less error-prone.',
-        level: 'junior'
-      });
-    }
-
-    if (/function\s+\w+\s*\(/.test(codeText) && !codeText.includes('=>')) {
-      newImprovements.push({
-        title: 'Consider arrow functions',
-        original: 'function add(a, b) { return a + b; }',
-        improved: 'const add = (a, b) => a + b;',
-        explanation: 'Arrow functions have shorter syntax and lexical this binding.',
-        level: 'junior'
-      });
-    }
-
-    if (/console\.log/.test(codeText)) {
-      newImprovements.push({
-        title: 'Remove console.log in production',
-        original: 'console.log("debug:", data);',
-        improved: '// Use proper logging library\nlogger.debug("Processing:", data);',
-        explanation: 'console.log should be removed before production. Use a logging library instead.',
-        level: 'senior'
-      });
-    }
-
-    if (/[^0-9a-zA-Z_](\d{2,})[^0-9]/.test(codeText) && !/const.*=\s*\d+/.test(codeText)) {
-      newImprovements.push({
-        title: 'Avoid magic numbers',
-        original: 'if (age >= 18)',
-        improved: 'const ADULT_AGE = 18;\nif (age >= ADULT_AGE)',
-        explanation: 'Named constants make code self-documenting and easier to maintain.',
-        level: 'senior'
-      });
-    }
-
-    setImprovements(newImprovements);
-  };
 
   useEffect(() => {
     if (debounceRef.current) {
@@ -470,7 +382,6 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     } else {
       setErrors([]);
       setCorrectedCode('');
-      setImprovements([]);
     }
 
     return () => {
