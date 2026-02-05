@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Play, AlertCircle, CheckCircle, Copy, Trash2, Maximize2, Minimize2, Loader2, Lightbulb, Zap, ArrowRight, Sparkles, Terminal, Code2 } from 'lucide-react';
+import { Play, AlertCircle, CheckCircle, Copy, Trash2, Maximize2, Minimize2, Loader2, Lightbulb, Zap, ArrowRight, Sparkles, Terminal } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import LanguageSelector from '@/components/LanguageSelector';
 import { supabase } from '@/integrations/supabase/client';
@@ -18,22 +18,14 @@ interface CodeError {
   severity: 'error' | 'warning';
   type: string;
   suggestion?: string;
-}
-
-interface CodeImprovement {
-  title: string;
-  original: string;
-  improved: string;
-  explanation: string;
-  level: 'junior' | 'senior';
+  wrongCode?: string;
+  correctCode?: string;
 }
 
 interface ExecutionResult {
   output: string;
   error?: string;
   executionTime?: number;
-  seniorCode?: string;
-  juniorCode?: string;
 }
 
 const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: LiveCodeIDEProps) => {
@@ -41,7 +33,6 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
   const [language, setLanguage] = useState('Auto-Detect');
   const [errors, setErrors] = useState<CodeError[]>([]);
   const [correctedCode, setCorrectedCode] = useState('');
-  const [improvements, setImprovements] = useState<CodeImprovement[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isDetecting, setIsDetecting] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
