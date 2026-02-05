@@ -569,17 +569,12 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
         output = simulateCodeExecution(code, language);
       }
 
-      // Generate senior vs junior comparison
-      const { seniorCode, juniorCode } = generateCodeComparison(code, language);
-
       const executionTime = performance.now() - startTime;
 
       setExecutionResult({
         output: hasError ? '' : output,
         error: hasError ? errorMessage : undefined,
-        executionTime,
-        seniorCode,
-        juniorCode
+        executionTime
       });
 
       toast({
