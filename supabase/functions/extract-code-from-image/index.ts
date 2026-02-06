@@ -1,8 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { callAI, getUserApiKeyFromRequest } from '../_shared/ai-client.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-user-api-key",
 };
 
 serve(async (req) => {
@@ -11,36 +12,34 @@ serve(async (req) => {
   }
 
   try {
-    const { imageBase64, language, mode } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const { imageBase64, language, mode, userApiKey } = await req.json();
     
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
-    }
+    // Get user API key from request body or header
+    const apiKey = userApiKey || getUserApiKeyFromRequest(req);
 
     if (!imageBase64) {
       throw new Error("No image provided");
     }
 
+    console.log('Extract code request:', { mode, language, usingUserKey: !!apiKey });
+
     // Different prompts based on mode
     let prompt: string;
     
     if (mode === 'generate_code_for_image') {
-      // Mode for generating code that would recreate the image (trees, plants, etc.)
       prompt = `You are an expert programmer. Analyze this image and generate code that would create/draw/render a similar visual representation.
 
 The user wants ${language !== 'Auto-Detect' ? language : 'the most appropriate programming language'} code.
 
 If the image shows:
-- A tree/plant: Generate code to draw it using graphics libraries (Canvas, SVG, turtle graphics, etc.)
+- A tree/plant: Generate code to draw it using graphics libraries
 - A landscape: Generate code to create the scene
 - A UI/website: Generate HTML/CSS/JavaScript
 - A chart/graph: Generate code using charting libraries
 - Any other visual: Generate appropriate drawing/rendering code
 
-Return ONLY the code that would recreate or approximate this visual. No explanations, just the complete working code.`;
+Return ONLY the code that would recreate this visual. No explanations, just complete working code.`;
     } else {
-      // Default mode: extract code from image (OCR)
       prompt = `You are a highly accurate code extraction AI. Extract the EXACT code from this image.
 
 CRITICAL RULES:
@@ -56,33 +55,18 @@ ${language && language !== 'Auto-Detect' ? `The code is written in ${language}.`
 Return ONLY the extracted code, nothing else.`;
     }
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: prompt
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: imageBase64
-                }
-              }
-            ]
-          }
-        ],
-      }),
-    });
+    const response = await callAI({
+      model: 'google/gemini-3-flash-preview',
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            { type: "image_url", image_url: { url: imageBase64 } }
+          ]
+        }
+      ]
+    }, { userApiKey: apiKey });
 
     if (!response.ok) {
       if (response.status === 429) {
@@ -94,18 +78,20 @@ Return ONLY the extracted code, nothing else.`;
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (response.status === 402) {
+      if (response.status === 402 || response.status === 400) {
         return new Response(JSON.stringify({ 
-          error: "PAYMENT_REQUIRED",
-          message: "Add credits to enable AI features." 
+          error: apiKey ? "API_KEY_ERROR" : "PAYMENT_REQUIRED",
+          message: apiKey 
+            ? "Your API key may be invalid. Check at aistudio.google.com" 
+            : "Add your free Google AI API key or credits to enable AI." 
         }), {
-          status: 402,
+          status: response.status,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
-      throw new Error(`AI gateway error: ${response.status}`);
+      console.error("AI error:", response.status, errorText);
+      throw new Error(`AI error: ${response.status}`);
     }
 
     const data = await response.json();

@@ -8,6 +8,7 @@ import { parseDocument } from '@/lib/documentParser';
 import NarrationControls from '@/components/NarrationControls';
 import AITeacherAnimation from '@/components/AITeacherAnimation';
 import LanguageSelector from '@/components/LanguageSelector';
+import { getStoredAPIKey } from '@/hooks/useUserAPIKey';
 // @ts-ignore - Vite resolves this to a URL string for the worker file
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
 
@@ -198,7 +199,8 @@ const UniversalAnalyzer = () => {
           language,
           files: filesMetadata,
           fileData: fileData,
-          extractionMode: 'exact_code_ocr'
+          extractionMode: 'exact_code_ocr',
+          userApiKey: getStoredAPIKey()
         }
       });
 

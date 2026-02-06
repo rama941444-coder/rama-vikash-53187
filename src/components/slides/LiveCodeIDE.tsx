@@ -4,6 +4,7 @@ import { Play, AlertCircle, CheckCircle, Copy, Trash2, Maximize2, Minimize2, Loa
 import { useToast } from '@/hooks/use-toast';
 import LanguageSelector from '@/components/LanguageSelector';
 import { supabase } from '@/integrations/supabase/client';
+import { getStoredAPIKey } from '@/hooks/useUserAPIKey';
 
 interface LiveCodeIDEProps {
   onAnalysisComplete: (data: any) => void;
