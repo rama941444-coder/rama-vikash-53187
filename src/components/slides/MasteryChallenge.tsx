@@ -7,7 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
   Trophy, Code, ChevronDown, ChevronRight, Play, CheckCircle, 
   XCircle, Eye, EyeOff, Sparkles, Target, Award, Brain,
-  BookOpen, Lightbulb, Star, Zap
+  BookOpen, Lightbulb, Star, Zap, Loader2
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import LanguageSelector from '@/components/LanguageSelector';
@@ -39,7 +39,84 @@ const MasteryChallenge = () => {
   const [showSolution, setShowSolution] = useState(false);
   const [testResults, setTestResults] = useState<{ passed: boolean; input: string; expected: string; actual: string }[]>([]);
   const [isRunning, setIsRunning] = useState(false);
+  const [mcqQuestions, setMcqQuestions] = useState<{question: string; options: string[]; answer: number; selected?: number}[]>([]);
+  const [mcqLoading, setMcqLoading] = useState(false);
+  const [currentMcqTopic, setCurrentMcqTopic] = useState('');
+  const [mcqScore, setMcqScore] = useState<number | null>(null);
   const { toast } = useToast();
+  // Generate MCQ questions for a topic
+  const generateMcqQuestions = async (topic: string) => {
+    setMcqLoading(true);
+    setCurrentMcqTopic(topic);
+    setMcqScore(null);
+    
+    // Pre-defined GATE level questions for each topic
+    const questionsBank: Record<string, {question: string; options: string[]; answer: number}[]> = {
+      'Data Structures': [
+        { question: "What is the time complexity of inserting an element at the beginning of an array?", options: ["O(1)", "O(n)", "O(log n)", "O(n²)"], answer: 1 },
+        { question: "Which data structure uses LIFO principle?", options: ["Queue", "Stack", "Linked List", "Tree"], answer: 1 },
+        { question: "What is the height of a balanced binary search tree with n nodes?", options: ["O(n)", "O(log n)", "O(n²)", "O(1)"], answer: 1 },
+        { question: "Which traversal visits root before children?", options: ["Inorder", "Preorder", "Postorder", "Level order"], answer: 1 },
+        { question: "Hash table average case lookup time complexity is:", options: ["O(n)", "O(1)", "O(log n)", "O(n log n)"], answer: 1 },
+        { question: "A min-heap property states that:", options: ["Parent ≤ Children", "Parent ≥ Children", "Left < Right", "Left > Right"], answer: 0 },
+        { question: "Which data structure is used in BFS?", options: ["Stack", "Queue", "Heap", "Tree"], answer: 1 },
+        { question: "Red-Black tree is a type of:", options: ["Binary Search Tree", "B-Tree", "Trie", "Graph"], answer: 0 },
+        { question: "Worst case time complexity of Quick Sort is:", options: ["O(n log n)", "O(n²)", "O(n)", "O(log n)"], answer: 1 },
+        { question: "Which data structure is best for implementing LRU cache?", options: ["Array", "HashMap + Doubly Linked List", "Stack", "Queue"], answer: 1 },
+      ],
+      'Algorithms': [
+        { question: "Which algorithm paradigm does Merge Sort use?", options: ["Greedy", "Divide and Conquer", "Dynamic Programming", "Backtracking"], answer: 1 },
+        { question: "Dijkstra's algorithm fails when:", options: ["Graph has cycles", "Graph has negative weights", "Graph is directed", "Graph is sparse"], answer: 1 },
+        { question: "Time complexity of binary search is:", options: ["O(n)", "O(log n)", "O(n²)", "O(1)"], answer: 1 },
+        { question: "Which is NOT a stable sorting algorithm?", options: ["Merge Sort", "Quick Sort", "Bubble Sort", "Insertion Sort"], answer: 1 },
+        { question: "Dynamic Programming is used when problem has:", options: ["Greedy choice", "Optimal substructure + Overlapping subproblems", "Random access", "Linear structure"], answer: 1 },
+        { question: "Kruskal's algorithm finds:", options: ["Shortest path", "Minimum spanning tree", "Maximum flow", "Topological order"], answer: 1 },
+        { question: "A* algorithm uses:", options: ["Only heuristic", "Only actual cost", "Heuristic + actual cost", "Random selection"], answer: 2 },
+        { question: "KMP algorithm is used for:", options: ["Sorting", "Pattern matching", "Graph traversal", "Tree construction"], answer: 1 },
+        { question: "Bellman-Ford can handle:", options: ["Only positive weights", "Negative weights", "Only DAGs", "Only trees"], answer: 1 },
+        { question: "Floyd-Warshall finds:", options: ["Single source shortest path", "All pairs shortest path", "MST", "Max flow"], answer: 1 },
+      ],
+      'System Design': [
+        { question: "CAP theorem states you can only have 2 of:", options: ["Speed, Storage, Security", "Consistency, Availability, Partition tolerance", "Cost, Accuracy, Performance", "None"], answer: 1 },
+        { question: "Which is a NoSQL database?", options: ["PostgreSQL", "MongoDB", "MySQL", "Oracle"], answer: 1 },
+        { question: "Load balancer distributes traffic based on:", options: ["Only IP", "Various algorithms", "Only cookies", "Only headers"], answer: 1 },
+        { question: "Microservices communicate via:", options: ["Shared memory", "APIs/Message queues", "Direct function calls", "Global variables"], answer: 1 },
+        { question: "Redis is primarily used for:", options: ["File storage", "Caching", "Video streaming", "Email"], answer: 1 },
+        { question: "Horizontal scaling means:", options: ["Adding more CPU", "Adding more servers", "Adding more RAM", "Adding more storage"], answer: 1 },
+        { question: "CDN is used to:", options: ["Store databases", "Serve static content faster", "Process payments", "Send emails"], answer: 1 },
+        { question: "Rate limiting prevents:", options: ["SQL injection", "DDoS attacks", "XSS", "CSRF"], answer: 1 },
+        { question: "Event-driven architecture uses:", options: ["Synchronous calls", "Message queues/Event buses", "Shared databases", "RPC only"], answer: 1 },
+        { question: "Database sharding helps with:", options: ["Security", "Horizontal scaling", "Backup", "Encryption"], answer: 1 },
+      ],
+    };
+    
+    setTimeout(() => {
+      setMcqQuestions(questionsBank[topic] || []);
+      setMcqLoading(false);
+      toast({
+        title: "📝 Quiz Ready!",
+        description: `10 GATE-level questions on ${topic}`,
+      });
+    }, 500);
+  };
+
+  // Handle MCQ answer selection
+  const selectMcqAnswer = (questionIndex: number, optionIndex: number) => {
+    setMcqQuestions(prev => prev.map((q, i) => 
+      i === questionIndex ? { ...q, selected: optionIndex } : q
+    ));
+  };
+
+  // Submit MCQ quiz
+  const submitMcqQuiz = () => {
+    const score = mcqQuestions.filter(q => q.selected === q.answer).length;
+    setMcqScore(score);
+    toast({
+      title: score >= 7 ? "🎉 Excellent!" : score >= 5 ? "👍 Good Job!" : "📚 Keep Practicing!",
+      description: `You scored ${score}/${mcqQuestions.length}`,
+    });
+  };
+
 
   // Sample questions based on LeetCode/GFG style
   const basicQuestions: Question[] = [
@@ -737,21 +814,93 @@ function mergeTwoLists(l1, l2) {
           </p>
         </CardHeader>
         <CardContent>
-          <div className="grid md:grid-cols-3 gap-4">
-            {['Data Structures', 'Algorithms', 'System Design'].map((topic, i) => (
-              <div key={topic} className="bg-muted/30 rounded-lg p-4 border border-primary/20">
-                <h4 className="font-semibold flex items-center gap-2 mb-2">
-                  <Zap className="w-4 h-4 text-primary" />
-                  {topic}
-                </h4>
-                <p className="text-sm text-muted-foreground">10 Questions</p>
-                <Button variant="outline" size="sm" className="w-full mt-3 gap-2">
-                  <Play className="w-4 h-4" />
-                  Start Quiz
+          {!mcqQuestions.length ? (
+            <div className="grid md:grid-cols-3 gap-4">
+              {['Data Structures', 'Algorithms', 'System Design'].map((topic) => (
+                <div key={topic} className="bg-muted/30 rounded-lg p-4 border border-primary/20">
+                  <h4 className="font-semibold flex items-center gap-2 mb-2">
+                    <Zap className="w-4 h-4 text-primary" />
+                    {topic}
+                  </h4>
+                  <p className="text-sm text-muted-foreground">10 Questions</p>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-full mt-3 gap-2"
+                    onClick={() => generateMcqQuestions(topic)}
+                    disabled={mcqLoading}
+                  >
+                    {mcqLoading && currentMcqTopic === topic ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Play className="w-4 h-4" />
+                    )}
+                    Start Quiz
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">{currentMcqTopic} Quiz</h3>
+                <Button variant="outline" size="sm" onClick={() => setMcqQuestions([])}>
+                  ← Back to Topics
                 </Button>
               </div>
-            ))}
-          </div>
+              
+              {mcqScore !== null && (
+                <div className={`p-4 rounded-lg text-center ${mcqScore >= 7 ? 'bg-green-500/20 text-green-400' : mcqScore >= 5 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'}`}>
+                  <h3 className="text-2xl font-bold">{mcqScore}/{mcqQuestions.length}</h3>
+                  <p>{mcqScore >= 7 ? 'Excellent!' : mcqScore >= 5 ? 'Good Job!' : 'Keep Practicing!'}</p>
+                </div>
+              )}
+              
+              <ScrollArea className="h-[400px]">
+                <div className="space-y-4 pr-4">
+                  {mcqQuestions.map((q, qIndex) => (
+                    <div key={qIndex} className="bg-muted/30 rounded-lg p-4 border border-primary/20">
+                      <p className="font-medium mb-3">Q{qIndex + 1}. {q.question}</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {q.options.map((option, oIndex) => (
+                          <button
+                            key={oIndex}
+                            onClick={() => selectMcqAnswer(qIndex, oIndex)}
+                            disabled={mcqScore !== null}
+                            className={`p-3 rounded-lg text-left text-sm transition-all border ${
+                              q.selected === oIndex
+                                ? mcqScore !== null
+                                  ? oIndex === q.answer
+                                    ? 'bg-green-500/30 border-green-500 text-green-300'
+                                    : 'bg-red-500/30 border-red-500 text-red-300'
+                                  : 'bg-primary/30 border-primary'
+                                : mcqScore !== null && oIndex === q.answer
+                                  ? 'bg-green-500/20 border-green-500/50'
+                                  : 'bg-muted/20 border-transparent hover:bg-muted/40'
+                            }`}
+                          >
+                            <span className="font-medium mr-2">{String.fromCharCode(65 + oIndex)}.</span>
+                            {option}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+              
+              {mcqScore === null && (
+                <Button 
+                  onClick={submitMcqQuiz}
+                  disabled={mcqQuestions.some(q => q.selected === undefined)}
+                  className="w-full gap-2"
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  Submit Quiz ({mcqQuestions.filter(q => q.selected !== undefined).length}/{mcqQuestions.length} answered)
+                </Button>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
