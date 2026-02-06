@@ -14,7 +14,6 @@ import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import aiHeaderIcon from '@/assets/ai-3d-icon.png';
 import { UserMenu } from '@/components/auth/UserMenu';
-import APIKeySettings from '@/components/APIKeySettings';
 
 const Index = () => {
   const navigate = useNavigate();
@@ -153,7 +152,6 @@ const Index = () => {
             AI Code Analysis & Diagnostic Suite
           </h1>
           <div className="flex items-center gap-4">
-            <APIKeySettings />
             <img src={aiHeaderIcon} alt="AI Icon" className="w-12 h-12 md:w-16 md:h-16 neon-glow" />
             <UserMenu />
           </div>
