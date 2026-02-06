@@ -1,9 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
+import { callAI, getUserApiKeyFromRequest } from '../_shared/ai-client.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-user-api-key',
 };
 
 const RequestSchema = z.object({
@@ -13,7 +14,8 @@ const RequestSchema = z.object({
     'Gujarati', 'Marathi', 'Punjabi', 'Odia', 'Assamese', 'Urdu', 'Sanskrit',
     'Nepali', 'Konkani', 'Maithili', 'Sindhi', 'Kashmiri', 'Manipuri', 'Bodo',
     'Santali', 'Dogri'
-  ])
+  ]),
+  userApiKey: z.string().optional()
 });
 
 serve(async (req) => {
@@ -35,12 +37,8 @@ serve(async (req) => {
       });
     }
 
-    const { text, targetLanguage } = validation.data;
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
-    }
+    const { text, targetLanguage, userApiKey } = validation.data;
+    const apiKey = userApiKey || getUserApiKeyFromRequest(req);
 
     // If already English, return as-is
     if (targetLanguage === 'English') {
@@ -49,28 +47,21 @@ serve(async (req) => {
       });
     }
 
-    console.log(`Translating to ${targetLanguage}, text length: ${text.length}`);
+    console.log(`Translating to ${targetLanguage}, text length: ${text.length}, usingUserKey: ${!!apiKey}`);
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          {
-            role: "system",
-            content: `You are a professional translator. Translate the given technical explanation into ${targetLanguage}. Keep technical terms in English when appropriate but explain them in ${targetLanguage}. Maintain the same structure and formatting. Only output the translation, nothing else.`
-          },
-          {
-            role: "user",
-            content: text
-          }
-        ]
-      }),
-    });
+    const response = await callAI({
+      model: 'google/gemini-2.5-flash',
+      messages: [
+        {
+          role: "system",
+          content: `You are a professional translator. Translate the given technical explanation into ${targetLanguage}. Keep technical terms in English when appropriate but explain them in ${targetLanguage}. Maintain the same structure and formatting. Only output the translation, nothing else.`
+        },
+        {
+          role: "user",
+          content: text
+        }
+      ]
+    }, { userApiKey: apiKey });
 
     if (!response.ok) {
       if (response.status === 429) {
@@ -80,12 +71,12 @@ serve(async (req) => {
         });
       }
       if (response.status === 402) {
-        return new Response(JSON.stringify({ error: 'Payment required. Please add credits.' }), {
+        return new Response(JSON.stringify({ error: 'Add your free API key or credits.' }), {
           status: 402,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      throw new Error(`AI gateway error: ${response.status}`);
+      throw new Error(`AI error: ${response.status}`);
     }
 
     const data = await response.json();

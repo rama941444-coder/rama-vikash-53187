@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import DOMPurify from 'dompurify';
 import LanguageSelector from '@/components/LanguageSelector';
 import EnhancedCodeEditor from '@/components/EnhancedCodeEditor';
+import { getStoredAPIKey } from '@/hooks/useUserAPIKey';
 
 interface CodeInputProps {
   onAnalysisComplete: (data: any) => void;
@@ -101,7 +102,7 @@ const CodeInput = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: Cod
         });
 
         const { data, error } = await supabase.functions.invoke('extract-code-from-image', {
-          body: { imageBase64: base64, language }
+          body: { imageBase64: base64, language, userApiKey: getStoredAPIKey() }
         });
 
         if (error) {
@@ -219,7 +220,8 @@ const CodeInput = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: Cod
           code: code || '',
           language,
           files: filesData,
-          fileData: fileData
+          fileData: fileData,
+          userApiKey: getStoredAPIKey()
         }
       });
 
@@ -460,7 +462,8 @@ const CodeInput = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: Cod
                       body: { 
                         imageBase64: base64, 
                         language,
-                        mode: 'generate_code_for_image'
+                        mode: 'generate_code_for_image',
+                        userApiKey: getStoredAPIKey()
                       }
                     });
 

@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { getStoredAPIKey } from '@/hooks/useUserAPIKey';
 
 // All Indian languages supported
 const LANGUAGES = [
@@ -91,7 +92,7 @@ const NarrationControls = ({ text, className = '' }: NarrationControlsProps) => 
     setIsTranslating(true);
     try {
       const { data, error } = await supabase.functions.invoke('translate-explanation', {
-        body: { text, targetLanguage: language }
+        body: { text, targetLanguage: language, userApiKey: getStoredAPIKey() }
       });
 
       if (error) throw error;
