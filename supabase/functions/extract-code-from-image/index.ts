@@ -11,7 +11,7 @@ serve(async (req) => {
   }
 
   try {
-    const { imageBase64, language } = await req.json();
+    const { imageBase64, language, mode } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     
     if (!LOVABLE_API_KEY) {
@@ -22,7 +22,26 @@ serve(async (req) => {
       throw new Error("No image provided");
     }
 
-    const prompt = `You are a highly accurate code extraction AI. Extract the EXACT code from this image.
+    // Different prompts based on mode
+    let prompt: string;
+    
+    if (mode === 'generate_code_for_image') {
+      // Mode for generating code that would recreate the image (trees, plants, etc.)
+      prompt = `You are an expert programmer. Analyze this image and generate code that would create/draw/render a similar visual representation.
+
+The user wants ${language !== 'Auto-Detect' ? language : 'the most appropriate programming language'} code.
+
+If the image shows:
+- A tree/plant: Generate code to draw it using graphics libraries (Canvas, SVG, turtle graphics, etc.)
+- A landscape: Generate code to create the scene
+- A UI/website: Generate HTML/CSS/JavaScript
+- A chart/graph: Generate code using charting libraries
+- Any other visual: Generate appropriate drawing/rendering code
+
+Return ONLY the code that would recreate or approximate this visual. No explanations, just the complete working code.`;
+    } else {
+      // Default mode: extract code from image (OCR)
+      prompt = `You are a highly accurate code extraction AI. Extract the EXACT code from this image.
 
 CRITICAL RULES:
 1. Extract ONLY the code visible in the image - do NOT imagine or add any code
@@ -35,6 +54,7 @@ CRITICAL RULES:
 ${language && language !== 'Auto-Detect' ? `The code is written in ${language}.` : 'Detect the programming language automatically.'}
 
 Return ONLY the extracted code, nothing else.`;
+    }
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
