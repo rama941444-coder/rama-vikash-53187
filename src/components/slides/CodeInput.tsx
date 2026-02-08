@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Upload, Loader2, Play, Image, Wand2 } from 'lucide-react';
+import { Upload, Loader2, Play, Image, Wand2, Sparkles } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import DOMPurify from 'dompurify';
@@ -17,8 +17,10 @@ const CodeInput = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: Cod
   const [code, setCode] = useState(persistedCode);
   const [language, setLanguage] = useState('Auto-Detect');
   const [files, setFiles] = useState<File[]>([]);
+  const [universalImages, setUniversalImages] = useState<File[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
   const [extracting, setExtracting] = useState(false);
+  const [generatingCode, setGeneratingCode] = useState(false);
   const [result, setResult] = useState<any>(null);
   const { toast } = useToast();
 
@@ -377,6 +379,133 @@ const CodeInput = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: Cod
           )}
         </div>
       )}
+
+      {/* Universal Image to Code Box */}
+      <div className="border-2 border-dashed border-purple-500/50 rounded-xl p-6 text-center bg-purple-500/5">
+        <div className="flex flex-col items-center">
+          <Sparkles className="w-10 h-10 mb-3 text-purple-400" />
+          <h3 className="text-lg font-semibold mb-2 text-purple-300">Universal Image → Code Generator</h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            Drop images of <span className="text-purple-400">trees, plants, landscapes, objects</span> and generate code to recreate them
+          </p>
+          
+          <div
+            className="w-full border border-purple-500/30 rounded-lg p-4 cursor-pointer hover:bg-purple-500/10 transition-all"
+            onDrop={(e) => {
+              e.preventDefault();
+              const droppedFiles = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+              if (droppedFiles.length > 0) {
+                setUniversalImages(prev => [...prev, ...droppedFiles]);
+                toast({
+                  title: "🖼️ Images added!",
+                  description: `${droppedFiles.length} image(s) ready for code generation`,
+                });
+              }
+            }}
+            onDragOver={(e) => e.preventDefault()}
+            onClick={() => document.getElementById('universal-image-input')?.click()}
+          >
+            <Image className="w-8 h-8 mx-auto mb-2 text-purple-400" />
+            <p className="text-sm text-purple-300">Click or drop universal images here</p>
+            <input
+              type="file"
+              id="universal-image-input"
+              className="hidden"
+              accept="image/*"
+              multiple
+              onChange={(e) => {
+                const selected = Array.from(e.target.files || []);
+                setUniversalImages(prev => [...prev, ...selected]);
+                if (selected.length > 0) {
+                  toast({
+                    title: "🖼️ Images added!",
+                    description: `${selected.length} image(s) ready for code generation`,
+                  });
+                }
+              }}
+            />
+          </div>
+
+          {universalImages.length > 0 && (
+            <div className="mt-4 w-full">
+              <div className="flex flex-wrap gap-2 mb-3">
+                {universalImages.map((file, index) => (
+                  <div key={index} className="relative bg-purple-500/20 px-3 py-1 rounded-full text-sm text-purple-300 flex items-center gap-2">
+                    <Image className="w-3 h-3" />
+                    {file.name.substring(0, 15)}...
+                    <button
+                      onClick={() => setUniversalImages(prev => prev.filter((_, i) => i !== index))}
+                      className="text-purple-400 hover:text-red-400"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <Button
+                onClick={async () => {
+                  if (universalImages.length === 0) return;
+                  setGeneratingCode(true);
+                  
+                  try {
+                    // Convert first image to base64
+                    const file = universalImages[0];
+                    const base64 = await new Promise<string>((resolve) => {
+                      const reader = new FileReader();
+                      reader.onload = (e) => resolve(e.target?.result as string);
+                      reader.readAsDataURL(file);
+                    });
+
+                    const { data, error } = await supabase.functions.invoke('extract-code-from-image', {
+                      body: { 
+                        imageBase64: base64, 
+                        language,
+                        mode: 'generate_code_for_image'
+                      }
+                    });
+
+                    if (error) {
+                      toast({
+                        title: "❌ Generation Failed",
+                        description: error.message,
+                        variant: "destructive",
+                      });
+                    } else if (data?.code) {
+                      setCode(prev => prev ? `${prev}\n\n// Generated code for: ${file.name}\n${data.code}` : data.code);
+                      toast({
+                        title: "✅ Code Generated!",
+                        description: `Generated ${language} code to recreate the image`,
+                      });
+                    }
+                  } catch (error: any) {
+                    toast({
+                      title: "❌ Error",
+                      description: error.message,
+                      variant: "destructive",
+                    });
+                  } finally {
+                    setGeneratingCode(false);
+                  }
+                }}
+                disabled={generatingCode}
+                className="gap-2 bg-purple-500 hover:bg-purple-600"
+              >
+                {generatingCode ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Generating Code with Gemini 3...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    Generate Code for Image
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
 
       {result && (
         <div className="grid gap-4 mt-8">
