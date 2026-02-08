@@ -111,7 +111,10 @@ const Index = () => {
       title: "Live Code IDE" 
     },
     {
-      component: <MasteryChallenge />,
+      component: <MasteryChallenge 
+        userCodeFromSlide2={codeInputCode}
+        userCodeFromSlide5={liveCodeIDECode}
+      />,
       title: "Mastery Challenge"
     },
     {
