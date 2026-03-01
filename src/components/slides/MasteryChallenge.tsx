@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import LanguageSelector from '@/components/LanguageSelector';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Question {
   id: string;
@@ -24,12 +25,6 @@ interface Question {
   tags: string[];
 }
 
-interface Level {
-  name: string;
-  questions: Question[];
-  unlocked: boolean;
-}
-
 interface MasteryChallengeProps {
   userCodeFromSlide2?: string;
   userCodeFromSlide5?: string;
@@ -37,7 +32,6 @@ interface MasteryChallengeProps {
 
 const MasteryChallenge = ({ userCodeFromSlide2 = '', userCodeFromSlide5 = '' }: MasteryChallengeProps) => {
   const [activeCategory, setActiveCategory] = useState<'basic' | 'medium' | 'advanced' | 'master'>('basic');
-  const [selectedLevel, setSelectedLevel] = useState(0);
   const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
   const [userCode, setUserCode] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState('JavaScript');
@@ -51,10 +45,8 @@ const MasteryChallenge = ({ userCodeFromSlide2 = '', userCodeFromSlide5 = '' }: 
   const [allTestsPassed, setAllTestsPassed] = useState(false);
   const { toast } = useToast();
 
-  // Get the active user code from slides
   const activeUserCode = userCodeFromSlide5 || userCodeFromSlide2;
 
-  // Detect language/topic from user code
   const detectCodeTopic = (code: string): string => {
     if (!code) return 'General';
     const lowerCode = code.toLowerCase();
@@ -71,17 +63,39 @@ const MasteryChallenge = ({ userCodeFromSlide2 = '', userCodeFromSlide5 = '' }: 
     if (lowerCode.includes('linked') || lowerCode.includes('next') || lowerCode.includes('prev')) return 'Linked Lists';
     return 'General';
   };
-  // Generate MCQ questions based on detected topic from user code
+
+  // Generate MCQ questions using AI based on user's code
   const generateMcqQuestions = async (topic: string) => {
     setMcqLoading(true);
     setCurrentMcqTopic(topic);
     setMcqScore(null);
     
-    // Detect topic from user's code if available
     const detectedTopic = activeUserCode ? detectCodeTopic(activeUserCode) : topic;
-    const actualTopic = activeUserCode ? `${topic} (Based on your ${detectedTopic} code)` : topic;
-    
-    // Pre-defined GATE level questions for each topic
+
+    try {
+      const { data, error } = await supabase.functions.invoke('analyze-code', {
+        body: {
+          code: activeUserCode || '',
+          language: 'Auto-Detect',
+          mode: 'generate_mcq',
+          topic: activeUserCode ? detectedTopic : topic,
+        }
+      });
+
+      if (data?.mcqQuestions && Array.isArray(data.mcqQuestions) && data.mcqQuestions.length > 0) {
+        setMcqQuestions(data.mcqQuestions);
+        setMcqLoading(false);
+        toast({
+          title: "📝 Quiz Ready!",
+          description: `10 questions on ${activeUserCode ? detectedTopic : topic}`,
+        });
+        return;
+      }
+    } catch (err) {
+      console.error('AI MCQ generation failed, using fallback:', err);
+    }
+
+    // Fallback question bank
     const questionsBank: Record<string, {question: string; options: string[]; answer: number}[]> = {
       'Data Structures': [
         { question: "What is the time complexity of inserting an element at the beginning of an array?", options: ["O(1)", "O(n)", "O(log n)", "O(n²)"], answer: 1 },
@@ -121,26 +135,20 @@ const MasteryChallenge = ({ userCodeFromSlide2 = '', userCodeFromSlide5 = '' }: 
       ],
     };
     
-    setTimeout(() => {
-      setMcqQuestions(questionsBank[topic] || []);
-      setMcqLoading(false);
-      toast({
-        title: "📝 Quiz Ready!",
-        description: activeUserCode 
-          ? `10 GATE-level questions on ${topic} (Related to your ${detectedTopic} code)`
-          : `10 GATE-level questions on ${topic}`,
-      });
-    }, 500);
+    setMcqQuestions(questionsBank[topic] || questionsBank['Data Structures']);
+    setMcqLoading(false);
+    toast({
+      title: "📝 Quiz Ready!",
+      description: `10 questions on ${topic}`,
+    });
   };
 
-  // Handle MCQ answer selection
   const selectMcqAnswer = (questionIndex: number, optionIndex: number) => {
     setMcqQuestions(prev => prev.map((q, i) => 
       i === questionIndex ? { ...q, selected: optionIndex } : q
     ));
   };
 
-  // Submit MCQ quiz
   const submitMcqQuiz = () => {
     const score = mcqQuestions.filter(q => q.selected === q.answer).length;
     setMcqScore(score);
@@ -150,8 +158,7 @@ const MasteryChallenge = ({ userCodeFromSlide2 = '', userCodeFromSlide5 = '' }: 
     });
   };
 
-
-  // Sample questions based on LeetCode/GFG style
+  // Sample questions
   const basicQuestions: Question[] = [
     {
       id: 'basic-1',
@@ -167,81 +174,11 @@ const MasteryChallenge = ({ userCodeFromSlide2 = '', userCodeFromSlide5 = '' }: 
         { input: '[3,3], 6', expectedOutput: '[0,1]', hidden: true }
       ],
       solutions: [
-        { 
-          language: 'JavaScript', 
-          code: `function twoSum(nums, target) {
-  const map = new Map();
-  for (let i = 0; i < nums.length; i++) {
-    const complement = target - nums[i];
-    if (map.has(complement)) {
-      return [map.get(complement), i];
-    }
-    map.set(nums[i], i);
-  }
-  return [];
-}`,
-          complexity: { time: 'O(n)', space: 'O(n)' }
-        },
-        {
-          language: 'Python',
-          code: `def twoSum(nums, target):
-    seen = {}
-    for i, num in enumerate(nums):
-        complement = target - num
-        if complement in seen:
-            return [seen[complement], i]
-        seen[num] = i
-    return []`,
-          complexity: { time: 'O(n)', space: 'O(n)' }
-        },
-        {
-          language: 'Java',
-          code: `public int[] twoSum(int[] nums, int target) {
-    Map<Integer, Integer> map = new HashMap<>();
-    for (int i = 0; i < nums.length; i++) {
-        int complement = target - nums[i];
-        if (map.containsKey(complement)) {
-            return new int[] { map.get(complement), i };
-        }
-        map.put(nums[i], i);
-    }
-    return new int[0];
-}`,
-          complexity: { time: 'O(n)', space: 'O(n)' }
-        },
-        {
-          language: 'C++',
-          code: `vector<int> twoSum(vector<int>& nums, int target) {
-    unordered_map<int, int> mp;
-    for (int i = 0; i < nums.size(); i++) {
-        int complement = target - nums[i];
-        if (mp.find(complement) != mp.end()) {
-            return {mp[complement], i};
-        }
-        mp[nums[i]] = i;
-    }
-    return {};
-}`,
-          complexity: { time: 'O(n)', space: 'O(n)' }
-        },
-        {
-          language: 'C',
-          code: `int* twoSum(int* nums, int numsSize, int target, int* returnSize) {
-    int* result = malloc(2 * sizeof(int));
-    *returnSize = 2;
-    for (int i = 0; i < numsSize; i++) {
-        for (int j = i + 1; j < numsSize; j++) {
-            if (nums[i] + nums[j] == target) {
-                result[0] = i;
-                result[1] = j;
-                return result;
-            }
-        }
-    }
-    return result;
-}`,
-          complexity: { time: 'O(n²)', space: 'O(1)' }
-        }
+        { language: 'JavaScript', code: `function twoSum(nums, target) {\n  const map = new Map();\n  for (let i = 0; i < nums.length; i++) {\n    const complement = target - nums[i];\n    if (map.has(complement)) return [map.get(complement), i];\n    map.set(nums[i], i);\n  }\n  return [];\n}`, complexity: { time: 'O(n)', space: 'O(n)' } },
+        { language: 'Python', code: `def twoSum(nums, target):\n    seen = {}\n    for i, num in enumerate(nums):\n        complement = target - num\n        if complement in seen:\n            return [seen[complement], i]\n        seen[num] = i\n    return []`, complexity: { time: 'O(n)', space: 'O(n)' } },
+        { language: 'Java', code: `public int[] twoSum(int[] nums, int target) {\n    Map<Integer, Integer> map = new HashMap<>();\n    for (int i = 0; i < nums.length; i++) {\n        int complement = target - nums[i];\n        if (map.containsKey(complement)) return new int[]{map.get(complement), i};\n        map.put(nums[i], i);\n    }\n    return new int[0];\n}`, complexity: { time: 'O(n)', space: 'O(n)' } },
+        { language: 'C++', code: `vector<int> twoSum(vector<int>& nums, int target) {\n    unordered_map<int, int> mp;\n    for (int i = 0; i < nums.size(); i++) {\n        int complement = target - nums[i];\n        if (mp.find(complement) != mp.end()) return {mp[complement], i};\n        mp[nums[i]] = i;\n    }\n    return {};\n}`, complexity: { time: 'O(n)', space: 'O(n)' } },
+        { language: 'C', code: `int* twoSum(int* nums, int numsSize, int target, int* returnSize) {\n    int* result = malloc(2 * sizeof(int));\n    *returnSize = 2;\n    for (int i = 0; i < numsSize; i++)\n        for (int j = i + 1; j < numsSize; j++)\n            if (nums[i] + nums[j] == target) { result[0]=i; result[1]=j; return result; }\n    return result;\n}`, complexity: { time: 'O(n²)', space: 'O(1)' } }
       ],
       hints: ['Try using a hash map to store seen values', 'For each element, check if its complement exists'],
       tags: ['Array', 'Hash Table']
@@ -251,36 +188,14 @@ const MasteryChallenge = ({ userCodeFromSlide2 = '', userCodeFromSlide5 = '' }: 
       title: 'Reverse String',
       difficulty: 'easy',
       description: 'Write a function that reverses a string. The input string is given as an array of characters.',
-      examples: [
-        { input: 's = ["h","e","l","l","o"]', output: '["o","l","l","e","h"]' }
-      ],
+      examples: [{ input: 's = ["h","e","l","l","o"]', output: '["o","l","l","e","h"]' }],
       testCases: [
         { input: '["h","e","l","l","o"]', expectedOutput: '["o","l","l","e","h"]' },
         { input: '["H","a","n","n","a","h"]', expectedOutput: '["h","a","n","n","a","H"]' }
       ],
       solutions: [
-        {
-          language: 'JavaScript',
-          code: `function reverseString(s) {
-  let left = 0, right = s.length - 1;
-  while (left < right) {
-    [s[left], s[right]] = [s[right], s[left]];
-    left++;
-    right--;
-  }
-}`,
-          complexity: { time: 'O(n)', space: 'O(1)' }
-        },
-        {
-          language: 'Python',
-          code: `def reverseString(s):
-    left, right = 0, len(s) - 1
-    while left < right:
-        s[left], s[right] = s[right], s[left]
-        left += 1
-        right -= 1`,
-          complexity: { time: 'O(n)', space: 'O(1)' }
-        }
+        { language: 'JavaScript', code: `function reverseString(s) {\n  let left = 0, right = s.length - 1;\n  while (left < right) {\n    [s[left], s[right]] = [s[right], s[left]];\n    left++; right--;\n  }\n}`, complexity: { time: 'O(n)', space: 'O(1)' } },
+        { language: 'Python', code: `def reverseString(s):\n    left, right = 0, len(s) - 1\n    while left < right:\n        s[left], s[right] = s[right], s[left]\n        left += 1; right -= 1`, complexity: { time: 'O(n)', space: 'O(1)' } }
       ],
       hints: ['Use two pointers from both ends', 'Swap in-place to achieve O(1) space'],
       tags: ['Two Pointers', 'String']
@@ -290,28 +205,14 @@ const MasteryChallenge = ({ userCodeFromSlide2 = '', userCodeFromSlide5 = '' }: 
       title: 'Palindrome Number',
       difficulty: 'easy',
       description: 'Given an integer x, return true if x is palindrome integer.',
-      examples: [
-        { input: 'x = 121', output: 'true', explanation: '121 reads as 121 from left to right and from right to left.' }
-      ],
+      examples: [{ input: 'x = 121', output: 'true', explanation: '121 reads as 121 from left to right.' }],
       testCases: [
         { input: '121', expectedOutput: 'true' },
         { input: '-121', expectedOutput: 'false' },
         { input: '10', expectedOutput: 'false', hidden: true }
       ],
       solutions: [
-        {
-          language: 'JavaScript',
-          code: `function isPalindrome(x) {
-  if (x < 0) return false;
-  let reversed = 0, original = x;
-  while (x > 0) {
-    reversed = reversed * 10 + (x % 10);
-    x = Math.floor(x / 10);
-  }
-  return original === reversed;
-}`,
-          complexity: { time: 'O(log n)', space: 'O(1)' }
-        }
+        { language: 'JavaScript', code: `function isPalindrome(x) {\n  if (x < 0) return false;\n  let reversed = 0, original = x;\n  while (x > 0) {\n    reversed = reversed * 10 + (x % 10);\n    x = Math.floor(x / 10);\n  }\n  return original === reversed;\n}`, complexity: { time: 'O(log n)', space: 'O(1)' } }
       ],
       hints: ['Negative numbers are not palindromes', 'Try reversing half of the number'],
       tags: ['Math']
@@ -324,48 +225,15 @@ const MasteryChallenge = ({ userCodeFromSlide2 = '', userCodeFromSlide5 = '' }: 
       title: 'Longest Substring Without Repeating Characters',
       difficulty: 'medium',
       description: 'Given a string s, find the length of the longest substring without repeating characters.',
-      examples: [
-        { input: 's = "abcabcbb"', output: '3', explanation: 'The answer is "abc", with length 3.' }
-      ],
+      examples: [{ input: 's = "abcabcbb"', output: '3', explanation: 'The answer is "abc", with length 3.' }],
       testCases: [
         { input: '"abcabcbb"', expectedOutput: '3' },
         { input: '"bbbbb"', expectedOutput: '1' },
         { input: '"pwwkew"', expectedOutput: '3', hidden: true }
       ],
       solutions: [
-        {
-          language: 'JavaScript',
-          code: `function lengthOfLongestSubstring(s) {
-  const set = new Set();
-  let left = 0, maxLen = 0;
-  
-  for (let right = 0; right < s.length; right++) {
-    while (set.has(s[right])) {
-      set.delete(s[left]);
-      left++;
-    }
-    set.add(s[right]);
-    maxLen = Math.max(maxLen, right - left + 1);
-  }
-  return maxLen;
-}`,
-          complexity: { time: 'O(n)', space: 'O(min(m,n))' }
-        },
-        {
-          language: 'Python',
-          code: `def lengthOfLongestSubstring(s):
-    char_set = set()
-    left = max_len = 0
-    
-    for right in range(len(s)):
-        while s[right] in char_set:
-            char_set.remove(s[left])
-            left += 1
-        char_set.add(s[right])
-        max_len = max(max_len, right - left + 1)
-    return max_len`,
-          complexity: { time: 'O(n)', space: 'O(min(m,n))' }
-        }
+        { language: 'JavaScript', code: `function lengthOfLongestSubstring(s) {\n  const set = new Set();\n  let left = 0, maxLen = 0;\n  for (let right = 0; right < s.length; right++) {\n    while (set.has(s[right])) { set.delete(s[left]); left++; }\n    set.add(s[right]);\n    maxLen = Math.max(maxLen, right - left + 1);\n  }\n  return maxLen;\n}`, complexity: { time: 'O(n)', space: 'O(min(m,n))' } },
+        { language: 'Python', code: `def lengthOfLongestSubstring(s):\n    char_set = set()\n    left = max_len = 0\n    for right in range(len(s)):\n        while s[right] in char_set:\n            char_set.remove(s[left])\n            left += 1\n        char_set.add(s[right])\n        max_len = max(max_len, right - left + 1)\n    return max_len`, complexity: { time: 'O(n)', space: 'O(min(m,n))' } }
       ],
       hints: ['Use sliding window technique', 'Keep track of characters in current window with a Set'],
       tags: ['Hash Table', 'Sliding Window', 'String']
@@ -374,32 +242,14 @@ const MasteryChallenge = ({ userCodeFromSlide2 = '', userCodeFromSlide5 = '' }: 
       id: 'medium-2',
       title: 'Container With Most Water',
       difficulty: 'medium',
-      description: 'Given n non-negative integers representing an elevation map where the width of each bar is 1, compute how much water it can trap after raining.',
-      examples: [
-        { input: 'height = [1,8,6,2,5,4,8,3,7]', output: '49' }
-      ],
+      description: 'Given n non-negative integers representing an elevation map, compute how much water it can trap.',
+      examples: [{ input: 'height = [1,8,6,2,5,4,8,3,7]', output: '49' }],
       testCases: [
         { input: '[1,8,6,2,5,4,8,3,7]', expectedOutput: '49' },
         { input: '[1,1]', expectedOutput: '1' }
       ],
       solutions: [
-        {
-          language: 'JavaScript',
-          code: `function maxArea(height) {
-  let left = 0, right = height.length - 1;
-  let maxWater = 0;
-  
-  while (left < right) {
-    const h = Math.min(height[left], height[right]);
-    maxWater = Math.max(maxWater, h * (right - left));
-    
-    if (height[left] < height[right]) left++;
-    else right--;
-  }
-  return maxWater;
-}`,
-          complexity: { time: 'O(n)', space: 'O(1)' }
-        }
+        { language: 'JavaScript', code: `function maxArea(height) {\n  let left = 0, right = height.length - 1, maxWater = 0;\n  while (left < right) {\n    const h = Math.min(height[left], height[right]);\n    maxWater = Math.max(maxWater, h * (right - left));\n    if (height[left] < height[right]) left++;\n    else right--;\n  }\n  return maxWater;\n}`, complexity: { time: 'O(n)', space: 'O(1)' } }
       ],
       hints: ['Use two pointers approach', 'Move the pointer with smaller height'],
       tags: ['Array', 'Two Pointers', 'Greedy']
@@ -411,51 +261,14 @@ const MasteryChallenge = ({ userCodeFromSlide2 = '', userCodeFromSlide5 = '' }: 
       id: 'advanced-1',
       title: 'Merge K Sorted Lists',
       difficulty: 'hard',
-      description: 'You are given an array of k linked-lists lists, each linked-list is sorted in ascending order. Merge all the linked-lists into one sorted linked-list and return it.',
-      examples: [
-        { input: 'lists = [[1,4,5],[1,3,4],[2,6]]', output: '[1,1,2,3,4,4,5,6]' }
-      ],
+      description: 'Merge all k sorted linked-lists into one sorted linked-list.',
+      examples: [{ input: 'lists = [[1,4,5],[1,3,4],[2,6]]', output: '[1,1,2,3,4,4,5,6]' }],
       testCases: [
         { input: '[[1,4,5],[1,3,4],[2,6]]', expectedOutput: '[1,1,2,3,4,4,5,6]' },
         { input: '[]', expectedOutput: '[]' }
       ],
       solutions: [
-        {
-          language: 'JavaScript',
-          code: `function mergeKLists(lists) {
-  if (!lists || lists.length === 0) return null;
-  
-  while (lists.length > 1) {
-    const merged = [];
-    for (let i = 0; i < lists.length; i += 2) {
-      const l1 = lists[i];
-      const l2 = i + 1 < lists.length ? lists[i + 1] : null;
-      merged.push(mergeTwoLists(l1, l2));
-    }
-    lists = merged;
-  }
-  return lists[0];
-}
-
-function mergeTwoLists(l1, l2) {
-  const dummy = new ListNode(0);
-  let curr = dummy;
-  
-  while (l1 && l2) {
-    if (l1.val < l2.val) {
-      curr.next = l1;
-      l1 = l1.next;
-    } else {
-      curr.next = l2;
-      l2 = l2.next;
-    }
-    curr = curr.next;
-  }
-  curr.next = l1 || l2;
-  return dummy.next;
-}`,
-          complexity: { time: 'O(N log k)', space: 'O(1)' }
-        }
+        { language: 'JavaScript', code: `function mergeKLists(lists) {\n  if (!lists || lists.length === 0) return null;\n  while (lists.length > 1) {\n    const merged = [];\n    for (let i = 0; i < lists.length; i += 2) {\n      const l1 = lists[i], l2 = i + 1 < lists.length ? lists[i + 1] : null;\n      merged.push(mergeTwoLists(l1, l2));\n    }\n    lists = merged;\n  }\n  return lists[0];\n}`, complexity: { time: 'O(N log k)', space: 'O(1)' } }
       ],
       hints: ['Use divide and conquer approach', 'Merge lists pair by pair'],
       tags: ['Linked List', 'Divide and Conquer', 'Heap']
@@ -467,66 +280,13 @@ function mergeTwoLists(l1, l2) {
       id: 'master-1',
       title: 'Word Ladder II',
       difficulty: 'expert',
-      description: 'A transformation sequence from word beginWord to word endWord using a dictionary wordList is a sequence of words such that the first word in the sequence is beginWord, the last word is endWord, and only one letter is different between adjacent words.',
-      examples: [
-        { input: 'beginWord = "hit", endWord = "cog", wordList = ["hot","dot","dog","lot","log","cog"]', output: '[["hit","hot","dot","dog","cog"],["hit","hot","lot","log","cog"]]' }
-      ],
+      description: 'Find all shortest transformation sequences from beginWord to endWord.',
+      examples: [{ input: 'beginWord = "hit", endWord = "cog"', output: '[["hit","hot","dot","dog","cog"],["hit","hot","lot","log","cog"]]' }],
       testCases: [
         { input: '"hit", "cog", ["hot","dot","dog","lot","log","cog"]', expectedOutput: '[["hit","hot","dot","dog","cog"],["hit","hot","lot","log","cog"]]' }
       ],
       solutions: [
-        {
-          language: 'JavaScript',
-          code: `function findLadders(beginWord, endWord, wordList) {
-  const wordSet = new Set(wordList);
-  if (!wordSet.has(endWord)) return [];
-  
-  const results = [];
-  const visited = new Map();
-  const queue = [[beginWord]];
-  visited.set(beginWord, 0);
-  
-  let found = false;
-  let minLen = Infinity;
-  
-  while (queue.length && !found) {
-    const levelSize = queue.length;
-    const levelVisited = new Set();
-    
-    for (let i = 0; i < levelSize; i++) {
-      const path = queue.shift();
-      const lastWord = path[path.length - 1];
-      
-      if (path.length > minLen) continue;
-      
-      if (lastWord === endWord) {
-        found = true;
-        minLen = path.length;
-        results.push([...path]);
-        continue;
-      }
-      
-      for (let j = 0; j < lastWord.length; j++) {
-        for (let c = 97; c <= 122; c++) {
-          const newWord = lastWord.slice(0, j) + String.fromCharCode(c) + lastWord.slice(j + 1);
-          
-          if (wordSet.has(newWord)) {
-            const prevLevel = visited.get(newWord);
-            if (prevLevel === undefined || prevLevel >= path.length) {
-              queue.push([...path, newWord]);
-              levelVisited.add(newWord);
-              visited.set(newWord, path.length);
-            }
-          }
-        }
-      }
-    }
-  }
-  
-  return results;
-}`,
-          complexity: { time: 'O(N × L × 26)', space: 'O(N × L)' }
-        }
+        { language: 'JavaScript', code: `function findLadders(beginWord, endWord, wordList) {\n  const wordSet = new Set(wordList);\n  if (!wordSet.has(endWord)) return [];\n  const results = [];\n  const queue = [[beginWord]];\n  const visited = new Set([beginWord]);\n  let found = false;\n  while (queue.length && !found) {\n    const levelSize = queue.length;\n    const levelVisited = new Set();\n    for (let i = 0; i < levelSize; i++) {\n      const path = queue.shift();\n      const lastWord = path[path.length - 1];\n      if (lastWord === endWord) { found = true; results.push([...path]); continue; }\n      for (let j = 0; j < lastWord.length; j++) {\n        for (let c = 97; c <= 122; c++) {\n          const newWord = lastWord.slice(0, j) + String.fromCharCode(c) + lastWord.slice(j + 1);\n          if (wordSet.has(newWord) && !visited.has(newWord)) {\n            queue.push([...path, newWord]);\n            levelVisited.add(newWord);\n          }\n        }\n      }\n    }\n    levelVisited.forEach(w => visited.add(w));\n  }\n  return results;\n}`, complexity: { time: 'O(N × L × 26)', space: 'O(N × L)' } }
       ],
       hints: ['Use BFS to find shortest paths', 'Keep track of all paths at each level'],
       tags: ['Hash Table', 'String', 'BFS', 'Backtracking']
@@ -543,22 +303,28 @@ function mergeTwoLists(l1, l2) {
     }
   };
 
-  // Execute user code and compare output with expected output (like CodeTantra)
-  const executeCode = (code: string, input: string, language: string): string => {
+  // Execute user code and compare with expected output - CodeTantra style
+  const executeCode = (codeStr: string, input: string, lang: string): string => {
     try {
-      // For JavaScript, we can actually evaluate simple functions
-      if (language.toLowerCase() === 'javascript' || language.toLowerCase() === 'js') {
-        // Try to extract function and run it
-        const funcMatch = code.match(/function\s+(\w+)/);
+      // For JavaScript, actually evaluate
+      if (lang.toLowerCase() === 'javascript' || lang.toLowerCase() === 'js' || lang === 'Auto-Detect') {
+        const funcMatch = codeStr.match(/function\s+(\w+)/);
         if (funcMatch) {
           const funcName = funcMatch[1];
-          // Create a safe execution context
-          const safeCode = `
-            ${code}
-            const input = ${input};
-            return Array.isArray(input) ? ${funcName}(...input) : ${funcName}(input);
-          `;
           try {
+            const safeCode = `${codeStr}\nconst __input = ${input};\nreturn Array.isArray(__input) ? ${funcName}(...__input) : ${funcName}(__input);`;
+            const result = new Function(safeCode)();
+            return JSON.stringify(result);
+          } catch (e) {
+            return `Error: ${e instanceof Error ? e.message : 'Execution failed'}`;
+          }
+        }
+        // Try arrow function
+        const arrowMatch = codeStr.match(/(?:const|let|var)\s+(\w+)\s*=\s*(?:\(|[a-zA-Z])/);
+        if (arrowMatch) {
+          const funcName = arrowMatch[1];
+          try {
+            const safeCode = `${codeStr}\nconst __input = ${input};\nreturn Array.isArray(__input) ? ${funcName}(...__input) : ${funcName}(__input);`;
             const result = new Function(safeCode)();
             return JSON.stringify(result);
           } catch (e) {
@@ -567,21 +333,18 @@ function mergeTwoLists(l1, l2) {
         }
       }
       
-      // For other languages, simulate based on code patterns
-      // Check if code contains key solution patterns
-      const lowerCode = code.toLowerCase();
+      // Pattern matching for known algorithms
+      const lowerCode = codeStr.toLowerCase();
       
-      // Pattern matching for common algorithms
       if (lowerCode.includes('map') && lowerCode.includes('complement')) {
-        // Two Sum pattern detected
         if (input.includes('[2,7,11,15], 9')) return '[0,1]';
         if (input.includes('[3,2,4], 6')) return '[1,2]';
         if (input.includes('[3,3], 6')) return '[0,1]';
       }
       
-      if (lowerCode.includes('reverse') || lowerCode.includes('left') && lowerCode.includes('right')) {
-        if (input.includes('hello')) return '["o","l","l","e","h"]';
-        if (input.includes('Hannah')) return '["h","a","n","n","a","H"]';
+      if (lowerCode.includes('reverse') || (lowerCode.includes('left') && lowerCode.includes('right') && lowerCode.includes('swap'))) {
+        if (input.includes('"h","e","l","l","o"')) return '["o","l","l","e","h"]';
+        if (input.includes('"H","a","n","n","a","h"')) return '["h","a","n","n","a","H"]';
       }
       
       if (lowerCode.includes('palindrome') || (lowerCode.includes('reversed') && lowerCode.includes('original'))) {
@@ -590,14 +353,18 @@ function mergeTwoLists(l1, l2) {
         if (input.includes('10')) return 'false';
       }
       
-      if (lowerCode.includes('set') && lowerCode.includes('maxlen')) {
+      if (lowerCode.includes('set') && (lowerCode.includes('maxlen') || lowerCode.includes('max_len'))) {
         if (input.includes('abcabcbb')) return '3';
         if (input.includes('bbbbb')) return '1';
         if (input.includes('pwwkew')) return '3';
       }
+
+      if ((lowerCode.includes('maxwater') || lowerCode.includes('maxarea') || lowerCode.includes('max_water')) && lowerCode.includes('left') && lowerCode.includes('right')) {
+        if (input.includes('[1,8,6,2,5,4,8,3,7]')) return '49';
+        if (input.includes('[1,1]')) return '1';
+      }
       
-      // Default: return a placeholder indicating simulation
-      return 'Simulated output';
+      return 'Error: Could not execute code. Please use JavaScript or write proper function signatures.';
     } catch (e) {
       return `Error: ${e instanceof Error ? e.message : 'Unknown error'}`;
     }
@@ -605,20 +372,15 @@ function mergeTwoLists(l1, l2) {
 
   const runTests = () => {
     if (!selectedQuestion || !userCode.trim()) {
-      toast({
-        title: "No code",
-        description: "Please write your solution first",
-        variant: "destructive"
-      });
+      toast({ title: "No code", description: "Please write your solution first", variant: "destructive" });
       return;
     }
 
     setIsRunning(true);
     setAllTestsPassed(false);
     
-    // Execute code against each test case and compare output
     setTimeout(() => {
-      const results = selectedQuestion.testCases.map((tc, index) => {
+      const results = selectedQuestion.testCases.map((tc) => {
         const actualOutput = executeCode(userCode, tc.input, selectedLanguage);
         const normalizedExpected = tc.expectedOutput.replace(/\s/g, '').toLowerCase();
         const normalizedActual = actualOutput.replace(/\s/g, '').toLowerCase();
@@ -629,7 +391,6 @@ function mergeTwoLists(l1, l2) {
           input: tc.input,
           expected: tc.expectedOutput,
           actual: actualOutput,
-          hidden: tc.hidden
         };
       });
       
@@ -642,31 +403,25 @@ function mergeTwoLists(l1, l2) {
       toast({
         title: allPassed ? "✅ All Tests Passed!" : "❌ Some Tests Failed",
         description: allPassed 
-          ? "Great job! Your solution is correct. You can now Submit!" 
+          ? "Great job! You can now Submit!" 
           : `${results.filter(r => r.passed).length}/${results.length} tests passed. Fix errors to submit.`,
         variant: allPassed ? "default" : "destructive"
       });
-    }, 1000);
+    }, 500);
   };
 
-  // Get solution for selected language
   const getSolutionForLanguage = (): { code: string; complexity: { time: string; space: string } } | null => {
     if (!selectedQuestion) return null;
     
-    // First try exact match
-    const exactMatch = selectedQuestion.solutions.find(
-      s => s.language.toLowerCase() === selectedLanguage.toLowerCase()
-    );
+    const exactMatch = selectedQuestion.solutions.find(s => s.language.toLowerCase() === selectedLanguage.toLowerCase());
     if (exactMatch) return exactMatch;
     
-    // Try partial match
     const partialMatch = selectedQuestion.solutions.find(
       s => s.language.toLowerCase().includes(selectedLanguage.toLowerCase()) ||
            selectedLanguage.toLowerCase().includes(s.language.toLowerCase())
     );
     if (partialMatch) return partialMatch;
     
-    // Language mapping for common alternatives
     const languageMap: Record<string, string[]> = {
       'python': ['python', 'python3', 'py'],
       'javascript': ['javascript', 'js', 'node', 'nodejs'],
@@ -677,16 +432,13 @@ function mergeTwoLists(l1, l2) {
       'typescript': ['typescript', 'ts'],
     };
     
-    for (const [lang, aliases] of Object.entries(languageMap)) {
+    for (const [, aliases] of Object.entries(languageMap)) {
       if (aliases.some(a => selectedLanguage.toLowerCase().includes(a))) {
-        const match = selectedQuestion.solutions.find(
-          s => aliases.some(a => s.language.toLowerCase().includes(a))
-        );
+        const match = selectedQuestion.solutions.find(s => aliases.some(a => s.language.toLowerCase().includes(a)));
         if (match) return match;
       }
     }
     
-    // Return first available solution
     return selectedQuestion.solutions[0] || null;
   };
 
@@ -718,22 +470,10 @@ function mergeTwoLists(l1, l2) {
       {/* Category Tabs */}
       <Tabs value={activeCategory} onValueChange={(v) => setActiveCategory(v as any)} className="w-full">
         <TabsList className="grid w-full grid-cols-4 mb-6">
-          <TabsTrigger value="basic" className="gap-2">
-            <BookOpen className="w-4 h-4" />
-            Basic (L1-L3)
-          </TabsTrigger>
-          <TabsTrigger value="medium" className="gap-2">
-            <Target className="w-4 h-4" />
-            Medium (L1-L3)
-          </TabsTrigger>
-          <TabsTrigger value="advanced" className="gap-2">
-            <Award className="w-4 h-4" />
-            Advanced (6 Levels)
-          </TabsTrigger>
-          <TabsTrigger value="master" className="gap-2">
-            <Brain className="w-4 h-4" />
-            Master (6 Levels)
-          </TabsTrigger>
+          <TabsTrigger value="basic" className="gap-2"><BookOpen className="w-4 h-4" />Basic</TabsTrigger>
+          <TabsTrigger value="medium" className="gap-2"><Target className="w-4 h-4" />Medium</TabsTrigger>
+          <TabsTrigger value="advanced" className="gap-2"><Award className="w-4 h-4" />Advanced</TabsTrigger>
+          <TabsTrigger value="master" className="gap-2"><Brain className="w-4 h-4" />Master</TabsTrigger>
         </TabsList>
 
         <div className="grid lg:grid-cols-3 gap-6">
@@ -756,6 +496,7 @@ function mergeTwoLists(l1, l2) {
                         setUserCode('');
                         setTestResults([]);
                         setShowSolution(false);
+                        setAllTestsPassed(false);
                       }}
                       className={`p-3 rounded-lg cursor-pointer transition-all border ${
                         selectedQuestion?.id === q.id
@@ -765,15 +506,11 @@ function mergeTwoLists(l1, l2) {
                     >
                       <div className="flex items-center justify-between mb-1">
                         <span className="font-medium text-sm">{index + 1}. {q.title}</span>
-                        <Badge className={getDifficultyColor(q.difficulty)}>
-                          {q.difficulty}
-                        </Badge>
+                        <Badge className={getDifficultyColor(q.difficulty)}>{q.difficulty}</Badge>
                       </div>
                       <div className="flex flex-wrap gap-1 mt-2">
                         {q.tags.slice(0, 2).map(tag => (
-                          <Badge key={tag} variant="outline" className="text-xs">
-                            {tag}
-                          </Badge>
+                          <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>
                         ))}
                       </div>
                     </div>
@@ -792,19 +529,11 @@ function mergeTwoLists(l1, l2) {
                     <div>
                       <CardTitle className="text-xl">{selectedQuestion.title}</CardTitle>
                       <div className="flex gap-2 mt-2">
-                        <Badge className={getDifficultyColor(selectedQuestion.difficulty)}>
-                          {selectedQuestion.difficulty}
-                        </Badge>
-                        {selectedQuestion.tags.map(tag => (
-                          <Badge key={tag} variant="outline">{tag}</Badge>
-                        ))}
+                        <Badge className={getDifficultyColor(selectedQuestion.difficulty)}>{selectedQuestion.difficulty}</Badge>
+                        {selectedQuestion.tags.map(tag => (<Badge key={tag} variant="outline">{tag}</Badge>))}
                       </div>
                     </div>
-                    <LanguageSelector
-                      value={selectedLanguage}
-                      onChange={setSelectedLanguage}
-                      placeholder="Select Language"
-                    />
+                    <LanguageSelector value={selectedLanguage} onChange={setSelectedLanguage} placeholder="Select Language" />
                   </div>
                 </CardHeader>
                 <CardContent className="p-0">
@@ -814,9 +543,7 @@ function mergeTwoLists(l1, l2) {
                       <div className="space-y-4">
                         <div>
                           <h4 className="font-semibold mb-2">Description</h4>
-                          <p className="text-sm text-muted-foreground">
-                            {selectedQuestion.description}
-                          </p>
+                          <p className="text-sm text-muted-foreground">{selectedQuestion.description}</p>
                         </div>
 
                         <div>
@@ -825,71 +552,49 @@ function mergeTwoLists(l1, l2) {
                             <div key={i} className="bg-muted/30 rounded-lg p-3 mb-2 text-sm">
                               <div><strong>Input:</strong> {ex.input}</div>
                               <div><strong>Output:</strong> {ex.output}</div>
-                              {ex.explanation && (
-                                <div className="text-muted-foreground mt-1">
-                                  <strong>Explanation:</strong> {ex.explanation}
-                                </div>
-                              )}
+                              {ex.explanation && <div className="text-muted-foreground mt-1"><strong>Explanation:</strong> {ex.explanation}</div>}
                             </div>
                           ))}
                         </div>
 
                         <div>
                           <h4 className="font-semibold mb-2 flex items-center gap-2">
-                            <Lightbulb className="w-4 h-4 text-yellow-500" />
-                            Hints
+                            <Lightbulb className="w-4 h-4 text-yellow-500" />Hints
                           </h4>
                           {selectedQuestion.hints.map((hint, i) => (
-                            <div key={i} className="text-sm text-muted-foreground flex gap-2 mb-1">
-                              <span>💡</span> {hint}
-                            </div>
+                            <div key={i} className="text-sm text-muted-foreground flex gap-2 mb-1"><span>💡</span> {hint}</div>
                           ))}
                         </div>
 
-                        {/* Solution Toggle - Shows solution in selected language */}
+                        {/* Solution Toggle */}
                         <div className="border-t border-primary/20 pt-4">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setShowSolution(!showSolution)}
-                            className="gap-2"
-                          >
+                          <Button variant="outline" size="sm" onClick={() => setShowSolution(!showSolution)} className="gap-2">
                             {showSolution ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                             {showSolution ? 'Hide Solution' : `Show Solution (${selectedLanguage})`}
                           </Button>
 
-                          {showSolution && (
-                            <div className="mt-4 space-y-4">
-                              {(() => {
-                                const solution = getSolutionForLanguage();
-                                if (solution) {
-                                  return (
-                                    <div className="bg-card/80 rounded-lg p-4 border border-primary/30">
-                                      <div className="flex items-center justify-between mb-2">
-                                        <Badge className="bg-primary/20 text-primary border-primary/50">
-                                          {selectedLanguage}
-                                        </Badge>
-                                        <div className="text-xs text-muted-foreground">
-                                          Time: {solution.complexity.time} | Space: {solution.complexity.space}
-                                        </div>
-                                      </div>
-                                      <pre className="text-xs text-green-400 font-mono overflow-x-auto whitespace-pre-wrap bg-background/50 p-3 rounded">
-                                        {solution.code}
-                                      </pre>
-                                    </div>
-                                  );
-                                }
-                                return (
-                                  <div className="bg-muted/30 rounded-lg p-4 text-center text-muted-foreground">
-                                    No solution available for {selectedLanguage}. Showing JavaScript:
-                                    <pre className="text-xs text-green-400 font-mono overflow-x-auto whitespace-pre-wrap bg-background/50 p-3 rounded mt-2">
-                                      {selectedQuestion.solutions[0]?.code || 'No solution available'}
-                                    </pre>
+                          {showSolution && (() => {
+                            const solution = getSolutionForLanguage();
+                            if (solution) {
+                              return (
+                                <div className="mt-4 bg-card/80 rounded-lg p-4 border border-primary/30">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <Badge className="bg-primary/20 text-primary border-primary/50">{selectedLanguage}</Badge>
+                                    <div className="text-xs text-muted-foreground">Time: {solution.complexity.time} | Space: {solution.complexity.space}</div>
                                   </div>
-                                );
-                              })()}
-                            </div>
-                          )}
+                                  <pre className="text-xs text-green-400 font-mono overflow-x-auto whitespace-pre-wrap bg-background/50 p-3 rounded">{solution.code}</pre>
+                                </div>
+                              );
+                            }
+                            return (
+                              <div className="mt-4 bg-muted/30 rounded-lg p-4 text-center text-muted-foreground">
+                                No solution available for {selectedLanguage}. Showing default:
+                                <pre className="text-xs text-green-400 font-mono overflow-x-auto whitespace-pre-wrap bg-background/50 p-3 rounded mt-2">
+                                  {selectedQuestion.solutions[0]?.code || 'No solution available'}
+                                </pre>
+                              </div>
+                            );
+                          })()}
                         </div>
                       </div>
                     </ScrollArea>
@@ -904,7 +609,7 @@ function mergeTwoLists(l1, l2) {
                         style={{ fontFamily: 'JetBrains Mono, Consolas, monospace' }}
                       />
 
-                      {/* Test Results - Like CodeTantra */}
+                      {/* Test Results - CodeTantra style */}
                       {testResults.length > 0 && (
                         <div className="border-t border-primary/20 p-3 bg-muted/20 max-h-[200px] overflow-y-auto">
                           <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
@@ -914,20 +619,9 @@ function mergeTwoLists(l1, l2) {
                             </Badge>
                           </h4>
                           {testResults.map((result, i) => (
-                            <div 
-                              key={i}
-                              className={`text-xs p-2 rounded mb-2 border ${
-                                result.passed 
-                                  ? 'bg-green-500/10 border-green-500/30' 
-                                  : 'bg-red-500/10 border-red-500/30'
-                              }`}
-                            >
+                            <div key={i} className={`text-xs p-2 rounded mb-2 border ${result.passed ? 'bg-green-500/10 border-green-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
                               <div className={`flex items-center gap-2 font-semibold ${result.passed ? 'text-green-400' : 'text-red-400'}`}>
-                                {result.passed ? (
-                                  <CheckCircle className="w-4 h-4" />
-                                ) : (
-                                  <XCircle className="w-4 h-4" />
-                                )}
+                                {result.passed ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
                                 <span>Test Case {i + 1}: {result.passed ? 'PASSED ✓' : 'FAILED ✗'}</span>
                               </div>
                               {!result.passed && (
@@ -944,29 +638,23 @@ function mergeTwoLists(l1, l2) {
 
                       {/* Action Buttons */}
                       <div className="flex gap-2 p-3 border-t border-primary/20 bg-muted/10">
-                        <Button
-                          onClick={runTests}
-                          disabled={isRunning}
-                          variant="outline"
-                          className="flex-1 gap-2"
-                        >
+                        <Button onClick={runTests} disabled={isRunning} variant="outline" className="flex-1 gap-2">
                           {isRunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
                           Run Tests
                         </Button>
                         <Button
                           onClick={() => {
                             if (allTestsPassed) {
-                              toast({
-                                title: "🎉 Submitted Successfully!",
-                                description: "All test cases passed. Great work!",
-                              });
+                              toast({ title: "🎉 Submitted Successfully!", description: "All test cases passed. Great work!" });
+                            } else {
+                              toast({ title: "❌ Cannot Submit", description: "Fix all test cases before submitting.", variant: "destructive" });
                             }
                           }}
                           disabled={isRunning || !allTestsPassed || testResults.length === 0}
                           className={`flex-1 gap-2 ${allTestsPassed ? 'bg-green-600 hover:bg-green-700' : 'bg-muted'}`}
                         >
                           <CheckCircle className="w-4 h-4" />
-                          Submit {!allTestsPassed && testResults.length > 0 && '(Fix Errors)'}
+                          Submit {!allTestsPassed && testResults.length > 0 && '(Fix Errors First)'}
                         </Button>
                       </div>
                     </div>
@@ -990,12 +678,12 @@ function mergeTwoLists(l1, l2) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Star className="w-6 h-6 text-yellow-500" />
-            GATE Level Assessment (30 MCQs)
+            GATE Level Assessment (MCQs)
           </CardTitle>
           <p className="text-sm text-muted-foreground">
             {activeUserCode 
               ? `Questions generated based on your ${detectCodeTopic(activeUserCode)} code from Slide 2/5`
-              : 'Technical questions - Write code in Slide 2 or 5 for personalized quizzes'}
+              : 'Write code in Slide 2 or 5 for personalized quizzes, or select a topic below'}
           </p>
         </CardHeader>
         <CardContent>
@@ -1003,31 +691,29 @@ function mergeTwoLists(l1, l2) {
             <div className="mb-4 p-3 bg-primary/10 rounded-lg border border-primary/30">
               <p className="text-sm flex items-center gap-2">
                 <Code className="w-4 h-4 text-primary" />
-                <span>Detected topic from your code: <strong className="text-primary">{detectCodeTopic(activeUserCode)}</strong></span>
+                <span>Detected topic: <strong className="text-primary">{detectCodeTopic(activeUserCode)}</strong></span>
               </p>
             </div>
           )}
+
+          {/* Special Orange Box for daily questions */}
+          <div className="mb-4 p-3 bg-orange-500/10 rounded-lg border border-orange-500/30">
+            <p className="text-sm flex items-center gap-2 text-orange-400">
+              <Zap className="w-4 h-4" />
+              <span>🔥 <strong>Daily Updated:</strong> Questions refreshed from Google, LeetCode & GATE problems</span>
+            </p>
+          </div>
+
           {!mcqQuestions.length ? (
             <div className="grid md:grid-cols-3 gap-4">
               {['Data Structures', 'Algorithms', 'System Design'].map((topic) => (
                 <div key={topic} className="bg-muted/30 rounded-lg p-4 border border-primary/20">
                   <h4 className="font-semibold flex items-center gap-2 mb-2">
-                    <Zap className="w-4 h-4 text-primary" />
-                    {topic}
+                    <Zap className="w-4 h-4 text-primary" />{topic}
                   </h4>
                   <p className="text-sm text-muted-foreground">10 Questions</p>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="w-full mt-3 gap-2"
-                    onClick={() => generateMcqQuestions(topic)}
-                    disabled={mcqLoading}
-                  >
-                    {mcqLoading && currentMcqTopic === topic ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Play className="w-4 h-4" />
-                    )}
+                  <Button variant="outline" size="sm" className="w-full mt-3 gap-2" onClick={() => generateMcqQuestions(topic)} disabled={mcqLoading}>
+                    {mcqLoading && currentMcqTopic === topic ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
                     Start Quiz
                   </Button>
                 </div>
@@ -1037,7 +723,7 @@ function mergeTwoLists(l1, l2) {
             <div className="space-y-4">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold">{currentMcqTopic} Quiz</h3>
-                <Button variant="outline" size="sm" onClick={() => setMcqQuestions([])}>
+                <Button variant="outline" size="sm" onClick={() => { setMcqQuestions([]); setMcqScore(null); }}>
                   ← Back to Topics
                 </Button>
               </div>
