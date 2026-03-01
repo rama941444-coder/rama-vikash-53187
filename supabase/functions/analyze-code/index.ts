@@ -32,6 +32,83 @@ serve(async (req) => {
   try {
     // Validate input
     const requestBody = await req.json();
+    
+    // Handle special modes
+    if (requestBody.mode === 'complexity_analysis') {
+      const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+      if (!LOVABLE_API_KEY) throw new Error('LOVABLE_API_KEY is not configured');
+      
+      const aiResp = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'google/gemini-3-flash-preview',
+          messages: [
+            { role: 'system', content: 'You are a code complexity analyzer. Return JSON only.' },
+            { role: 'user', content: `Analyze this code and return JSON with: timeComplexity, spaceComplexity, complexityExplanation, bestSolution (optimized version of same code with less complexity), bestTimeComplexity, bestSpaceComplexity, bestExplanation.\n\nLanguage: ${requestBody.language}\n\nCode:\n${requestBody.code}` }
+          ],
+          response_format: { type: "json_object" },
+        }),
+      });
+      
+      if (!aiResp.ok) {
+        return new Response(JSON.stringify({ timeComplexity: 'N/A', spaceComplexity: 'N/A' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      
+      const aiData = await aiResp.json();
+      try {
+        const parsed = JSON.parse(aiData.choices[0].message.content);
+        return new Response(JSON.stringify(parsed), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      } catch {
+        return new Response(JSON.stringify({ timeComplexity: 'N/A', spaceComplexity: 'N/A' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+    
+    if (requestBody.mode === 'generate_mcq') {
+      const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+      if (!LOVABLE_API_KEY) throw new Error('LOVABLE_API_KEY is not configured');
+      
+      const topic = requestBody.topic || 'Data Structures';
+      const userCode = requestBody.code || '';
+      
+      const aiResp = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'google/gemini-3-flash-preview',
+          messages: [
+            { role: 'system', content: 'Generate exactly 10 MCQ questions. Return JSON with mcqQuestions array. Each item: {question: string, options: string[4], answer: number(0-3)}' },
+            { role: 'user', content: `Topic: ${topic}\n${userCode ? `Based on this user code:\n${userCode.substring(0, 2000)}` : ''}\n\nGenerate 10 GATE-level MCQ questions about ${topic}. Mix easy, medium, hard. Return JSON: {"mcqQuestions": [...]}` }
+          ],
+          response_format: { type: "json_object" },
+        }),
+      });
+      
+      if (!aiResp.ok) {
+        return new Response(JSON.stringify({ mcqQuestions: [] }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      
+      const aiData = await aiResp.json();
+      try {
+        const parsed = JSON.parse(aiData.choices[0].message.content);
+        return new Response(JSON.stringify(parsed), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      } catch {
+        return new Response(JSON.stringify({ mcqQuestions: [] }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+    
     const validation = RequestSchema.safeParse(requestBody);
     if (!validation.success) {
       return new Response(JSON.stringify({ 
