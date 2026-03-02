@@ -636,13 +636,8 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
 
     try {
       const { data, error } = await supabase.functions.invoke('analyze-code', {
-        body: {
-          code,
-          language,
-          mode: 'complexity_analysis'
-        }
+        body: { code, language, mode: 'complexity_analysis' }
       });
-
       if (error) throw error;
 
       if (data?.timeComplexity) {
@@ -652,34 +647,49 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
           explanation: data.complexityExplanation || ''
         });
       }
-
       if (data?.bestSolution) {
         setBestSolution({
           code: data.bestSolution,
           timeComplexity: data.bestTimeComplexity || 'O(n)',
           spaceComplexity: data.bestSpaceComplexity || 'O(1)',
-          explanation: data.bestExplanation || 'Optimized solution with better time and space complexity'
+          explanation: data.bestExplanation || 'Optimized solution with better complexity'
         });
       }
-    } catch (err) {
-      // Fallback: basic complexity estimation
+    } catch {
       const lowerCode = code.toLowerCase();
-      let timeEst = 'O(n)';
-      let spaceEst = 'O(1)';
-      
+      let timeEst = 'O(n)', spaceEst = 'O(1)';
       if (lowerCode.includes('for') && lowerCode.split('for').length > 2) timeEst = 'O(n²)';
       if (lowerCode.includes('sort')) timeEst = 'O(n log n)';
-      if (lowerCode.includes('recursion') || lowerCode.includes('fibonacci')) timeEst = 'O(2^n)';
-      if (lowerCode.includes('map') || lowerCode.includes('dict') || lowerCode.includes('set')) spaceEst = 'O(n)';
-      if (lowerCode.includes('matrix') || lowerCode.includes('2d')) spaceEst = 'O(n²)';
-
-      setComplexityAnalysis({
-        timeComplexity: timeEst,
-        spaceComplexity: spaceEst,
-        explanation: 'Estimated based on code patterns (Run AI analysis for precise results)'
-      });
+      setComplexityAnalysis({ timeComplexity: timeEst, spaceComplexity: spaceEst, explanation: 'Estimated (run AI for precise results)' });
     } finally {
       setIsAnalyzingComplexity(false);
+    }
+  };
+
+  // Handle input submission for stdin
+  const handleInputSubmit = async () => {
+    setWaitingForInput(false);
+    setIsAnalyzing(true);
+    const startTime = performance.now();
+
+    try {
+      const result = await executeCodeViaAI(code, language, userInput);
+      const executionTime = performance.now() - startTime;
+
+      setExecutionResult({
+        output: result?.hasError ? '' : (result?.output || 'No output'),
+        error: result?.hasError ? (result?.errorMessage || 'Compilation error') : undefined,
+        executionTime
+      });
+      analyzeComplexity();
+      toast({
+        title: result?.hasError ? "⚠️ Compilation Error" : "✅ Execution Complete",
+        description: result?.hasError ? "Check errors in output" : `Executed in ${executionTime.toFixed(2)}ms`,
+      });
+    } catch (error: any) {
+      setExecutionResult({ output: '', error: error.message || 'Execution failed', executionTime: 0 });
+    } finally {
+      setIsAnalyzing(false);
     }
   };
 
@@ -690,42 +700,51 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       return;
     }
 
+    // Check if code needs input
+    if (codeRequiresInput(code)) {
+      setWaitingForInput(true);
+      setInputPrompt('Enter input for your program:');
+      setUserInput('');
+      setExecutionResult({
+        output: '> Waiting for input...\n> Enter your input below and press Enter',
+        executionTime: 0
+      });
+      setTimeout(() => inputRef.current?.focus(), 100);
+      return;
+    }
+
+    // Execute directly without input
     setIsAnalyzing(true);
     const startTime = performance.now();
 
     try {
-      let output = '';
-      let hasError = false;
-      let errorMessage = '';
-
-      if (errors.filter(e => e.severity === 'error').length > 0) {
-        hasError = true;
-        errorMessage = errors.map(e => `Line ${e.line}: ${e.type} - ${e.message}`).join('\n');
-      } else {
-        output = simulateCodeExecution(code, language);
-      }
-
+      const result = await executeCodeViaAI(code, language, '');
       const executionTime = performance.now() - startTime;
 
+      if (result?.requiresInput) {
+        setWaitingForInput(true);
+        setInputPrompt(result.inputPrompt || 'Enter input:');
+        setUserInput('');
+        setExecutionResult({
+          output: (result.inputPrompt || 'Program requires input...') + '\n> Enter input below:',
+          executionTime
+        });
+        setTimeout(() => inputRef.current?.focus(), 100);
+        return;
+      }
+
       setExecutionResult({
-        output: hasError ? '' : output,
-        error: hasError ? errorMessage : undefined,
+        output: result?.hasError ? '' : (result?.output || 'No output'),
+        error: result?.hasError ? (result?.errorMessage || 'Compilation error') : undefined,
         executionTime
       });
-
-      // Also analyze complexity
       analyzeComplexity();
-
       toast({
-        title: hasError ? "⚠️ Compilation Error" : "✅ Execution Complete",
-        description: hasError ? "Check errors below" : `Executed in ${executionTime.toFixed(2)}ms`,
+        title: result?.hasError ? "⚠️ Compilation Error" : "✅ Execution Complete",
+        description: result?.hasError ? "Check errors below" : `Executed in ${executionTime.toFixed(2)}ms`,
       });
     } catch (error: any) {
-      setExecutionResult({
-        output: '',
-        error: error.message || 'Unknown execution error',
-        executionTime: 0
-      });
+      setExecutionResult({ output: '', error: error.message || 'Unknown execution error', executionTime: 0 });
     } finally {
       setIsAnalyzing(false);
     }
