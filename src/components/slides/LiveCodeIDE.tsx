@@ -940,7 +940,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       </div>
 
       {/* Output Console - Sky Blue Box */}
-      {executionResult && (
+      {(executionResult || waitingForInput) && (
         <div className="bg-[#1a1a2e] border-2 border-sky-400/50 rounded-xl overflow-hidden shadow-lg shadow-sky-500/10">
           <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-sky-500/30 to-sky-600/20 border-b border-sky-400/50">
             <span className="text-sm font-bold text-sky-300 flex items-center gap-2">
@@ -948,19 +948,52 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
               🔵 OUTPUT CONSOLE
             </span>
             <span className="text-xs text-sky-200">
-              Execution time: {executionResult.executionTime?.toFixed(2)}ms
+              {executionResult?.executionTime ? `Execution time: ${executionResult.executionTime.toFixed(2)}ms` : 'Waiting...'}
             </span>
           </div>
-          <div className="p-4 max-h-[200px] overflow-y-auto">
-            {executionResult.error ? (
+          <div className="p-4 max-h-[250px] overflow-y-auto">
+            {executionResult?.error ? (
               <div className="text-red-400 font-mono text-sm whitespace-pre-wrap">
                 <span className="text-red-500 font-bold">Compilation Error:</span>
                 {'\n'}{executionResult.error}
               </div>
             ) : (
               <pre className="text-sky-200 font-mono text-sm whitespace-pre-wrap">
-                {executionResult.output}
+                {executionResult?.output}
               </pre>
+            )}
+            
+            {/* Input prompt with blinking cursor */}
+            {waitingForInput && (
+              <div className="mt-3 border-t border-sky-400/30 pt-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-yellow-400 font-mono text-sm">{'>'}</span>
+                  <span className="text-yellow-300 text-sm font-mono">{inputPrompt}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-green-400 font-mono animate-pulse">{'▊'}</span>
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={userInput}
+                    onChange={(e) => setUserInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleInputSubmit();
+                    }}
+                    placeholder="Type your input here and press Enter..."
+                    className="flex-1 bg-transparent border-b border-sky-400/30 text-sky-100 font-mono text-sm outline-none placeholder:text-sky-600 caret-green-400"
+                    autoFocus
+                  />
+                  <Button
+                    size="sm"
+                    onClick={handleInputSubmit}
+                    disabled={isAnalyzing}
+                    className="h-7 px-3 bg-sky-600 hover:bg-sky-700 text-white text-xs"
+                  >
+                    {isAnalyzing ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Run ▶'}
+                  </Button>
+                </div>
+              </div>
             )}
           </div>
         </div>
