@@ -599,73 +599,34 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     }
   };
 
-  // Simulate code execution - EXACT output like online compilers
-  const simulateCodeExecution = (codeText: string, lang: string): string => {
-    const outputs: string[] = [];
-    const codeLines = codeText.split('\n');
-    
-    codeLines.forEach(line => {
-      // JavaScript/TypeScript console.log
-      const consoleMatch = line.match(/console\.log\s*\(\s*(['"`])(.*?)\1\s*\)/);
-      if (consoleMatch) { outputs.push(consoleMatch[2]); return; }
-      
-      const consoleVarMatch = line.match(/console\.log\s*\(\s*(.+?)\s*\)/);
-      if (consoleVarMatch && !consoleMatch) {
-        const expr = consoleVarMatch[1];
-        if (/^\d+\s*[+\-*/%]\s*\d+$/.test(expr)) {
-          try { outputs.push(String(eval(expr))); } catch { outputs.push(`[${expr}]`); }
-        } else if (/^['"`]/.test(expr)) {
-          outputs.push(expr.slice(1, -1));
-        } else {
-          outputs.push(`${expr}`);
-        }
-        return;
-      }
-      
-      // Python print
-      const printMatch = line.match(/print\s*\(\s*(['"])(.*?)\1\s*\)/);
-      if (printMatch) { outputs.push(printMatch[2]); return; }
-      
-      const printVarMatch = line.match(/print\s*\(\s*(.+?)\s*\)/);
-      if (printVarMatch && !printMatch) {
-        const expr = printVarMatch[1];
-        if (/^['"]/.test(expr)) outputs.push(expr.slice(1, -1));
-        else if (/^\d+\s*[+\-*/%]\s*\d+$/.test(expr)) {
-          try { outputs.push(String(eval(expr))); } catch { outputs.push(`${expr}`); }
-        } else outputs.push(`${expr}`);
-        return;
-      }
-      
-      // Java System.out.println
-      const javaMatch = line.match(/System\.out\.println\s*\(\s*(['"])(.*?)\1\s*\)/);
-      if (javaMatch) { outputs.push(javaMatch[2]); return; }
-      
-      // C/C++ printf
-      const printfMatch = line.match(/printf\s*\(\s*['"](.+?)['"]\s*(?:,.*?)?\)/);
-      if (printfMatch) {
-        let str = printfMatch[1];
-        str = str.replace(/\\n/g, '');
-        str = str.replace(/%[dsifc]/g, '?');
-        outputs.push(str);
-        return;
-      }
-      
-      // C++ cout
-      const coutMatch = line.match(/cout\s*<<\s*(['"])(.*?)\1/);
-      if (coutMatch) { outputs.push(coutMatch[2]); return; }
-      
-      const coutEndlMatch = line.match(/cout\s*<<\s*(.+?)\s*(?:<<\s*endl)?;/);
-      if (coutEndlMatch && !coutMatch) {
-        const expr = coutEndlMatch[1].replace(/"/g, '').replace(/'/g, '');
-        if (expr && expr !== 'endl') outputs.push(expr);
+  // Detect if code requires user input
+  const codeRequiresInput = (codeText: string): boolean => {
+    const inputPatterns = [
+      /scanf\s*\(/i, /gets\s*\(/i, /getchar\s*\(/i, /fgets\s*\(/i,
+      /cin\s*>>/i, /getline\s*\(/i,
+      /input\s*\(/i, /raw_input\s*\(/i,
+      /Scanner\s*\(/i, /nextLine\s*\(/i, /nextInt\s*\(/i, /next\s*\(/i,
+      /readline\s*\(/i, /prompt\s*\(/i,
+      /Console\.ReadLine/i, /Console\.Read\b/i,
+      /gets\.chomp/i, /STDIN/i,
+      /read\s*\(\s*\*/i, /readln/i,
+    ];
+    return inputPatterns.some(p => p.test(codeText));
+  };
+
+  // Execute code via AI backend (like online compiler)
+  const executeCodeViaAI = async (codeText: string, lang: string, stdin: string = '') => {
+    const { data, error } = await supabase.functions.invoke('analyze-code', {
+      body: {
+        code: codeText,
+        language: lang,
+        mode: 'execute_code',
+        userInput: stdin
       }
     });
 
-    if (outputs.length === 0) {
-      return '> Program executed successfully\n> No output statements detected\n> Add console.log(), print(), printf(), or cout to see output';
-    }
-
-    return outputs.join('\n');
+    if (error) throw error;
+    return data;
   };
 
   // Analyze complexity via AI
