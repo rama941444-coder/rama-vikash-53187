@@ -55,8 +55,12 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
   const [complexityAnalysis, setComplexityAnalysis] = useState<ComplexityAnalysis | null>(null);
   const [bestSolution, setBestSolution] = useState<BestSolution | null>(null);
   const [isAnalyzingComplexity, setIsAnalyzingComplexity] = useState(false);
+  const [waitingForInput, setWaitingForInput] = useState(false);
+  const [userInput, setUserInput] = useState('');
+  const [inputPrompt, setInputPrompt] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lineNumbersRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
@@ -595,73 +599,34 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     }
   };
 
-  // Simulate code execution - EXACT output like online compilers
-  const simulateCodeExecution = (codeText: string, lang: string): string => {
-    const outputs: string[] = [];
-    const codeLines = codeText.split('\n');
-    
-    codeLines.forEach(line => {
-      // JavaScript/TypeScript console.log
-      const consoleMatch = line.match(/console\.log\s*\(\s*(['"`])(.*?)\1\s*\)/);
-      if (consoleMatch) { outputs.push(consoleMatch[2]); return; }
-      
-      const consoleVarMatch = line.match(/console\.log\s*\(\s*(.+?)\s*\)/);
-      if (consoleVarMatch && !consoleMatch) {
-        const expr = consoleVarMatch[1];
-        if (/^\d+\s*[+\-*/%]\s*\d+$/.test(expr)) {
-          try { outputs.push(String(eval(expr))); } catch { outputs.push(`[${expr}]`); }
-        } else if (/^['"`]/.test(expr)) {
-          outputs.push(expr.slice(1, -1));
-        } else {
-          outputs.push(`${expr}`);
-        }
-        return;
-      }
-      
-      // Python print
-      const printMatch = line.match(/print\s*\(\s*(['"])(.*?)\1\s*\)/);
-      if (printMatch) { outputs.push(printMatch[2]); return; }
-      
-      const printVarMatch = line.match(/print\s*\(\s*(.+?)\s*\)/);
-      if (printVarMatch && !printMatch) {
-        const expr = printVarMatch[1];
-        if (/^['"]/.test(expr)) outputs.push(expr.slice(1, -1));
-        else if (/^\d+\s*[+\-*/%]\s*\d+$/.test(expr)) {
-          try { outputs.push(String(eval(expr))); } catch { outputs.push(`${expr}`); }
-        } else outputs.push(`${expr}`);
-        return;
-      }
-      
-      // Java System.out.println
-      const javaMatch = line.match(/System\.out\.println\s*\(\s*(['"])(.*?)\1\s*\)/);
-      if (javaMatch) { outputs.push(javaMatch[2]); return; }
-      
-      // C/C++ printf
-      const printfMatch = line.match(/printf\s*\(\s*['"](.+?)['"]\s*(?:,.*?)?\)/);
-      if (printfMatch) {
-        let str = printfMatch[1];
-        str = str.replace(/\\n/g, '');
-        str = str.replace(/%[dsifc]/g, '?');
-        outputs.push(str);
-        return;
-      }
-      
-      // C++ cout
-      const coutMatch = line.match(/cout\s*<<\s*(['"])(.*?)\1/);
-      if (coutMatch) { outputs.push(coutMatch[2]); return; }
-      
-      const coutEndlMatch = line.match(/cout\s*<<\s*(.+?)\s*(?:<<\s*endl)?;/);
-      if (coutEndlMatch && !coutMatch) {
-        const expr = coutEndlMatch[1].replace(/"/g, '').replace(/'/g, '');
-        if (expr && expr !== 'endl') outputs.push(expr);
+  // Detect if code requires user input
+  const codeRequiresInput = (codeText: string): boolean => {
+    const inputPatterns = [
+      /scanf\s*\(/i, /gets\s*\(/i, /getchar\s*\(/i, /fgets\s*\(/i,
+      /cin\s*>>/i, /getline\s*\(/i,
+      /input\s*\(/i, /raw_input\s*\(/i,
+      /Scanner\s*\(/i, /nextLine\s*\(/i, /nextInt\s*\(/i, /next\s*\(/i,
+      /readline\s*\(/i, /prompt\s*\(/i,
+      /Console\.ReadLine/i, /Console\.Read\b/i,
+      /gets\.chomp/i, /STDIN/i,
+      /read\s*\(\s*\*/i, /readln/i,
+    ];
+    return inputPatterns.some(p => p.test(codeText));
+  };
+
+  // Execute code via AI backend (like online compiler)
+  const executeCodeViaAI = async (codeText: string, lang: string, stdin: string = '') => {
+    const { data, error } = await supabase.functions.invoke('analyze-code', {
+      body: {
+        code: codeText,
+        language: lang,
+        mode: 'execute_code',
+        userInput: stdin
       }
     });
 
-    if (outputs.length === 0) {
-      return '> Program executed successfully\n> No output statements detected\n> Add console.log(), print(), printf(), or cout to see output';
-    }
-
-    return outputs.join('\n');
+    if (error) throw error;
+    return data;
   };
 
   // Analyze complexity via AI
@@ -671,13 +636,8 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
 
     try {
       const { data, error } = await supabase.functions.invoke('analyze-code', {
-        body: {
-          code,
-          language,
-          mode: 'complexity_analysis'
-        }
+        body: { code, language, mode: 'complexity_analysis' }
       });
-
       if (error) throw error;
 
       if (data?.timeComplexity) {
@@ -687,34 +647,49 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
           explanation: data.complexityExplanation || ''
         });
       }
-
       if (data?.bestSolution) {
         setBestSolution({
           code: data.bestSolution,
           timeComplexity: data.bestTimeComplexity || 'O(n)',
           spaceComplexity: data.bestSpaceComplexity || 'O(1)',
-          explanation: data.bestExplanation || 'Optimized solution with better time and space complexity'
+          explanation: data.bestExplanation || 'Optimized solution with better complexity'
         });
       }
-    } catch (err) {
-      // Fallback: basic complexity estimation
+    } catch {
       const lowerCode = code.toLowerCase();
-      let timeEst = 'O(n)';
-      let spaceEst = 'O(1)';
-      
+      let timeEst = 'O(n)', spaceEst = 'O(1)';
       if (lowerCode.includes('for') && lowerCode.split('for').length > 2) timeEst = 'O(n²)';
       if (lowerCode.includes('sort')) timeEst = 'O(n log n)';
-      if (lowerCode.includes('recursion') || lowerCode.includes('fibonacci')) timeEst = 'O(2^n)';
-      if (lowerCode.includes('map') || lowerCode.includes('dict') || lowerCode.includes('set')) spaceEst = 'O(n)';
-      if (lowerCode.includes('matrix') || lowerCode.includes('2d')) spaceEst = 'O(n²)';
-
-      setComplexityAnalysis({
-        timeComplexity: timeEst,
-        spaceComplexity: spaceEst,
-        explanation: 'Estimated based on code patterns (Run AI analysis for precise results)'
-      });
+      setComplexityAnalysis({ timeComplexity: timeEst, spaceComplexity: spaceEst, explanation: 'Estimated (run AI for precise results)' });
     } finally {
       setIsAnalyzingComplexity(false);
+    }
+  };
+
+  // Handle input submission for stdin
+  const handleInputSubmit = async () => {
+    setWaitingForInput(false);
+    setIsAnalyzing(true);
+    const startTime = performance.now();
+
+    try {
+      const result = await executeCodeViaAI(code, language, userInput);
+      const executionTime = performance.now() - startTime;
+
+      setExecutionResult({
+        output: result?.hasError ? '' : (result?.output || 'No output'),
+        error: result?.hasError ? (result?.errorMessage || 'Compilation error') : undefined,
+        executionTime
+      });
+      analyzeComplexity();
+      toast({
+        title: result?.hasError ? "⚠️ Compilation Error" : "✅ Execution Complete",
+        description: result?.hasError ? "Check errors in output" : `Executed in ${executionTime.toFixed(2)}ms`,
+      });
+    } catch (error: any) {
+      setExecutionResult({ output: '', error: error.message || 'Execution failed', executionTime: 0 });
+    } finally {
+      setIsAnalyzing(false);
     }
   };
 
@@ -725,42 +700,51 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       return;
     }
 
+    // Check if code needs input
+    if (codeRequiresInput(code)) {
+      setWaitingForInput(true);
+      setInputPrompt('Enter input for your program:');
+      setUserInput('');
+      setExecutionResult({
+        output: '> Waiting for input...\n> Enter your input below and press Enter',
+        executionTime: 0
+      });
+      setTimeout(() => inputRef.current?.focus(), 100);
+      return;
+    }
+
+    // Execute directly without input
     setIsAnalyzing(true);
     const startTime = performance.now();
 
     try {
-      let output = '';
-      let hasError = false;
-      let errorMessage = '';
-
-      if (errors.filter(e => e.severity === 'error').length > 0) {
-        hasError = true;
-        errorMessage = errors.map(e => `Line ${e.line}: ${e.type} - ${e.message}`).join('\n');
-      } else {
-        output = simulateCodeExecution(code, language);
-      }
-
+      const result = await executeCodeViaAI(code, language, '');
       const executionTime = performance.now() - startTime;
 
+      if (result?.requiresInput) {
+        setWaitingForInput(true);
+        setInputPrompt(result.inputPrompt || 'Enter input:');
+        setUserInput('');
+        setExecutionResult({
+          output: (result.inputPrompt || 'Program requires input...') + '\n> Enter input below:',
+          executionTime
+        });
+        setTimeout(() => inputRef.current?.focus(), 100);
+        return;
+      }
+
       setExecutionResult({
-        output: hasError ? '' : output,
-        error: hasError ? errorMessage : undefined,
+        output: result?.hasError ? '' : (result?.output || 'No output'),
+        error: result?.hasError ? (result?.errorMessage || 'Compilation error') : undefined,
         executionTime
       });
-
-      // Also analyze complexity
       analyzeComplexity();
-
       toast({
-        title: hasError ? "⚠️ Compilation Error" : "✅ Execution Complete",
-        description: hasError ? "Check errors below" : `Executed in ${executionTime.toFixed(2)}ms`,
+        title: result?.hasError ? "⚠️ Compilation Error" : "✅ Execution Complete",
+        description: result?.hasError ? "Check errors below" : `Executed in ${executionTime.toFixed(2)}ms`,
       });
     } catch (error: any) {
-      setExecutionResult({
-        output: '',
-        error: error.message || 'Unknown execution error',
-        executionTime: 0
-      });
+      setExecutionResult({ output: '', error: error.message || 'Unknown execution error', executionTime: 0 });
     } finally {
       setIsAnalyzing(false);
     }
@@ -956,7 +940,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       </div>
 
       {/* Output Console - Sky Blue Box */}
-      {executionResult && (
+      {(executionResult || waitingForInput) && (
         <div className="bg-[#1a1a2e] border-2 border-sky-400/50 rounded-xl overflow-hidden shadow-lg shadow-sky-500/10">
           <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-sky-500/30 to-sky-600/20 border-b border-sky-400/50">
             <span className="text-sm font-bold text-sky-300 flex items-center gap-2">
@@ -964,19 +948,52 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
               🔵 OUTPUT CONSOLE
             </span>
             <span className="text-xs text-sky-200">
-              Execution time: {executionResult.executionTime?.toFixed(2)}ms
+              {executionResult?.executionTime ? `Execution time: ${executionResult.executionTime.toFixed(2)}ms` : 'Waiting...'}
             </span>
           </div>
-          <div className="p-4 max-h-[200px] overflow-y-auto">
-            {executionResult.error ? (
+          <div className="p-4 max-h-[250px] overflow-y-auto">
+            {executionResult?.error ? (
               <div className="text-red-400 font-mono text-sm whitespace-pre-wrap">
                 <span className="text-red-500 font-bold">Compilation Error:</span>
                 {'\n'}{executionResult.error}
               </div>
             ) : (
               <pre className="text-sky-200 font-mono text-sm whitespace-pre-wrap">
-                {executionResult.output}
+                {executionResult?.output}
               </pre>
+            )}
+            
+            {/* Input prompt with blinking cursor */}
+            {waitingForInput && (
+              <div className="mt-3 border-t border-sky-400/30 pt-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-yellow-400 font-mono text-sm">{'>'}</span>
+                  <span className="text-yellow-300 text-sm font-mono">{inputPrompt}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-green-400 font-mono animate-pulse">{'▊'}</span>
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={userInput}
+                    onChange={(e) => setUserInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleInputSubmit();
+                    }}
+                    placeholder="Type your input here and press Enter..."
+                    className="flex-1 bg-transparent border-b border-sky-400/30 text-sky-100 font-mono text-sm outline-none placeholder:text-sky-600 caret-green-400"
+                    autoFocus
+                  />
+                  <Button
+                    size="sm"
+                    onClick={handleInputSubmit}
+                    disabled={isAnalyzing}
+                    className="h-7 px-3 bg-sky-600 hover:bg-sky-700 text-white text-xs"
+                  >
+                    {isAnalyzing ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Run ▶'}
+                  </Button>
+                </div>
+              </div>
             )}
           </div>
         </div>

@@ -26,19 +26,31 @@ serve(async (req) => {
     let prompt: string;
     
     if (mode === 'generate_code_for_image') {
-      // Mode for generating code that would recreate the image (trees, plants, etc.)
-      prompt = `You are an expert programmer. Analyze this image and generate code that would create/draw/render a similar visual representation.
+      // Mode for generating code that would recreate the image EXACTLY
+      prompt = `You are an EXPERT programmer specializing in creating PIXEL-PERFECT visual reproductions using code.
 
-The user wants ${language !== 'Auto-Detect' ? language : 'the most appropriate programming language'} code.
+CRITICAL MISSION: Generate code that when executed/rendered produces the EXACT SAME visual as this image.
 
-If the image shows:
-- A tree/plant: Generate code to draw it using graphics libraries (Canvas, SVG, turtle graphics, etc.)
-- A landscape: Generate code to create the scene
-- A UI/website: Generate HTML/CSS/JavaScript
-- A chart/graph: Generate code using charting libraries
-- Any other visual: Generate appropriate drawing/rendering code
+Language: ${language !== 'Auto-Detect' ? language : 'HTML/CSS/JavaScript (default for visual output)'}
 
-Return ONLY the code that would recreate or approximate this visual. No explanations, just the complete working code.`;
+RULES FOR EXACT REPRODUCTION:
+1. Analyze EVERY detail: colors (exact hex/rgb values), shapes, positions, sizes, proportions, gradients, shadows
+2. For trees/plants: Use Canvas API or SVG to draw EXACT branch patterns, leaf shapes, trunk width, colors
+3. For landscapes: Recreate exact sky gradients, ground colors, object placements
+4. For objects: Match exact dimensions, colors, curves, angles
+5. For UI/websites: Replicate exact layout, fonts, colors, spacing
+6. For charts/graphs: Use exact data points, colors, labels
+7. For photos of real objects: Create the closest possible artistic rendering using Canvas/SVG
+
+PREFERRED APPROACH:
+- Use HTML + Canvas API for complex drawings (trees, plants, landscapes, objects)
+- Use HTML + CSS for UI/layout type images
+- Use SVG for geometric shapes and diagrams
+- The output MUST be a COMPLETE standalone HTML file that can render in a browser
+- Include ALL colors as exact hex values matched from the image
+- Include proper proportions and positioning
+
+OUTPUT FORMAT: Return ONLY the complete working code. No explanations. The code must produce the EXACT same visual when run.`;
     } else {
       // Default mode: extract code from image (OCR)
       prompt = `You are a highly accurate code extraction AI. Extract the EXACT code from this image.
