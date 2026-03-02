@@ -55,8 +55,12 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
   const [complexityAnalysis, setComplexityAnalysis] = useState<ComplexityAnalysis | null>(null);
   const [bestSolution, setBestSolution] = useState<BestSolution | null>(null);
   const [isAnalyzingComplexity, setIsAnalyzingComplexity] = useState(false);
+  const [waitingForInput, setWaitingForInput] = useState(false);
+  const [userInput, setUserInput] = useState('');
+  const [inputPrompt, setInputPrompt] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lineNumbersRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
