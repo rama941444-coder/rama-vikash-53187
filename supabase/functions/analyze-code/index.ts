@@ -34,6 +34,58 @@ serve(async (req) => {
     const requestBody = await req.json();
     
     // Handle special modes
+    // Mode: Execute code like online compiler
+    if (requestBody.mode === 'execute_code') {
+      const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+      if (!LOVABLE_API_KEY) throw new Error('LOVABLE_API_KEY is not configured');
+      
+      const userInput = requestBody.userInput || '';
+      const lang = requestBody.language || 'Auto-Detect';
+      const code = requestBody.code || '';
+      
+      const aiResp = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'google/gemini-3-flash-preview',
+          messages: [
+            { role: 'system', content: `You are an EXACT online compiler simulator. You must execute the given code EXACTLY as a real compiler (GCC for C/C++, Python3 interpreter, JDK for Java, Node.js for JavaScript, etc.) would execute it.
+
+CRITICAL RULES:
+1. Execute the code step by step, tracking ALL variables, function calls, and control flow
+2. If the code reads input (scanf, cin, input(), Scanner, readline, etc.), use the provided user input
+3. Return the EXACT output that a real compiler would produce - nothing more, nothing less
+4. If there are compilation/syntax errors, return the EXACT error message a compiler would show
+5. If the code has runtime errors (segfault, division by zero, etc.), show the runtime error
+6. For C: Use GCC-style output. For C++: Use G++ style. For Python: Python3 interpreter. For Java: JDK style.
+7. DO NOT add any extra text, explanations, or formatting - ONLY the raw program output
+8. Handle ALL 1600+ programming languages accurately
+
+Return JSON: {"output": "exact program output", "hasError": false, "errorMessage": "", "requiresInput": false, "inputPrompt": ""}
+- If code needs input but none provided: set requiresInput=true, inputPrompt="what the program asks for"
+- If there are errors: set hasError=true, errorMessage="exact compiler error"` },
+            { role: 'user', content: `Language: ${lang}\nUser Input (stdin):\n${userInput}\n\nCode:\n${code}` }
+          ],
+          response_format: { type: "json_object" },
+        }),
+      });
+      
+      if (!aiResp.ok) {
+        const status = aiResp.status;
+        if (status === 429) return new Response(JSON.stringify({ error: 'RATE_LIMIT_EXCEEDED' }), { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        if (status === 402) return new Response(JSON.stringify({ error: 'PAYMENT_REQUIRED' }), { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        return new Response(JSON.stringify({ output: 'Compilation failed', hasError: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      
+      const aiData = await aiResp.json();
+      try {
+        const parsed = JSON.parse(aiData.choices[0].message.content);
+        return new Response(JSON.stringify(parsed), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      } catch {
+        return new Response(JSON.stringify({ output: aiData.choices[0].message.content || 'No output', hasError: false }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+    }
+
     if (requestBody.mode === 'complexity_analysis') {
       const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
       if (!LOVABLE_API_KEY) throw new Error('LOVABLE_API_KEY is not configured');
@@ -44,8 +96,16 @@ serve(async (req) => {
         body: JSON.stringify({
           model: 'google/gemini-3-flash-preview',
           messages: [
-            { role: 'system', content: 'You are a code complexity analyzer. Return JSON only.' },
-            { role: 'user', content: `Analyze this code and return JSON with: timeComplexity, spaceComplexity, complexityExplanation, bestSolution (optimized version of same code with less complexity), bestTimeComplexity, bestSpaceComplexity, bestExplanation.\n\nLanguage: ${requestBody.language}\n\nCode:\n${requestBody.code}` }
+            { role: 'system', content: `You analyze code complexity and provide the world best optimized solution. Return JSON only.
+
+CRITICAL: The bestSolution MUST be a DIFFERENT, MORE OPTIMIZED version of the same code. Not the same code. It should:
+1. Solve the SAME problem as the user's code
+2. Have BETTER time complexity (e.g., O(n²) → O(n log n) or O(n))
+3. Have BETTER space complexity where possible
+4. Be written in the SAME programming language
+5. Be COMPLETE and EXECUTABLE
+6. Include comments explaining the optimization` },
+            { role: 'user', content: `Analyze this code and return JSON with: timeComplexity, spaceComplexity, complexityExplanation, bestSolution (COMPLETE optimized code that solves the same problem with better complexity), bestTimeComplexity, bestSpaceComplexity, bestExplanation.\n\nLanguage: ${requestBody.language}\n\nCode:\n${requestBody.code}` }
           ],
           response_format: { type: "json_object" },
         }),
