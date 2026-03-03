@@ -22,19 +22,20 @@ serve(async (req) => {
       throw new Error("No code provided");
     }
 
-    const prompt = `Generate a visual representation/image of this code being displayed in a beautiful code editor with syntax highlighting.
+    // Use Gemini image generation to create a visual of the code
+    const prompt = `Generate an image that shows the EXACT visual output of running this code. If the code draws shapes, trees, charts, UI elements - show what the rendered output looks like, NOT a screenshot of the code itself.
 
-The code:
-\`\`\`${language || 'auto'}
-${code}
+If the code is HTML/CSS/JS: Show the rendered webpage exactly as a browser would display it.
+If the code draws on canvas: Show the exact canvas output.
+If the code creates SVG: Show the rendered SVG.
+If the code is a console program: Show a terminal window with the exact output text.
+
+The code (${language || 'auto-detect'}):
+\`\`\`
+${code.substring(0, 5000)}
 \`\`\`
 
-Create a beautiful, professional-looking code editor screenshot with:
-1. Dark theme background (like VS Code dark theme)
-2. Proper syntax highlighting for the language
-3. Line numbers on the left
-4. A modern, clean look
-5. The file name shown in a tab at the top`;
+Generate the EXACT visual that this code produces when executed. High quality, accurate representation.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -45,10 +46,7 @@ Create a beautiful, professional-looking code editor screenshot with:
       body: JSON.stringify({
         model: "google/gemini-2.5-flash-image",
         messages: [
-          {
-            role: "user",
-            content: prompt
-          }
+          { role: "user", content: prompt }
         ],
         modalities: ["image", "text"]
       }),

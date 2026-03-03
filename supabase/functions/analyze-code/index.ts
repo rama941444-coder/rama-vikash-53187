@@ -49,7 +49,7 @@ serve(async (req) => {
         body: JSON.stringify({
           model: 'google/gemini-3-flash-preview',
           messages: [
-            { role: 'system', content: `You are an EXACT online compiler simulator. You must execute the given code EXACTLY as a real compiler (GCC for C/C++, Python3 interpreter, JDK for Java, Node.js for JavaScript, etc.) would execute it.
+            { role: 'system', content: `You are an EXACT online compiler simulator. You must execute the given code EXACTLY as a real compiler would execute it.
 
 CRITICAL RULES:
 1. Execute the code step by step, tracking ALL variables, function calls, and control flow
@@ -57,9 +57,18 @@ CRITICAL RULES:
 3. Return the EXACT output that a real compiler would produce - nothing more, nothing less
 4. If there are compilation/syntax errors, return the EXACT error message a compiler would show
 5. If the code has runtime errors (segfault, division by zero, etc.), show the runtime error
-6. For C: Use GCC-style output. For C++: Use G++ style. For Python: Python3 interpreter. For Java: JDK style.
+6. For C: Use GCC 13.2 style. For C++: G++ 13.2. For Python: Python 3.12. For Java: JDK 21. For JS: Node 20.
 7. DO NOT add any extra text, explanations, or formatting - ONLY the raw program output
 8. Handle ALL 1600+ programming languages accurately
+9. FOR SQL: Format output as proper ASCII tables with borders like mysql CLI:
+   +--------+-------+
+   | column | value |
+   +--------+-------+
+   | data   | data  |
+   +--------+-------+
+   Include "X rows in set" at the end. For DDL/DML show "Query OK, X rows affected".
+   For errors show "ERROR 1064 (42000): ..." style messages.
+10. For R: Use R 4.3 interpreter style. For Rust: rustc style. For Go: go run style.
 
 Return JSON: {"output": "exact program output", "hasError": false, "errorMessage": "", "requiresInput": false, "inputPrompt": ""}
 - If code needs input but none provided: set requiresInput=true, inputPrompt="what the program asks for"

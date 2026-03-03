@@ -22,37 +22,37 @@ serve(async (req) => {
       throw new Error("No image provided");
     }
 
-    // Different prompts based on mode
     let prompt: string;
     
     if (mode === 'generate_code_for_image') {
-      // Mode for generating code that would recreate the image EXACTLY
-      prompt = `You are an EXPERT programmer specializing in creating PIXEL-PERFECT visual reproductions using code.
+      prompt = `You are the WORLD'S BEST programmer specializing in creating PIXEL-PERFECT, EXACT visual reproductions using code.
 
-CRITICAL MISSION: Generate code that when executed/rendered produces the EXACT SAME visual as this image.
+ABSOLUTE MISSION: Generate code that when rendered/executed produces the EXACT SAME visual as this image. NOT approximately - EXACTLY the same.
 
 Language: ${language !== 'Auto-Detect' ? language : 'HTML/CSS/JavaScript (default for visual output)'}
 
-RULES FOR EXACT REPRODUCTION:
-1. Analyze EVERY detail: colors (exact hex/rgb values), shapes, positions, sizes, proportions, gradients, shadows
-2. For trees/plants: Use Canvas API or SVG to draw EXACT branch patterns, leaf shapes, trunk width, colors
-3. For landscapes: Recreate exact sky gradients, ground colors, object placements
-4. For objects: Match exact dimensions, colors, curves, angles
-5. For UI/websites: Replicate exact layout, fonts, colors, spacing
-6. For charts/graphs: Use exact data points, colors, labels
-7. For photos of real objects: Create the closest possible artistic rendering using Canvas/SVG
+CRITICAL RULES FOR 100% EXACT REPRODUCTION:
+1. COLORS: Extract EVERY single color as EXACT hex values (#RRGGBB). Use a color picker mentally - get the PRECISE shade. Not "green" but the EXACT hex.
+2. SHAPES: Measure exact proportions. If a trunk is 1/5th the width of the canopy, code it exactly that way.
+3. POSITIONS: Every element must be placed at its EXACT position relative to the canvas.
+4. GRADIENTS: If there's a gradient from color A to color B, use the EXACT start and end colors.
+5. CURVES: Use bezier curves to match EXACT curve shapes - branches, petals, clouds, etc.
+6. SHADOWS: Reproduce exact shadow colors, blur, and positions.
+7. TEXTURES: Use patterns/noise to match any textures visible.
+8. PROPORTIONS: The aspect ratio and relative sizing of ALL elements must be EXACT.
 
-PREFERRED APPROACH:
-- Use HTML + Canvas API for complex drawings (trees, plants, landscapes, objects)
-- Use HTML + CSS for UI/layout type images
-- Use SVG for geometric shapes and diagrams
-- The output MUST be a COMPLETE standalone HTML file that can render in a browser
-- Include ALL colors as exact hex values matched from the image
-- Include proper proportions and positioning
+APPROACH BY IMAGE TYPE:
+- TREES/PLANTS: Use Canvas API. Draw EXACT trunk shape (width, taper, color), EXACT branch patterns (angles, lengths, thickness), EXACT leaf/canopy shape and colors. Include bark texture, leaf details.
+- LANDSCAPES: Use Canvas. Layer sky gradient, ground, horizon line at EXACT position. Place objects at EXACT coordinates.
+- OBJECTS/SHAPES: Use SVG or Canvas. Match EXACT dimensions, curves, colors.
+- UI/WEBSITES: Use HTML+CSS. Match EXACT layout, fonts (use closest Google Font), colors, spacing in pixels.
+- CHARTS/GRAPHS: Use Canvas/SVG. EXACT data points, labels, colors, grid lines.
+- PHOTOS: Create the CLOSEST artistic rendering using Canvas gradients and shapes.
 
-OUTPUT FORMAT: Return ONLY the complete working code. No explanations. The code must produce the EXACT same visual when run.`;
+OUTPUT: Return ONLY the complete standalone HTML file. No explanations. No markdown. The code MUST produce the EXACT same visual when opened in a browser.
+
+IMPORTANT: Include <html><head><style>body{margin:0;overflow:hidden;}</style></head><body><canvas id="c"></canvas><script>...</script></body></html> structure for Canvas-based output. Set canvas size to fill viewport.`;
     } else {
-      // Default mode: extract code from image (OCR)
       prompt = `You are a highly accurate code extraction AI. Extract the EXACT code from this image.
 
 CRITICAL RULES:
@@ -75,21 +75,13 @@ Return ONLY the extracted code, nothing else.`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "google/gemini-2.5-pro",
         messages: [
           {
             role: "user",
             content: [
-              {
-                type: "text",
-                text: prompt
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: imageBase64
-                }
-              }
+              { type: "text", text: prompt },
+              { type: "image_url", image_url: { url: imageBase64 } }
             ]
           }
         ],
@@ -121,7 +113,12 @@ Return ONLY the extracted code, nothing else.`;
     }
 
     const data = await response.json();
-    const extractedCode = data.choices?.[0]?.message?.content || '';
+    let extractedCode = data.choices?.[0]?.message?.content || '';
+    
+    // Clean markdown code blocks if present
+    if (extractedCode.startsWith('```')) {
+      extractedCode = extractedCode.replace(/^```\w*\n/, '').replace(/\n```$/, '');
+    }
 
     return new Response(JSON.stringify({ 
       code: extractedCode,

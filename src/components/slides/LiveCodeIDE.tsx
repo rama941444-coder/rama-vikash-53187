@@ -939,28 +939,75 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
         </div>
       </div>
 
-      {/* Output Console - Sky Blue Box */}
+      {/* Output Console - Sky Blue Box with Structured Output */}
       {(executionResult || waitingForInput) && (
         <div className="bg-[#1a1a2e] border-2 border-sky-400/50 rounded-xl overflow-hidden shadow-lg shadow-sky-500/10">
           <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-sky-500/30 to-sky-600/20 border-b border-sky-400/50">
             <span className="text-sm font-bold text-sky-300 flex items-center gap-2">
               <Terminal className="w-5 h-5" />
-              🔵 OUTPUT CONSOLE
+              🔵 OUTPUT CONSOLE {language.toLowerCase().includes('sql') ? '(SQL Command Prompt)' : ''}
             </span>
             <span className="text-xs text-sky-200">
               {executionResult?.executionTime ? `Execution time: ${executionResult.executionTime.toFixed(2)}ms` : 'Waiting...'}
             </span>
           </div>
-          <div className="p-4 max-h-[250px] overflow-y-auto">
+          <div className="p-4 max-h-[400px] overflow-y-auto">
             {executionResult?.error ? (
               <div className="text-red-400 font-mono text-sm whitespace-pre-wrap">
-                <span className="text-red-500 font-bold">Compilation Error:</span>
-                {'\n'}{executionResult.error}
+                <div className="flex items-center gap-2 mb-2 text-red-500 font-bold">
+                  <AlertCircle className="w-4 h-4" />
+                  Compilation Error:
+                </div>
+                <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 mt-1">
+                  {executionResult.error}
+                </div>
               </div>
             ) : (
-              <pre className="text-sky-200 font-mono text-sm whitespace-pre-wrap">
-                {executionResult?.output}
-              </pre>
+              <div>
+                {/* SQL-style structured output */}
+                {language.toLowerCase().includes('sql') && executionResult?.output ? (
+                  <div className="space-y-2">
+                    <div className="text-xs text-sky-400 font-mono mb-2">
+                      mysql{'>'} {code.split('\n')[0]?.substring(0, 80)}
+                    </div>
+                    <div className="bg-[#0d1117] border border-sky-500/30 rounded-lg overflow-x-auto">
+                      <pre className="text-sky-200 font-mono text-sm p-4 whitespace-pre">
+{executionResult.output}
+                      </pre>
+                    </div>
+                    <div className="text-xs text-sky-400/70 font-mono mt-1">
+                      Query OK. Rows returned in {executionResult.executionTime?.toFixed(2)}ms
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-[#0d1117] border border-sky-500/20 rounded-lg p-4">
+                    {/* Compiler header */}
+                    <div className="text-xs text-sky-500/80 font-mono mb-2 pb-2 border-b border-sky-500/10">
+                      {language === 'Auto-Detect' ? '$ auto-detect' : 
+                       language.toLowerCase().includes('c++') || language.toLowerCase().includes('cpp') ? '$ g++ main.cpp -o main && ./main' :
+                       language.toLowerCase() === 'c' ? '$ gcc main.c -o main && ./main' :
+                       language.toLowerCase().includes('java') ? '$ javac Main.java && java Main' :
+                       language.toLowerCase().includes('python') ? '$ python3 main.py' :
+                       language.toLowerCase().includes('javascript') || language.toLowerCase().includes('node') ? '$ node main.js' :
+                       language.toLowerCase().includes('rust') ? '$ rustc main.rs && ./main' :
+                       language.toLowerCase().includes('go') ? '$ go run main.go' :
+                       language.toLowerCase().includes('ruby') ? '$ ruby main.rb' :
+                       language.toLowerCase().includes('php') ? '$ php main.php' :
+                       language.toLowerCase().includes('swift') ? '$ swift main.swift' :
+                       language.toLowerCase().includes('kotlin') ? '$ kotlinc main.kt -include-runtime -d main.jar && java -jar main.jar' :
+                       language.toLowerCase().includes('c#') || language.toLowerCase().includes('csharp') ? '$ dotnet run' :
+                       language.toLowerCase().includes('typescript') ? '$ ts-node main.ts' :
+                       `$ run ${language.toLowerCase()}`}
+                    </div>
+                    <pre className="text-sky-100 font-mono text-sm whitespace-pre-wrap leading-relaxed">
+{executionResult?.output}
+                    </pre>
+                    <div className="text-xs text-sky-500/60 font-mono mt-3 pt-2 border-t border-sky-500/10">
+                      Process exited with code 0 • {executionResult?.executionTime?.toFixed(2)}ms
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
             
             {/* Input prompt with blinking cursor */}
