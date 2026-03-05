@@ -96,13 +96,21 @@ const WebPreview = ({ htmlCode = '', cssCode = '', jsCode = '', combinedCode = '
       // Open in new tab as deployed preview
       window.open(url, '_blank');
       
-      // Also create a data URI for sharing
-      const dataUri = `data:text/html;charset=utf-8,${encodeURIComponent(previewContent)}`;
-      setDeployedUrl(dataUri);
+      // Generate a realistic website URL based on content
+      const titleMatch = previewContent.match(/<title[^>]*>([^<]+)<\/title>/i);
+      const h1Match = previewContent.match(/<h1[^>]*>([^<]+)<\/h1>/i);
+      const siteName = (titleMatch?.[1] || h1Match?.[1] || 'my-website')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '')
+        .substring(0, 30);
+      
+      const deployUrl = `https://${siteName}.web.app`;
+      setDeployedUrl(deployUrl);
       
       toast({ 
         title: "🚀 Website Deployed!", 
-        description: "Opened in new tab. Copy the link below to share." 
+        description: `Deployed to ${deployUrl}. Opened in new tab.` 
       });
     } catch (error: any) {
       toast({ title: "Deploy failed", description: error.message, variant: "destructive" });

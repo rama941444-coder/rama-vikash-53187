@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Maximize2, Minimize2, Copy, Trash2 } from 'lucide-react';
+import { Maximize2, Minimize2, Copy, Trash2, Save, FileDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 
