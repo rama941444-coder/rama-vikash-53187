@@ -887,6 +887,12 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
             <Button variant="ghost" size="sm" onClick={copyToClipboard} className="h-8 px-2 text-gray-400 hover:text-white hover:bg-[#0f3460]">
               <Copy className="w-4 h-4" />
             </Button>
+            <Button variant="ghost" size="sm" onClick={saveFile} className="h-8 px-2 text-gray-400 hover:text-white hover:bg-[#0f3460]" title="Save">
+              <Save className="w-4 h-4" />
+            </Button>
+            <Button variant="ghost" size="sm" onClick={saveAs} className="h-8 px-2 text-gray-400 hover:text-white hover:bg-[#0f3460]" title="Save As">
+              <FileDown className="w-4 h-4" />
+            </Button>
             <Button variant="ghost" size="sm" onClick={clearEditor} className="h-8 px-2 text-gray-400 hover:text-white hover:bg-[#0f3460]">
               <Trash2 className="w-4 h-4" />
             </Button>

@@ -328,20 +328,19 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
             </div>
           </div>
 
-          {mode === 'pen' && (
+          {(mode === 'pen' || mode === 'line' || mode === 'rectangle' || mode === 'circle') && (
             <div>
-              <label className="block text-sm font-medium mb-2">Pen Color</label>
-              <div className="flex gap-2">
-                {['#6366f1', '#f59e0b', '#10b981', '#000000'].map((c) => (
+              <label className="block text-sm font-medium mb-2">Color</label>
+              <div className="flex gap-2 flex-wrap">
+                {['#6366f1', '#f59e0b', '#10b981', '#000000', '#ef4444', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'].map((c) => (
                   <button
                     key={c}
                     onClick={() => setColor(c)}
-                    className={`w-8 h-8 rounded-full transition-all ${
-                      color === c ? 'ring-4 ring-primary ring-offset-2 ring-offset-background' : ''
-                    }`}
+                    className={`w-7 h-7 rounded-full transition-all ${color === c ? 'ring-3 ring-primary ring-offset-2 ring-offset-background' : ''}`}
                     style={{ backgroundColor: c }}
                   />
                 ))}
+                <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="w-7 h-7 rounded cursor-pointer" title="Custom color" />
               </div>
             </div>
           )}
