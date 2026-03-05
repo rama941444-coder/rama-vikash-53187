@@ -152,10 +152,31 @@ const EnhancedCodeEditor = ({
   // Clear editor
   const clearEditor = () => {
     onChange('');
-    toast({
-      title: "Cleared",
-      description: "Editor content cleared",
-    });
+    toast({ title: "Cleared", description: "Editor content cleared" });
+  };
+
+  const saveFile = () => {
+    const blob = new Blob([value], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'code.txt';
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: "💾 Saved!", description: "File saved as code.txt" });
+  };
+
+  const saveAs = () => {
+    const ext = prompt('Enter filename (e.g., main.py, index.js, App.java):', 'code.txt');
+    if (!ext) return;
+    const blob = new Blob([value], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = ext;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: "💾 Saved!", description: `File saved as ${ext}` });
   };
 
   useEffect(() => {
