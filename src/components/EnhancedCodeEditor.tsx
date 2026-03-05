@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Maximize2, Minimize2, Copy, Trash2 } from 'lucide-react';
+import { Maximize2, Minimize2, Copy, Trash2, Save, FileDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 
@@ -152,10 +152,31 @@ const EnhancedCodeEditor = ({
   // Clear editor
   const clearEditor = () => {
     onChange('');
-    toast({
-      title: "Cleared",
-      description: "Editor content cleared",
-    });
+    toast({ title: "Cleared", description: "Editor content cleared" });
+  };
+
+  const saveFile = () => {
+    const blob = new Blob([value], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'code.txt';
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: "💾 Saved!", description: "File saved as code.txt" });
+  };
+
+  const saveAs = () => {
+    const ext = prompt('Enter filename (e.g., main.py, index.js, App.java):', 'code.txt');
+    if (!ext) return;
+    const blob = new Blob([value], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = ext;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: "💾 Saved!", description: `File saved as ${ext}` });
   };
 
   useEffect(() => {
@@ -200,28 +221,24 @@ const EnhancedCodeEditor = ({
           </span>
         </div>
         <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={copyToClipboard}
-            className="h-7 px-2 text-gray-400 hover:text-white hover:bg-[#3d3d3d]"
-          >
+          <Button variant="ghost" size="sm" onClick={copyToClipboard}
+            className="h-7 px-2 text-gray-400 hover:text-white hover:bg-[#3d3d3d]">
             <Copy className="w-3.5 h-3.5" />
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={clearEditor}
-            className="h-7 px-2 text-gray-400 hover:text-white hover:bg-[#3d3d3d]"
-          >
+          <Button variant="ghost" size="sm" onClick={saveFile}
+            className="h-7 px-2 text-gray-400 hover:text-white hover:bg-[#3d3d3d]" title="Save">
+            <Save className="w-3.5 h-3.5" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={saveAs}
+            className="h-7 px-2 text-gray-400 hover:text-white hover:bg-[#3d3d3d]" title="Save As">
+            <FileDown className="w-3.5 h-3.5" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={clearEditor}
+            className="h-7 px-2 text-gray-400 hover:text-white hover:bg-[#3d3d3d]">
             <Trash2 className="w-3.5 h-3.5" />
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsMinimized(true)}
-            className="h-7 px-2 text-gray-400 hover:text-white hover:bg-[#3d3d3d]"
-          >
+          <Button variant="ghost" size="sm" onClick={() => setIsMinimized(true)}
+            className="h-7 px-2 text-gray-400 hover:text-white hover:bg-[#3d3d3d]">
             <Minimize2 className="w-3.5 h-3.5" />
           </Button>
         </div>

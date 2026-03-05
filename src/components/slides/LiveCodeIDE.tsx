@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Play, AlertCircle, CheckCircle, Copy, Trash2, Maximize2, Minimize2, Loader2, Lightbulb, Zap, ArrowRight, Sparkles, Terminal, TrendingUp, Award } from 'lucide-react';
+import { Play, AlertCircle, CheckCircle, Copy, Trash2, Maximize2, Minimize2, Loader2, Lightbulb, Zap, ArrowRight, Sparkles, Terminal, TrendingUp, Award, Save, FileDown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import LanguageSelector from '@/components/LanguageSelector';
 import { supabase } from '@/integrations/supabase/client';
@@ -564,6 +564,30 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     toast({ title: "Cleared", description: "Editor content cleared" });
   };
 
+  const saveFile = () => {
+    const blob = new Blob([code], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'code.txt';
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: "💾 Saved!", description: "File saved as code.txt" });
+  };
+
+  const saveAs = () => {
+    const ext = prompt('Enter filename (e.g., main.py, index.js):', 'code.txt');
+    if (!ext) return;
+    const blob = new Blob([code], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = ext;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: "💾 Saved!", description: `File saved as ${ext}` });
+  };
+
   const applyErrorFix = (error: CodeError) => {
     if (error.wrongCode && error.correctCode) {
       const codeLines = code.split('\n');
@@ -862,6 +886,12 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
             )}
             <Button variant="ghost" size="sm" onClick={copyToClipboard} className="h-8 px-2 text-gray-400 hover:text-white hover:bg-[#0f3460]">
               <Copy className="w-4 h-4" />
+            </Button>
+            <Button variant="ghost" size="sm" onClick={saveFile} className="h-8 px-2 text-gray-400 hover:text-white hover:bg-[#0f3460]" title="Save">
+              <Save className="w-4 h-4" />
+            </Button>
+            <Button variant="ghost" size="sm" onClick={saveAs} className="h-8 px-2 text-gray-400 hover:text-white hover:bg-[#0f3460]" title="Save As">
+              <FileDown className="w-4 h-4" />
             </Button>
             <Button variant="ghost" size="sm" onClick={clearEditor} className="h-8 px-2 text-gray-400 hover:text-white hover:bg-[#0f3460]">
               <Trash2 className="w-4 h-4" />

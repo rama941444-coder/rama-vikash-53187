@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Eraser, Pen, Download, Trash2, Undo, Redo, Code } from 'lucide-react';
+import { Eraser, Pen, Download, Trash2, Undo, Redo, Code, Square, Circle, Minus, Type, Pipette, Move } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { jsPDF } from 'jspdf';
 
@@ -11,7 +11,7 @@ interface DraftBoardProps {
 const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [mode, setMode] = useState<'pen' | 'eraser'>('pen');
+  const [mode, setMode] = useState<'pen' | 'eraser' | 'line' | 'rectangle' | 'circle' | 'text'>('pen');
   const [color, setColor] = useState('#6366f1');
   const [thickness, setThickness] = useState(5);
   const [history, setHistory] = useState<string[]>([]);
@@ -291,40 +291,56 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
 
           <div>
             <label className="block text-sm font-medium mb-2">Drawing Mode</label>
-            <div className="flex gap-2">
-              <Button
-                onClick={() => setMode('pen')}
-                variant={mode === 'pen' ? 'default' : 'outline'}
-                className="flex-1 gap-2"
-              >
-                <Pen className="w-4 h-4" />
-                Pen
+            <div className="grid grid-cols-3 gap-2">
+              <Button onClick={() => setMode('pen')} variant={mode === 'pen' ? 'default' : 'outline'} className="gap-1 text-xs">
+                <Pen className="w-3 h-3" /> Pen
               </Button>
-              <Button
-                onClick={() => setMode('eraser')}
-                variant={mode === 'eraser' ? 'default' : 'outline'}
-                className="flex-1 gap-2"
-              >
-                <Eraser className="w-4 h-4" />
-                Eraser
+              <Button onClick={() => setMode('eraser')} variant={mode === 'eraser' ? 'default' : 'outline'} className="gap-1 text-xs">
+                <Eraser className="w-3 h-3" /> Eraser
+              </Button>
+              <Button onClick={() => setMode('line')} variant={mode === 'line' ? 'default' : 'outline'} className="gap-1 text-xs">
+                <Minus className="w-3 h-3" /> Line
+              </Button>
+              <Button onClick={() => setMode('rectangle')} variant={mode === 'rectangle' ? 'default' : 'outline'} className="gap-1 text-xs">
+                <Square className="w-3 h-3" /> Rect
+              </Button>
+              <Button onClick={() => setMode('circle')} variant={mode === 'circle' ? 'default' : 'outline'} className="gap-1 text-xs">
+                <Circle className="w-3 h-3" /> Circle
+              </Button>
+              <Button onClick={() => {
+                const text = prompt('Enter text:');
+                if (text) {
+                  const canvas = canvasRef.current;
+                  if (canvas) {
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                      ctx.globalCompositeOperation = 'source-over';
+                      ctx.fillStyle = color;
+                      ctx.font = `${thickness * 3}px Arial`;
+                      ctx.fillText(text, canvas.width / 2, canvas.height / 4);
+                      saveToHistory();
+                    }
+                  }
+                }
+              }} variant={mode === 'text' ? 'default' : 'outline'} className="gap-1 text-xs">
+                <Type className="w-3 h-3" /> Text
               </Button>
             </div>
           </div>
 
-          {mode === 'pen' && (
+          {(mode === 'pen' || mode === 'line' || mode === 'rectangle' || mode === 'circle') && (
             <div>
-              <label className="block text-sm font-medium mb-2">Pen Color</label>
-              <div className="flex gap-2">
-                {['#6366f1', '#f59e0b', '#10b981', '#000000'].map((c) => (
+              <label className="block text-sm font-medium mb-2">Color</label>
+              <div className="flex gap-2 flex-wrap">
+                {['#6366f1', '#f59e0b', '#10b981', '#000000', '#ef4444', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'].map((c) => (
                   <button
                     key={c}
                     onClick={() => setColor(c)}
-                    className={`w-8 h-8 rounded-full transition-all ${
-                      color === c ? 'ring-4 ring-primary ring-offset-2 ring-offset-background' : ''
-                    }`}
+                    className={`w-7 h-7 rounded-full transition-all ${color === c ? 'ring-3 ring-primary ring-offset-2 ring-offset-background' : ''}`}
                     style={{ backgroundColor: c }}
                   />
                 ))}
+                <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="w-7 h-7 rounded cursor-pointer" title="Custom color" />
               </div>
             </div>
           )}

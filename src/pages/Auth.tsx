@@ -55,9 +55,40 @@ const Auth = () => {
     return () => clearTimeout(timer);
   }, []);
 
+  const [dragStartY, setDragStartY] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [lampColor, setLampColor] = useState('rgba(255, 200, 50, 0.3)');
+
+  const lampColors = [
+    'rgba(255, 200, 50, 0.3)', 'rgba(50, 200, 255, 0.3)', 'rgba(255, 50, 150, 0.3)',
+    'rgba(50, 255, 100, 0.3)', 'rgba(200, 50, 255, 0.3)', 'rgba(255, 100, 50, 0.3)',
+  ];
+
+  const handleLampMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
+    setIsDragging(true);
+    const y = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    setDragStartY(y);
+  };
+
+  const handleLampMouseMove = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!isDragging) return;
+    const y = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    if (y - dragStartY > 30 && !lampOpen) {
+      setLampOpen(true);
+      setLampColor(lampColors[Math.floor(Math.random() * lampColors.length)]);
+      setTimeout(() => setShowForm(true), 800);
+      setIsDragging(false);
+    }
+  };
+
+  const handleLampMouseUp = () => {
+    setIsDragging(false);
+  };
+
   const handleLampClick = () => {
     if (!lampOpen) {
       setLampOpen(true);
+      setLampColor(lampColors[Math.floor(Math.random() * lampColors.length)]);
       setTimeout(() => setShowForm(true), 800);
     }
   };
@@ -158,12 +189,18 @@ const Auth = () => {
 
       {/* 3D Lamp */}
       <div 
-        className="relative cursor-pointer mb-8 z-10"
+        className="relative cursor-grab active:cursor-grabbing mb-8 z-10 select-none"
         onClick={handleLampClick}
+        onMouseDown={handleLampMouseDown}
+        onMouseMove={handleLampMouseMove}
+        onMouseUp={handleLampMouseUp}
+        onTouchStart={handleLampMouseDown}
+        onTouchMove={handleLampMouseMove}
+        onTouchEnd={handleLampMouseUp}
         style={{ perspective: '1000px' }}
       >
-        {/* Lamp cord */}
-        <div className="w-[2px] h-16 bg-gradient-to-b from-gray-600 to-gray-400 mx-auto" />
+        {/* Lamp cord - draggable */}
+        <div className={`w-[2px] h-16 bg-gradient-to-b from-gray-600 to-gray-400 mx-auto transition-all ${isDragging ? 'h-20' : ''}`} />
         
         {/* Lamp shade - 3D trapezoid */}
         <div 
@@ -174,7 +211,7 @@ const Auth = () => {
             background: 'linear-gradient(180deg, #2a2a4a 0%, #1a1a3a 100%)',
             clipPath: 'polygon(15% 0%, 85% 0%, 100% 100%, 0% 100%)',
             boxShadow: lampOpen 
-              ? '0 0 60px 20px rgba(255, 200, 50, 0.3), 0 0 120px 40px rgba(255, 180, 30, 0.15)' 
+              ? `0 0 60px 20px ${lampColor}, 0 0 120px 40px ${lampColor.replace('0.3', '0.15')}` 
               : 'none',
             transform: lampOpen ? 'rotateX(5deg)' : 'rotateX(0deg)',
             transformStyle: 'preserve-3d',
