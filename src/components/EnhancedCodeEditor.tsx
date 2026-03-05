@@ -221,28 +221,24 @@ const EnhancedCodeEditor = ({
           </span>
         </div>
         <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={copyToClipboard}
-            className="h-7 px-2 text-gray-400 hover:text-white hover:bg-[#3d3d3d]"
-          >
+          <Button variant="ghost" size="sm" onClick={copyToClipboard}
+            className="h-7 px-2 text-gray-400 hover:text-white hover:bg-[#3d3d3d]">
             <Copy className="w-3.5 h-3.5" />
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={clearEditor}
-            className="h-7 px-2 text-gray-400 hover:text-white hover:bg-[#3d3d3d]"
-          >
+          <Button variant="ghost" size="sm" onClick={saveFile}
+            className="h-7 px-2 text-gray-400 hover:text-white hover:bg-[#3d3d3d]" title="Save">
+            <Save className="w-3.5 h-3.5" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={saveAs}
+            className="h-7 px-2 text-gray-400 hover:text-white hover:bg-[#3d3d3d]" title="Save As">
+            <FileDown className="w-3.5 h-3.5" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={clearEditor}
+            className="h-7 px-2 text-gray-400 hover:text-white hover:bg-[#3d3d3d]">
             <Trash2 className="w-3.5 h-3.5" />
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsMinimized(true)}
-            className="h-7 px-2 text-gray-400 hover:text-white hover:bg-[#3d3d3d]"
-          >
+          <Button variant="ghost" size="sm" onClick={() => setIsMinimized(true)}
+            className="h-7 px-2 text-gray-400 hover:text-white hover:bg-[#3d3d3d]">
             <Minimize2 className="w-3.5 h-3.5" />
           </Button>
         </div>
