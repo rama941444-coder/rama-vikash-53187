@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Eraser, Pen, Download, Trash2, Undo, Redo, Code } from 'lucide-react';
+import { Eraser, Pen, Download, Trash2, Undo, Redo, Code, Square, Circle, Minus, Type, Pipette, Move } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { jsPDF } from 'jspdf';
 
