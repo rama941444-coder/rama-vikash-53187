@@ -291,22 +291,39 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
 
           <div>
             <label className="block text-sm font-medium mb-2">Drawing Mode</label>
-            <div className="flex gap-2">
-              <Button
-                onClick={() => setMode('pen')}
-                variant={mode === 'pen' ? 'default' : 'outline'}
-                className="flex-1 gap-2"
-              >
-                <Pen className="w-4 h-4" />
-                Pen
+            <div className="grid grid-cols-3 gap-2">
+              <Button onClick={() => setMode('pen')} variant={mode === 'pen' ? 'default' : 'outline'} className="gap-1 text-xs">
+                <Pen className="w-3 h-3" /> Pen
               </Button>
-              <Button
-                onClick={() => setMode('eraser')}
-                variant={mode === 'eraser' ? 'default' : 'outline'}
-                className="flex-1 gap-2"
-              >
-                <Eraser className="w-4 h-4" />
-                Eraser
+              <Button onClick={() => setMode('eraser')} variant={mode === 'eraser' ? 'default' : 'outline'} className="gap-1 text-xs">
+                <Eraser className="w-3 h-3" /> Eraser
+              </Button>
+              <Button onClick={() => setMode('line')} variant={mode === 'line' ? 'default' : 'outline'} className="gap-1 text-xs">
+                <Minus className="w-3 h-3" /> Line
+              </Button>
+              <Button onClick={() => setMode('rectangle')} variant={mode === 'rectangle' ? 'default' : 'outline'} className="gap-1 text-xs">
+                <Square className="w-3 h-3" /> Rect
+              </Button>
+              <Button onClick={() => setMode('circle')} variant={mode === 'circle' ? 'default' : 'outline'} className="gap-1 text-xs">
+                <Circle className="w-3 h-3" /> Circle
+              </Button>
+              <Button onClick={() => {
+                const text = prompt('Enter text:');
+                if (text) {
+                  const canvas = canvasRef.current;
+                  if (canvas) {
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                      ctx.globalCompositeOperation = 'source-over';
+                      ctx.fillStyle = color;
+                      ctx.font = `${thickness * 3}px Arial`;
+                      ctx.fillText(text, canvas.width / 2, canvas.height / 4);
+                      saveToHistory();
+                    }
+                  }
+                }
+              }} variant={mode === 'text' ? 'default' : 'outline'} className="gap-1 text-xs">
+                <Type className="w-3 h-3" /> Text
               </Button>
             </div>
           </div>
