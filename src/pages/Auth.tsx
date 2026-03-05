@@ -189,8 +189,14 @@ const Auth = () => {
 
       {/* 3D Lamp */}
       <div 
-        className="relative cursor-pointer mb-8 z-10"
+        className="relative cursor-grab active:cursor-grabbing mb-8 z-10 select-none"
         onClick={handleLampClick}
+        onMouseDown={handleLampMouseDown}
+        onMouseMove={handleLampMouseMove}
+        onMouseUp={handleLampMouseUp}
+        onTouchStart={handleLampMouseDown}
+        onTouchMove={handleLampMouseMove}
+        onTouchEnd={handleLampMouseUp}
         style={{ perspective: '1000px' }}
       >
         {/* Lamp cord */}
