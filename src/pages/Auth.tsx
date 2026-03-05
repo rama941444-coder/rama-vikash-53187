@@ -55,9 +55,40 @@ const Auth = () => {
     return () => clearTimeout(timer);
   }, []);
 
+  const [dragStartY, setDragStartY] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [lampColor, setLampColor] = useState('rgba(255, 200, 50, 0.3)');
+
+  const lampColors = [
+    'rgba(255, 200, 50, 0.3)', 'rgba(50, 200, 255, 0.3)', 'rgba(255, 50, 150, 0.3)',
+    'rgba(50, 255, 100, 0.3)', 'rgba(200, 50, 255, 0.3)', 'rgba(255, 100, 50, 0.3)',
+  ];
+
+  const handleLampMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
+    setIsDragging(true);
+    const y = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    setDragStartY(y);
+  };
+
+  const handleLampMouseMove = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!isDragging) return;
+    const y = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    if (y - dragStartY > 30 && !lampOpen) {
+      setLampOpen(true);
+      setLampColor(lampColors[Math.floor(Math.random() * lampColors.length)]);
+      setTimeout(() => setShowForm(true), 800);
+      setIsDragging(false);
+    }
+  };
+
+  const handleLampMouseUp = () => {
+    setIsDragging(false);
+  };
+
   const handleLampClick = () => {
     if (!lampOpen) {
       setLampOpen(true);
+      setLampColor(lampColors[Math.floor(Math.random() * lampColors.length)]);
       setTimeout(() => setShowForm(true), 800);
     }
   };
