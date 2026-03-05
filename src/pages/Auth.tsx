@@ -199,8 +199,8 @@ const Auth = () => {
         onTouchEnd={handleLampMouseUp}
         style={{ perspective: '1000px' }}
       >
-        {/* Lamp cord */}
-        <div className="w-[2px] h-16 bg-gradient-to-b from-gray-600 to-gray-400 mx-auto" />
+        {/* Lamp cord - draggable */}
+        <div className={`w-[2px] h-16 bg-gradient-to-b from-gray-600 to-gray-400 mx-auto transition-all ${isDragging ? 'h-20' : ''}`} />
         
         {/* Lamp shade - 3D trapezoid */}
         <div 
