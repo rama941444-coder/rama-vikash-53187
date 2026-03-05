@@ -11,7 +11,7 @@ interface DraftBoardProps {
 const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [mode, setMode] = useState<'pen' | 'eraser'>('pen');
+  const [mode, setMode] = useState<'pen' | 'eraser' | 'line' | 'rectangle' | 'circle' | 'text'>('pen');
   const [color, setColor] = useState('#6366f1');
   const [thickness, setThickness] = useState(5);
   const [history, setHistory] = useState<string[]>([]);
