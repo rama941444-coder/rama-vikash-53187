@@ -211,7 +211,7 @@ const Auth = () => {
             background: 'linear-gradient(180deg, #2a2a4a 0%, #1a1a3a 100%)',
             clipPath: 'polygon(15% 0%, 85% 0%, 100% 100%, 0% 100%)',
             boxShadow: lampOpen 
-              ? '0 0 60px 20px rgba(255, 200, 50, 0.3), 0 0 120px 40px rgba(255, 180, 30, 0.15)' 
+              ? `0 0 60px 20px ${lampColor}, 0 0 120px 40px ${lampColor.replace('0.3', '0.15')}` 
               : 'none',
             transform: lampOpen ? 'rotateX(5deg)' : 'rotateX(0deg)',
             transformStyle: 'preserve-3d',
