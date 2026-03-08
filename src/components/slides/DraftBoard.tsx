@@ -627,6 +627,17 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const point = getCanvasPoint(e);
 
+    // Check if clicking on a connection port to drag-connect
+    if (activeTab === 'flowchart') {
+      const portHit = hitTestPort(point.x, point.y);
+      if (portHit) {
+        setPortDragFrom(portHit);
+        setDragState({ type: 'port_drag', offsetX: point.x, offsetY: point.y, fromIdx: portHit.shapeIdx });
+        setMousePos(point);
+        return;
+      }
+    }
+
     // Connect mode: click shapes to connect them
     if (flowTool === 'connect' || connectMode) {
       const hitIdx = hitTestShape(point.x, point.y);
