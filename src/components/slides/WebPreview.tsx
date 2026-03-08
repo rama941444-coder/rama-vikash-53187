@@ -135,8 +135,18 @@ const WebPreview = ({ htmlCode = '', cssCode = '', jsCode = '', combinedCode = '
     setDeployName('');
   };
 
+  const openPreviewInNewTab = () => {
+    const blob = new Blob([previewContent], { type: 'text/html' });
+    const blobUrl = URL.createObjectURL(blob);
+    const newTab = window.open(blobUrl, '_blank');
+    if (newTab) {
+      newTab.addEventListener('load', () => URL.revokeObjectURL(blobUrl));
+    }
+  };
+
   const copyDeployedUrl = async () => {
     if (!deployedUrl) return;
+    // Copy the display URL (simulation URL)
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(deployedUrl);
@@ -150,7 +160,7 @@ const WebPreview = ({ htmlCode = '', cssCode = '', jsCode = '', combinedCode = '
         document.execCommand('copy');
         document.body.removeChild(textArea);
       }
-      toast({ title: "Link Copied!", description: "Share this link to view the website" });
+      toast({ title: "Link Copied!", description: "Simulation URL copied. Click the open icon to view your site." });
     } catch {
       toast({ title: "Copy failed", variant: "destructive" });
     }
@@ -281,14 +291,7 @@ const WebPreview = ({ htmlCode = '', cssCode = '', jsCode = '', combinedCode = '
           <Button size="sm" variant="ghost" onClick={copyDeployedUrl} className="h-6 px-2 text-green-400 hover:text-green-300">
             <Copy className="w-3 h-3" />
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => {
-            const newTab = window.open('', '_blank');
-            if (newTab) {
-              newTab.document.write(previewContent);
-              newTab.document.close();
-              newTab.document.title = deployedUrl.replace('https://www.', '').replace('.com', '');
-            }
-          }} className="h-6 px-2 text-green-400 hover:text-green-300">
+          <Button size="sm" variant="ghost" onClick={openPreviewInNewTab} className="h-6 px-2 text-green-400 hover:text-green-300">
             <ExternalLink className="w-3 h-3" />
           </Button>
         </div>
