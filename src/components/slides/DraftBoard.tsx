@@ -908,7 +908,15 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
       const point = getCanvasPoint(e);
       const targetIdx = hitTestShape(point.x, point.y);
       if (targetIdx !== null && targetIdx !== portDragFrom.shapeIdx) {
-        setConnections(prev => [...prev, { fromIdx: portDragFrom.shapeIdx, toIdx: targetIdx, color, label: '' }]);
+        // Find nearest port on target shape to determine toSide
+        const targetPorts = getConnectionPorts(placedShapes[targetIdx]);
+        let nearestPort = targetPorts[0];
+        let nearestDist = Infinity;
+        for (const tp of targetPorts) {
+          const d = Math.sqrt((tp.x - point.x) ** 2 + (tp.y - point.y) ** 2);
+          if (d < nearestDist) { nearestDist = d; nearestPort = tp; }
+        }
+        setConnections(prev => [...prev, { fromIdx: portDragFrom.shapeIdx, toIdx: targetIdx, color, label: '', fromSide: portDragFrom.portSide, toSide: nearestPort.side }]);
         saveShapeSnapshot();
         toast({ title: "Shapes connected!" });
       }
