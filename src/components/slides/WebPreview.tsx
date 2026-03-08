@@ -119,14 +119,6 @@ const WebPreview = ({ htmlCode = '', cssCode = '', jsCode = '', combinedCode = '
       const deployUrl = `https://www.${sanitizedName}.com`;
       setDeployedUrl(deployUrl);
 
-      // Open the rendered HTML in a new tab
-      const newTab = window.open('', '_blank');
-      if (newTab) {
-        newTab.document.write(previewContent);
-        newTab.document.close();
-        newTab.document.title = sanitizedName;
-      }
-
       toast({
         title: "🚀 Website Deployed!",
         description: `Your site is live at ${deployUrl}`
