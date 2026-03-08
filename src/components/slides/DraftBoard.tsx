@@ -1276,7 +1276,7 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
           </div>
         </div>
 
-        <div className="lg:w-3/4 border-2 border-primary/50 rounded-xl overflow-hidden neon-glow relative">
+        <div ref={canvasContainerRef} className="lg:w-3/4 border-2 border-primary/50 rounded-xl overflow-hidden neon-glow relative">
           <canvas
             ref={canvasRef}
             className={`w-full h-full ${getCursorClass()}`}
