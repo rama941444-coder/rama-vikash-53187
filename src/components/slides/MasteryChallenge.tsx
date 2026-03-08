@@ -1432,22 +1432,7 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
         </footer>
       </div>
 
-      {/* Save As Modal */}
-      {showSaveAs&&(
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.7)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={()=>setShowSaveAs(false)}>
-          <div onClick={e=>e.stopPropagation()} style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:16,padding:24,width:400}}>
-            <div style={{fontSize:16,fontWeight:800,marginBottom:16}}>💾 Save As</div>
-            <input value={saveFilename} onChange={e=>setSaveFilename(e.target.value)} placeholder="filename" style={{width:'100%',background:S.surface,border:`1px solid ${S.border}`,color:S.text,borderRadius:8,padding:'10px 14px',fontSize:13,marginBottom:12,outline:'none'}} />
-            <select value={saveFormat} onChange={e=>setSaveFormat(e.target.value)} style={{width:'100%',background:S.surface,border:`1px solid ${S.border}`,color:S.text,borderRadius:8,padding:'10px 14px',fontSize:13,marginBottom:16,outline:'none'}}>
-              {['.py','.java','.cpp','.c','.js','.ts','.go','.rs','.cs','.kt','.rb','.txt'].map(f=><option key={f} value={f}>{f}</option>)}
-            </select>
-            <div style={{display:'flex',gap:10}}>
-              <button onClick={()=>setShowSaveAs(false)} style={{flex:1,padding:'10px',borderRadius:8,fontSize:13,cursor:'pointer',border:`1px solid ${S.border}`,background:S.surface,color:S.text}}>Cancel</button>
-              <button onClick={()=>{const fname=saveFilename+saveFormat;const blob=new Blob([code],{type:'text/plain'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fname;a.click();URL.revokeObjectURL(a.href);setShowSaveAs(false);toast({title:`💾 Saved as ${fname}`});}} style={{flex:1,padding:'10px',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer',border:'none',background:S.green,color:'#000'}}>💾 Save to PC</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Save As now uses native file picker - no modal needed */}
 
       <style>{`@keyframes blink{0%,100%{opacity:1}50%{opacity:0}} @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}`}</style>
     </div>
