@@ -206,6 +206,8 @@ interface ConnectionLine {
   toIdx: number;
   color: string;
   label: string;
+  fromSide?: string;
+  toSide?: string;
 }
 
 const HANDLE_SIZE = 8;
@@ -579,8 +581,17 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
         // Draw connection lines using nearest ports (dotted with arrows)
         connections.forEach(conn => {
           if (conn.fromIdx < placedShapes.length && conn.toIdx < placedShapes.length) {
-            const ports = getNearestPorts(placedShapes[conn.fromIdx], placedShapes[conn.toIdx]);
-            drawArrowLine(ctx, ports.from.x, ports.from.y, ports.to.x, ports.to.y, conn.color, conn.label, true, ports.from.side, ports.to.side);
+            // Use stored sides if available, otherwise auto-detect nearest ports
+            if (conn.fromSide && conn.toSide) {
+              const fromPorts = getConnectionPorts(placedShapes[conn.fromIdx]);
+              const toPorts = getConnectionPorts(placedShapes[conn.toIdx]);
+              const fp = fromPorts.find(p => p.side === conn.fromSide) || fromPorts[0];
+              const tp = toPorts.find(p => p.side === conn.toSide) || toPorts[0];
+              drawArrowLine(ctx, fp.x, fp.y, tp.x, tp.y, conn.color, conn.label, true, conn.fromSide, conn.toSide);
+            } else {
+              const ports = getNearestPorts(placedShapes[conn.fromIdx], placedShapes[conn.toIdx]);
+              drawArrowLine(ctx, ports.from.x, ports.from.y, ports.to.x, ports.to.y, conn.color, conn.label, true, ports.from.side, ports.to.side);
+            }
           }
         });
 
@@ -603,27 +614,43 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
           }
         });
 
-        // Draw port drag preview (dotted line with arrow following cursor)
+        // Draw port drag preview (elbow dotted line with arrow following cursor)
         if (portDragFrom && mousePos) {
           const fromShape = placedShapes[portDragFrom.shapeIdx];
-          const ports = getConnectionPorts(fromShape);
-          const fromPort = ports.find(p => p.side === portDragFrom.portSide) || ports[0];
+          const portsAll = getConnectionPorts(fromShape);
+          const fromPort = portsAll.find(p => p.side === portDragFrom.portSide) || portsAll[0];
+          
+          // Determine a virtual "toSide" based on cursor relative to source
+          const dx = mousePos.x - fromPort.x;
+          const dy = mousePos.y - fromPort.y;
+          let virtualToSide = 'top';
+          if (Math.abs(dx) > Math.abs(dy)) {
+            virtualToSide = dx > 0 ? 'left' : 'right';
+          } else {
+            virtualToSide = dy > 0 ? 'top' : 'bottom';
+          }
+          
+          const pts = getElbowPoints(fromPort.x, fromPort.y, mousePos.x, mousePos.y, portDragFrom.portSide, virtualToSide);
           ctx.strokeStyle = '#3b82f6';
           ctx.lineWidth = 2;
           ctx.setLineDash([8, 5]);
           ctx.beginPath();
-          ctx.moveTo(fromPort.x, fromPort.y);
-          ctx.lineTo(mousePos.x, mousePos.y);
+          ctx.moveTo(pts[0].x, pts[0].y);
+          for (let i = 1; i < pts.length; i++) {
+            ctx.lineTo(pts[i].x, pts[i].y);
+          }
           ctx.stroke();
           ctx.setLineDash([]);
-          // Arrowhead at cursor
-          const angle = Math.atan2(mousePos.y - fromPort.y, mousePos.x - fromPort.x);
+          // Arrowhead
+          const last = pts[pts.length - 1];
+          const prev = pts[pts.length - 2];
+          const angle = Math.atan2(last.y - prev.y, last.x - prev.x);
           const headLen = 12;
           ctx.fillStyle = '#3b82f6';
           ctx.beginPath();
-          ctx.moveTo(mousePos.x, mousePos.y);
-          ctx.lineTo(mousePos.x - headLen * Math.cos(angle - Math.PI / 6), mousePos.y - headLen * Math.sin(angle - Math.PI / 6));
-          ctx.lineTo(mousePos.x - headLen * Math.cos(angle + Math.PI / 6), mousePos.y - headLen * Math.sin(angle + Math.PI / 6));
+          ctx.moveTo(last.x, last.y);
+          ctx.lineTo(last.x - headLen * Math.cos(angle - Math.PI / 6), last.y - headLen * Math.sin(angle - Math.PI / 6));
+          ctx.lineTo(last.x - headLen * Math.cos(angle + Math.PI / 6), last.y - headLen * Math.sin(angle + Math.PI / 6));
           ctx.closePath();
           ctx.fill();
         }
@@ -631,22 +658,43 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
         // Draw connecting line preview following cursor (click-connect mode)
         if (connectFrom !== null && (connectMode || flowTool === 'connect') && mousePos && !portDragFrom) {
           const fromShape = placedShapes[connectFrom];
-          const fromCenter = getShapeCenter(fromShape);
+          // Pick nearest port from source to cursor
+          const srcPorts = getConnectionPorts(fromShape);
+          let bestPort = srcPorts[0];
+          let bestDist = Infinity;
+          for (const p of srcPorts) {
+            const d = Math.sqrt((p.x - mousePos.x) ** 2 + (p.y - mousePos.y) ** 2);
+            if (d < bestDist) { bestDist = d; bestPort = p; }
+          }
+          const dx = mousePos.x - bestPort.x;
+          const dy = mousePos.y - bestPort.y;
+          let virtualToSide = 'top';
+          if (Math.abs(dx) > Math.abs(dy)) {
+            virtualToSide = dx > 0 ? 'left' : 'right';
+          } else {
+            virtualToSide = dy > 0 ? 'top' : 'bottom';
+          }
+          
+          const pts = getElbowPoints(bestPort.x, bestPort.y, mousePos.x, mousePos.y, bestPort.side, virtualToSide);
           ctx.strokeStyle = '#3b82f6';
           ctx.lineWidth = 2;
           ctx.setLineDash([8, 5]);
           ctx.beginPath();
-          ctx.moveTo(fromCenter.x, fromCenter.y);
-          ctx.lineTo(mousePos.x, mousePos.y);
+          ctx.moveTo(pts[0].x, pts[0].y);
+          for (let i = 1; i < pts.length; i++) {
+            ctx.lineTo(pts[i].x, pts[i].y);
+          }
           ctx.stroke();
           ctx.setLineDash([]);
-          const angle = Math.atan2(mousePos.y - fromCenter.y, mousePos.x - fromCenter.x);
+          const last = pts[pts.length - 1];
+          const prev = pts[pts.length - 2];
+          const angle = Math.atan2(last.y - prev.y, last.x - prev.x);
           const headLen = 12;
           ctx.fillStyle = '#3b82f6';
           ctx.beginPath();
-          ctx.moveTo(mousePos.x, mousePos.y);
-          ctx.lineTo(mousePos.x - headLen * Math.cos(angle - Math.PI / 6), mousePos.y - headLen * Math.sin(angle - Math.PI / 6));
-          ctx.lineTo(mousePos.x - headLen * Math.cos(angle + Math.PI / 6), mousePos.y - headLen * Math.sin(angle + Math.PI / 6));
+          ctx.moveTo(last.x, last.y);
+          ctx.lineTo(last.x - headLen * Math.cos(angle - Math.PI / 6), last.y - headLen * Math.sin(angle - Math.PI / 6));
+          ctx.lineTo(last.x - headLen * Math.cos(angle + Math.PI / 6), last.y - headLen * Math.sin(angle + Math.PI / 6));
           ctx.closePath();
           ctx.fill();
         }
@@ -869,7 +917,15 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
       const point = getCanvasPoint(e);
       const targetIdx = hitTestShape(point.x, point.y);
       if (targetIdx !== null && targetIdx !== portDragFrom.shapeIdx) {
-        setConnections(prev => [...prev, { fromIdx: portDragFrom.shapeIdx, toIdx: targetIdx, color, label: '' }]);
+        // Find nearest port on target shape to determine toSide
+        const targetPorts = getConnectionPorts(placedShapes[targetIdx]);
+        let nearestPort = targetPorts[0];
+        let nearestDist = Infinity;
+        for (const tp of targetPorts) {
+          const d = Math.sqrt((tp.x - point.x) ** 2 + (tp.y - point.y) ** 2);
+          if (d < nearestDist) { nearestDist = d; nearestPort = tp; }
+        }
+        setConnections(prev => [...prev, { fromIdx: portDragFrom.shapeIdx, toIdx: targetIdx, color, label: '', fromSide: portDragFrom.portSide, toSide: nearestPort.side }]);
         saveShapeSnapshot();
         toast({ title: "Shapes connected!" });
       }
