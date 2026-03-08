@@ -398,12 +398,30 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
     ports.forEach(p => {
       ctx.beginPath();
       ctx.arc(p.x, p.y, CONNECTION_PORT_SIZE, 0, Math.PI * 2);
-      ctx.fillStyle = highlight ? '#3b82f6' : '#94a3b8';
+      ctx.fillStyle = highlight ? '#3b82f6' : 'rgba(100,116,139,0.6)';
       ctx.fill();
       ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = 2;
       ctx.stroke();
+      // Inner dot
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
     });
+  };
+
+  const hitTestPort = (px: number, py: number): { shapeIdx: number; portSide: string } | null => {
+    for (let i = placedShapes.length - 1; i >= 0; i--) {
+      const ports = getConnectionPorts(placedShapes[i]);
+      for (const port of ports) {
+        const dist = Math.sqrt((px - port.x) ** 2 + (py - port.y) ** 2);
+        if (dist <= CONNECTION_PORT_SIZE + 4) {
+          return { shapeIdx: i, portSide: port.side };
+        }
+      }
+    }
+    return null;
   };
 
   const drawArrowLine = (ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, lineColor: string, label: string) => {
