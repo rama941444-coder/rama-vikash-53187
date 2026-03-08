@@ -209,10 +209,11 @@ interface ConnectionLine {
 }
 
 const HANDLE_SIZE = 8;
-const CONNECTION_PORT_SIZE = 6;
+const CONNECTION_PORT_SIZE = 7;
 
 const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [mode, setMode] = useState<'pen' | 'eraser'>('pen');
   const [color, setColor] = useState('#6366f1');
@@ -224,7 +225,7 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
   const [selectedShape, setSelectedShape] = useState<string | null>(null);
   const [placedShapes, setPlacedShapes] = useState<PlacedShape[]>([]);
   const [selectedShapeIdx, setSelectedShapeIdx] = useState<number | null>(null);
-  const [dragState, setDragState] = useState<{ type: 'move' | 'resize'; corner?: string; offsetX: number; offsetY: number } | null>(null);
+  const [dragState, setDragState] = useState<{ type: 'move' | 'resize' | 'port_drag'; corner?: string; offsetX: number; offsetY: number; fromIdx?: number } | null>(null);
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [editText, setEditText] = useState('');
   const editInputRef = useRef<HTMLTextAreaElement>(null);
@@ -235,6 +236,7 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
   const [flowTool, setFlowTool] = useState<'select' | 'shape' | 'connect'>('select');
   const [multiSelect, setMultiSelect] = useState<number[]>([]);
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
+  const [portDragFrom, setPortDragFrom] = useState<{ shapeIdx: number; portSide: string } | null>(null);
   const { toast } = useToast();
 
   // Undo/Redo history for shapes
