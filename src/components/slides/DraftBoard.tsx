@@ -581,8 +581,17 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
         // Draw connection lines using nearest ports (dotted with arrows)
         connections.forEach(conn => {
           if (conn.fromIdx < placedShapes.length && conn.toIdx < placedShapes.length) {
-            const ports = getNearestPorts(placedShapes[conn.fromIdx], placedShapes[conn.toIdx]);
-            drawArrowLine(ctx, ports.from.x, ports.from.y, ports.to.x, ports.to.y, conn.color, conn.label, true, ports.from.side, ports.to.side);
+            // Use stored sides if available, otherwise auto-detect nearest ports
+            if (conn.fromSide && conn.toSide) {
+              const fromPorts = getConnectionPorts(placedShapes[conn.fromIdx]);
+              const toPorts = getConnectionPorts(placedShapes[conn.toIdx]);
+              const fp = fromPorts.find(p => p.side === conn.fromSide) || fromPorts[0];
+              const tp = toPorts.find(p => p.side === conn.toSide) || toPorts[0];
+              drawArrowLine(ctx, fp.x, fp.y, tp.x, tp.y, conn.color, conn.label, true, conn.fromSide, conn.toSide);
+            } else {
+              const ports = getNearestPorts(placedShapes[conn.fromIdx], placedShapes[conn.toIdx]);
+              drawArrowLine(ctx, ports.from.x, ports.from.y, ports.to.x, ports.to.y, conn.color, conn.label, true, ports.from.side, ports.to.side);
+            }
           }
         });
 
