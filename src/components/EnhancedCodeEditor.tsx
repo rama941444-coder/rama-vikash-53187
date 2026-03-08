@@ -166,30 +166,6 @@ const EnhancedCodeEditor = ({
     toast({ title: "💾 Saved!", description: "File saved as code.txt" });
   };
 
-  const saveAs = async () => {
-    const blob = new Blob([value], { type: 'text/plain' });
-    if ('showSaveFilePicker' in window) {
-      try {
-        const handle = await (window as any).showSaveFilePicker({
-          suggestedName: 'code.txt',
-          types: [{ description: 'Code Files', accept: { 'text/plain': ['.py','.java','.cpp','.c','.js','.ts','.go','.rs','.cs','.kt','.rb','.txt','.html','.css','.json'] } }],
-        });
-        const writable = await handle.createWritable();
-        await writable.write(blob);
-        await writable.close();
-        toast({ title: "💾 Saved!", description: `File saved to PC` });
-      } catch (e: any) {
-        if (e.name !== 'AbortError') toast({ title: "Save failed", variant: "destructive" });
-      }
-    } else {
-      const ext = prompt('Enter filename (e.g., main.py, index.js):', 'code.txt');
-      if (!ext) return;
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = ext; a.click();
-      URL.revokeObjectURL(url);
-      toast({ title: "💾 Saved!", description: `File saved as ${ext}` });
-    }
-  };
 
   useEffect(() => {
     updateCursorPosition();
@@ -240,10 +216,6 @@ const EnhancedCodeEditor = ({
           <Button variant="ghost" size="sm" onClick={saveFile}
             className="h-7 px-2 text-gray-400 hover:text-white hover:bg-[#3d3d3d]" title="Save">
             <Save className="w-3.5 h-3.5" />
-          </Button>
-          <Button variant="ghost" size="sm" onClick={saveAs}
-            className="h-7 px-2 text-gray-400 hover:text-white hover:bg-[#3d3d3d]" title="Save As">
-            <FileDown className="w-3.5 h-3.5" />
           </Button>
           <Button variant="ghost" size="sm" onClick={clearEditor}
             className="h-7 px-2 text-gray-400 hover:text-white hover:bg-[#3d3d3d]">

@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Eraser, Pen, Download, Trash2, Undo, Redo, Code, Square, Circle, Minus, Move, GripVertical } from 'lucide-react';
+import { Eraser, Pen, Download, Trash2, Undo, Redo, Code } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { jsPDF } from 'jspdf';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -9,7 +9,6 @@ interface DraftBoardProps {
   onOpenLiveCode?: () => void;
 }
 
-// Flowchart shape definitions
 interface FlowShape {
   id: string;
   name: string;
@@ -22,8 +21,7 @@ const FLOWCHART_SHAPES: FlowShape[] = [
   {
     id: 'oval', name: 'Terminator', icon: '⬭', desc: 'Start / End',
     draw: (ctx, x, y, w, h, color, text) => {
-      ctx.beginPath();
-      ctx.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
+      ctx.beginPath(); ctx.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
       ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
       ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.fill();
       ctx.fillStyle = '#000'; ctx.font = '14px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -34,8 +32,7 @@ const FLOWCHART_SHAPES: FlowShape[] = [
     id: 'parallelogram', name: 'Input/Output', icon: '▱', desc: 'Read / Display data',
     draw: (ctx, x, y, w, h, color, text) => {
       const skew = w * 0.2;
-      ctx.beginPath();
-      ctx.moveTo(x + skew, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w - skew, y + h); ctx.lineTo(x, y + h); ctx.closePath();
+      ctx.beginPath(); ctx.moveTo(x + skew, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w - skew, y + h); ctx.lineTo(x, y + h); ctx.closePath();
       ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
       ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.fill();
       ctx.fillStyle = '#000'; ctx.font = '14px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -45,8 +42,7 @@ const FLOWCHART_SHAPES: FlowShape[] = [
   {
     id: 'rectangle', name: 'Process', icon: '▭', desc: 'Calculation / Assignment',
     draw: (ctx, x, y, w, h, color, text) => {
-      ctx.strokeStyle = color; ctx.lineWidth = 2;
-      ctx.strokeRect(x, y, w, h);
+      ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.strokeRect(x, y, w, h);
       ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
       ctx.fillStyle = '#000'; ctx.font = '14px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(text || 'Process', x + w / 2, y + h / 2);
@@ -55,8 +51,7 @@ const FLOWCHART_SHAPES: FlowShape[] = [
   {
     id: 'diamond', name: 'Decision', icon: '◇', desc: 'If-else / True-False',
     draw: (ctx, x, y, w, h, color, text) => {
-      ctx.beginPath();
-      ctx.moveTo(x + w / 2, y); ctx.lineTo(x + w, y + h / 2); ctx.lineTo(x + w / 2, y + h); ctx.lineTo(x, y + h / 2); ctx.closePath();
+      ctx.beginPath(); ctx.moveTo(x + w / 2, y); ctx.lineTo(x + w, y + h / 2); ctx.lineTo(x + w / 2, y + h); ctx.lineTo(x, y + h / 2); ctx.closePath();
       ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
       ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.fill();
       ctx.fillStyle = '#000'; ctx.font = '13px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -66,10 +61,8 @@ const FLOWCHART_SHAPES: FlowShape[] = [
   {
     id: 'predefined', name: 'Predefined Process', icon: '⊞', desc: 'Function / Subroutine',
     draw: (ctx, x, y, w, h, color, text) => {
-      ctx.strokeStyle = color; ctx.lineWidth = 2;
-      ctx.strokeRect(x, y, w, h);
+      ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.strokeRect(x, y, w, h);
       ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
-      // Double vertical lines
       const inset = 12;
       ctx.beginPath(); ctx.moveTo(x + inset, y); ctx.lineTo(x + inset, y + h); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(x + w - inset, y); ctx.lineTo(x + w - inset, y + h); ctx.stroke();
@@ -82,17 +75,12 @@ const FLOWCHART_SHAPES: FlowShape[] = [
     draw: (ctx, x, y, w, h, color, text) => {
       const ry = 12;
       ctx.strokeStyle = color; ctx.lineWidth = 2;
-      // Body
       ctx.beginPath(); ctx.moveTo(x, y + ry); ctx.lineTo(x, y + h - ry); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(x + w, y + ry); ctx.lineTo(x + w, y + h - ry); ctx.stroke();
-      // Top ellipse
       ctx.beginPath(); ctx.ellipse(x + w / 2, y + ry, w / 2, ry, 0, 0, Math.PI * 2); ctx.stroke();
       ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.fill();
-      // Bottom ellipse
       ctx.beginPath(); ctx.ellipse(x + w / 2, y + h - ry, w / 2, ry, 0, Math.PI, Math.PI * 2); ctx.stroke();
-      // Fill body
-      ctx.fillStyle = 'rgba(255,255,255,0.95)';
-      ctx.fillRect(x + 1, y + ry, w - 2, h - 2 * ry);
+      ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.fillRect(x + 1, y + ry, w - 2, h - 2 * ry);
       ctx.fillStyle = '#000'; ctx.font = '13px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(text || 'Database', x + w / 2, y + h / 2);
     }
@@ -101,8 +89,7 @@ const FLOWCHART_SHAPES: FlowShape[] = [
     id: 'hexagon', name: 'Preparation', icon: '⬡', desc: 'Initialization (i = 0)',
     draw: (ctx, x, y, w, h, color, text) => {
       const inset = w * 0.15;
-      ctx.beginPath();
-      ctx.moveTo(x + inset, y); ctx.lineTo(x + w - inset, y); ctx.lineTo(x + w, y + h / 2); ctx.lineTo(x + w - inset, y + h); ctx.lineTo(x + inset, y + h); ctx.lineTo(x, y + h / 2); ctx.closePath();
+      ctx.beginPath(); ctx.moveTo(x + inset, y); ctx.lineTo(x + w - inset, y); ctx.lineTo(x + w, y + h / 2); ctx.lineTo(x + w - inset, y + h); ctx.lineTo(x + inset, y + h); ctx.lineTo(x, y + h / 2); ctx.closePath();
       ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
       ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.fill();
       ctx.fillStyle = '#000'; ctx.font = '13px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -123,8 +110,7 @@ const FLOWCHART_SHAPES: FlowShape[] = [
   {
     id: 'offpage', name: 'Off-Page Connector', icon: '⌂', desc: 'Connect to different page',
     draw: (ctx, x, y, w, h, color, text) => {
-      ctx.beginPath();
-      ctx.moveTo(x, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + h * 0.65); ctx.lineTo(x + w / 2, y + h); ctx.lineTo(x, y + h * 0.65); ctx.closePath();
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + h * 0.65); ctx.lineTo(x + w / 2, y + h); ctx.lineTo(x, y + h * 0.65); ctx.closePath();
       ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
       ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.fill();
       ctx.fillStyle = '#000'; ctx.font = '13px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -134,10 +120,8 @@ const FLOWCHART_SHAPES: FlowShape[] = [
   {
     id: 'document', name: 'Document', icon: '📄', desc: 'Printed report / Log',
     draw: (ctx, x, y, w, h, color, text) => {
-      ctx.beginPath();
-      ctx.moveTo(x, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + h * 0.85);
-      ctx.bezierCurveTo(x + w * 0.75, y + h * 0.75, x + w * 0.25, y + h * 1.05, x, y + h * 0.85);
-      ctx.closePath();
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + h * 0.85);
+      ctx.bezierCurveTo(x + w * 0.75, y + h * 0.75, x + w * 0.25, y + h * 1.05, x, y + h * 0.85); ctx.closePath();
       ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
       ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.fill();
       ctx.fillStyle = '#000'; ctx.font = '13px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -174,6 +158,8 @@ interface PlacedShape {
   color: string;
 }
 
+const HANDLE_SIZE = 8;
+
 const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -186,9 +172,15 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
   const [activeTab, setActiveTab] = useState('draw');
   const [selectedShape, setSelectedShape] = useState<string | null>(null);
   const [placedShapes, setPlacedShapes] = useState<PlacedShape[]>([]);
-  const [editingShapeIdx, setEditingShapeIdx] = useState<number | null>(null);
+  const [selectedShapeIdx, setSelectedShapeIdx] = useState<number | null>(null);
+  const [dragState, setDragState] = useState<{ type: 'move' | 'resize'; corner?: string; offsetX: number; offsetY: number } | null>(null);
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [editText, setEditText] = useState('');
+  const editInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  // Base drawing layer (pen/eraser strokes only, no shapes)
+  const baseImageRef = useRef<string | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -202,29 +194,51 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
     if (ctx) {
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+      saveBaseImage();
       saveToHistory();
     }
   }, []);
 
-  // Redraw shapes on canvas whenever placedShapes changes
   useEffect(() => {
-    redrawShapes();
-  }, [placedShapes]);
+    redrawAll();
+  }, [placedShapes, selectedShapeIdx]);
 
-  const redrawShapes = () => {
+  // Keyboard: Ctrl+D or Delete to remove selected shape
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (selectedShapeIdx !== null && editingIdx === null) {
+        if (e.key === 'Delete' || (e.ctrlKey && e.key === 'd')) {
+          e.preventDefault();
+          setPlacedShapes(prev => prev.filter((_, i) => i !== selectedShapeIdx));
+          setSelectedShapeIdx(null);
+          toast({ title: "Shape deleted" });
+        }
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [selectedShapeIdx, editingIdx]);
+
+  const saveBaseImage = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    baseImageRef.current = canvas.toDataURL();
+  };
+
+  const redrawAll = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Restore base canvas from history first
-    if (history.length > 0 && historyStep >= 0) {
+    // Restore base drawing layer
+    if (baseImageRef.current) {
       const img = new Image();
-      img.src = history[historyStep];
+      img.src = baseImageRef.current;
       img.onload = () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0);
-        // Draw all shapes on top
+        // Draw all shapes
         placedShapes.forEach((s, idx) => {
           const shape = FLOWCHART_SHAPES.find(fs => fs.id === s.shapeId);
           if (shape) {
@@ -232,9 +246,35 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
             shape.draw(ctx, s.x, s.y, s.w, s.h, s.color, s.text);
             ctx.restore();
           }
+          // Draw selection handles
+          if (idx === selectedShapeIdx) {
+            drawSelectionHandles(ctx, s);
+          }
         });
       };
     }
+  };
+
+  const drawSelectionHandles = (ctx: CanvasRenderingContext2D, s: PlacedShape) => {
+    ctx.strokeStyle = '#3b82f6';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 3]);
+    ctx.strokeRect(s.x - 4, s.y - 4, s.w + 8, s.h + 8);
+    ctx.setLineDash([]);
+    // 4 corner handles
+    const corners = [
+      { x: s.x - 4, y: s.y - 4 },
+      { x: s.x + s.w - 4, y: s.y - 4 },
+      { x: s.x - 4, y: s.y + s.h - 4 },
+      { x: s.x + s.w - 4, y: s.y + s.h - 4 },
+    ];
+    corners.forEach(c => {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(c.x, c.y, HANDLE_SIZE, HANDLE_SIZE);
+      ctx.strokeStyle = '#3b82f6';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(c.x, c.y, HANDLE_SIZE, HANDLE_SIZE);
+    });
   };
 
   const getCanvasPoint = useCallback((e: React.TouchEvent<HTMLCanvasElement> | React.MouseEvent<HTMLCanvasElement>) => {
@@ -250,46 +290,32 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
     return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
   }, []);
 
-  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (activeTab === 'flowchart' && selectedShape) {
-      // Place shape at click position
-      const point = getCanvasPoint(e);
-      const shapeDef = FLOWCHART_SHAPES.find(s => s.id === selectedShape);
-      if (!shapeDef) return;
-      const isArrow = selectedShape.startsWith('arrow_');
-      const w = isArrow ? 30 : 140;
-      const h = isArrow ? 50 : (selectedShape === 'diamond' ? 80 : selectedShape === 'connector' ? 40 : 60);
-      const text = isArrow ? '' : prompt(`Enter text for ${shapeDef.name}:`, shapeDef.name) || shapeDef.name;
-      const newShape: PlacedShape = { shapeId: selectedShape, x: point.x - w / 2, y: point.y - h / 2, w, h, text, color };
-      setPlacedShapes(prev => [...prev, newShape]);
-      // Draw immediately
-      const canvas = canvasRef.current;
-      if (canvas) {
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.save();
-          shapeDef.draw(ctx, newShape.x, newShape.y, newShape.w, newShape.h, color, text);
-          ctx.restore();
-        }
-      }
-      saveToHistory();
-      toast({ title: `${shapeDef.icon} ${shapeDef.name} placed!` });
-      return;
+  const hitTestShape = (px: number, py: number): number | null => {
+    for (let i = placedShapes.length - 1; i >= 0; i--) {
+      const s = placedShapes[i];
+      if (px >= s.x && px <= s.x + s.w && py >= s.y && py <= s.y + s.h) return i;
     }
-
-    setIsDrawing(true);
-    const point = getCanvasPoint(e);
-    lastPointRef.current = point;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (ctx) { ctx.beginPath(); ctx.moveTo(point.x, point.y); }
+    return null;
   };
 
-  const startDrawingTouch = (e: React.TouchEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
+  const hitTestHandle = (px: number, py: number, s: PlacedShape): string | null => {
+    const handles: Record<string, { x: number; y: number }> = {
+      'tl': { x: s.x - 4, y: s.y - 4 },
+      'tr': { x: s.x + s.w - 4, y: s.y - 4 },
+      'bl': { x: s.x - 4, y: s.y + s.h - 4 },
+      'br': { x: s.x + s.w - 4, y: s.y + s.h - 4 },
+    };
+    for (const [key, h] of Object.entries(handles)) {
+      if (px >= h.x && px <= h.x + HANDLE_SIZE && py >= h.y && py <= h.y + HANDLE_SIZE) return key;
+    }
+    return null;
+  };
+
+  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const point = getCanvasPoint(e);
+
+    // Flowchart mode: placing new shape
     if (activeTab === 'flowchart' && selectedShape) {
-      const point = getCanvasPoint(e);
       const shapeDef = FLOWCHART_SHAPES.find(s => s.id === selectedShape);
       if (!shapeDef) return;
       const isArrow = selectedShape.startsWith('arrow_');
@@ -298,11 +324,40 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
       const text = isArrow ? '' : shapeDef.name;
       const newShape: PlacedShape = { shapeId: selectedShape, x: point.x - w / 2, y: point.y - h / 2, w, h, text, color };
       setPlacedShapes(prev => [...prev, newShape]);
+      setSelectedShapeIdx(placedShapes.length);
+      setSelectedShape(null);
       saveToHistory();
+      toast({ title: `${shapeDef.icon} ${shapeDef.name} placed! Double-click to edit text.` });
       return;
     }
+
+    // Check if clicking on a selected shape's resize handle
+    if (selectedShapeIdx !== null) {
+      const s = placedShapes[selectedShapeIdx];
+      const handle = hitTestHandle(point.x, point.y, s);
+      if (handle) {
+        setDragState({ type: 'resize', corner: handle, offsetX: point.x, offsetY: point.y });
+        return;
+      }
+    }
+
+    // Check if clicking on any shape to select/move
+    const hitIdx = hitTestShape(point.x, point.y);
+    if (hitIdx !== null) {
+      setSelectedShapeIdx(hitIdx);
+      const s = placedShapes[hitIdx];
+      setDragState({ type: 'move', offsetX: point.x - s.x, offsetY: point.y - s.y });
+      return;
+    }
+
+    // Clicked empty area: deselect
+    setSelectedShapeIdx(null);
+    if (editingIdx !== null) {
+      commitEdit();
+    }
+
+    // Start drawing with pen/eraser
     setIsDrawing(true);
-    const point = getCanvasPoint(e);
     lastPointRef.current = point;
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -310,17 +365,147 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
     if (ctx) { ctx.beginPath(); ctx.moveTo(point.x, point.y); }
   };
 
-  const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing) return;
+  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const point = getCanvasPoint(e);
+
+    // Dragging a shape
+    if (dragState && selectedShapeIdx !== null) {
+      setPlacedShapes(prev => {
+        const updated = [...prev];
+        const s = { ...updated[selectedShapeIdx] };
+        if (dragState.type === 'move') {
+          s.x = point.x - dragState.offsetX;
+          s.y = point.y - dragState.offsetY;
+        } else if (dragState.type === 'resize' && dragState.corner) {
+          const minSize = 30;
+          if (dragState.corner === 'br') {
+            s.w = Math.max(minSize, point.x - s.x);
+            s.h = Math.max(minSize, point.y - s.y);
+          } else if (dragState.corner === 'bl') {
+            const newW = Math.max(minSize, s.x + s.w - point.x);
+            s.x = s.x + s.w - newW;
+            s.w = newW;
+            s.h = Math.max(minSize, point.y - s.y);
+          } else if (dragState.corner === 'tr') {
+            s.w = Math.max(minSize, point.x - s.x);
+            const newH = Math.max(minSize, s.y + s.h - point.y);
+            s.y = s.y + s.h - newH;
+            s.h = newH;
+          } else if (dragState.corner === 'tl') {
+            const newW = Math.max(minSize, s.x + s.w - point.x);
+            const newH = Math.max(minSize, s.y + s.h - point.y);
+            s.x = s.x + s.w - newW;
+            s.y = s.y + s.h - newH;
+            s.w = newW;
+            s.h = newH;
+          }
+        }
+        updated[selectedShapeIdx] = s;
+        return updated;
+      });
+      return;
+    }
+
+    // Drawing pen/eraser
+    if (!isDrawing) return;
     drawLine(point);
+  };
+
+  const handleMouseUp = () => {
+    if (dragState) {
+      setDragState(null);
+      saveBaseImage();
+      saveToHistory();
+      return;
+    }
+    if (isDrawing) {
+      setIsDrawing(false);
+      lastPointRef.current = null;
+      saveBaseImage();
+      saveToHistory();
+    }
+  };
+
+  const handleDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const point = getCanvasPoint(e);
+    const hitIdx = hitTestShape(point.x, point.y);
+    if (hitIdx !== null) {
+      const s = placedShapes[hitIdx];
+      if (s.shapeId.startsWith('arrow_')) return;
+      setEditingIdx(hitIdx);
+      setEditText(s.text);
+      setSelectedShapeIdx(hitIdx);
+      setTimeout(() => editInputRef.current?.focus(), 50);
+    }
+  };
+
+  const commitEdit = () => {
+    if (editingIdx !== null) {
+      setPlacedShapes(prev => {
+        const updated = [...prev];
+        updated[editingIdx] = { ...updated[editingIdx], text: editText };
+        return updated;
+      });
+      setEditingIdx(null);
+      saveToHistory();
+    }
+  };
+
+  // Touch handlers
+  const startDrawingTouch = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const point = getCanvasPoint(e);
+    if (activeTab === 'flowchart' && selectedShape) {
+      const shapeDef = FLOWCHART_SHAPES.find(s => s.id === selectedShape);
+      if (!shapeDef) return;
+      const isArrow = selectedShape.startsWith('arrow_');
+      const w = isArrow ? 30 : 140;
+      const h = isArrow ? 50 : (selectedShape === 'diamond' ? 80 : selectedShape === 'connector' ? 40 : 60);
+      const text = isArrow ? '' : shapeDef.name;
+      const newShape: PlacedShape = { shapeId: selectedShape, x: point.x - w / 2, y: point.y - h / 2, w, h, text, color };
+      setPlacedShapes(prev => [...prev, newShape]);
+      setSelectedShapeIdx(placedShapes.length);
+      setSelectedShape(null);
+      saveToHistory();
+      return;
+    }
+    const hitIdx = hitTestShape(point.x, point.y);
+    if (hitIdx !== null) {
+      setSelectedShapeIdx(hitIdx);
+      const s = placedShapes[hitIdx];
+      setDragState({ type: 'move', offsetX: point.x - s.x, offsetY: point.y - s.y });
+      return;
+    }
+    setSelectedShapeIdx(null);
+    setIsDrawing(true);
+    lastPointRef.current = point;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (ctx) { ctx.beginPath(); ctx.moveTo(point.x, point.y); }
   };
 
   const drawTouch = (e: React.TouchEvent<HTMLCanvasElement>) => {
     e.preventDefault();
-    if (!isDrawing) return;
     const point = getCanvasPoint(e);
+    if (dragState && selectedShapeIdx !== null) {
+      setPlacedShapes(prev => {
+        const updated = [...prev];
+        const s = { ...updated[selectedShapeIdx] };
+        s.x = point.x - dragState.offsetX;
+        s.y = point.y - dragState.offsetY;
+        updated[selectedShapeIdx] = s;
+        return updated;
+      });
+      return;
+    }
+    if (!isDrawing) return;
     drawLine(point);
+  };
+
+  const stopDrawingTouch = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    handleMouseUp();
   };
 
   const drawLine = useCallback((point: { x: number; y: number }) => {
@@ -338,12 +523,6 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
       lastPointRef.current = point;
     }
   }, [thickness, mode, color]);
-
-  const stopDrawing = () => {
-    if (isDrawing) { setIsDrawing(false); lastPointRef.current = null; saveToHistory(); }
-  };
-
-  const stopDrawingTouch = (e: React.TouchEvent<HTMLCanvasElement>) => { e.preventDefault(); stopDrawing(); };
 
   const saveToHistory = () => {
     const canvas = canvasRef.current;
@@ -363,7 +542,11 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
       if (!ctx) return;
       const img = new Image();
       img.src = history[historyStep - 1];
-      img.onload = () => { ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(img, 0, 0); };
+      img.onload = () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+        baseImageRef.current = history[historyStep - 1];
+      };
       setHistoryStep(historyStep - 1);
     }
   };
@@ -376,7 +559,11 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
       if (!ctx) return;
       const img = new Image();
       img.src = history[historyStep + 1];
-      img.onload = () => { ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(img, 0, 0); };
+      img.onload = () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+        baseImageRef.current = history[historyStep + 1];
+      };
       setHistoryStep(historyStep + 1);
     }
   };
@@ -389,6 +576,9 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       setPlacedShapes([]);
+      setSelectedShapeIdx(null);
+      setEditingIdx(null);
+      saveBaseImage();
       saveToHistory();
       toast({ title: "Canvas cleared" });
     }
@@ -415,6 +605,35 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
     } catch {
       toast({ title: "Export failed", variant: "destructive" });
     }
+  };
+
+  // Get editing input position in screen coords
+  const getEditInputStyle = (): React.CSSProperties => {
+    if (editingIdx === null) return { display: 'none' };
+    const canvas = canvasRef.current;
+    if (!canvas) return { display: 'none' };
+    const rect = canvas.getBoundingClientRect();
+    const s = placedShapes[editingIdx];
+    const scaleX = rect.width / canvas.width;
+    const scaleY = rect.height / canvas.height;
+    return {
+      position: 'absolute',
+      left: `${s.x * scaleX + rect.left - (canvas.parentElement?.getBoundingClientRect().left || 0)}px`,
+      top: `${s.y * scaleY}px`,
+      width: `${s.w * scaleX}px`,
+      height: `${s.h * scaleY}px`,
+      background: 'rgba(255,255,255,0.95)',
+      border: '2px solid #3b82f6',
+      borderRadius: '4px',
+      textAlign: 'center' as const,
+      fontSize: '14px',
+      fontFamily: 'Arial',
+      outline: 'none',
+      zIndex: 50,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+    };
   };
 
   return (
@@ -465,7 +684,7 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
             </TabsContent>
 
             <TabsContent value="flowchart" className="space-y-3 mt-3">
-              <p className="text-xs text-muted-foreground">Select a shape, then click on the canvas to place it. You'll be prompted to enter text.</p>
+              <p className="text-xs text-muted-foreground">Select shape → click canvas to place. Double-click to edit text. Ctrl+D to delete. Drag to move. Corner handles to resize.</p>
               <div>
                 <label className="block text-xs font-medium mb-2">Color</label>
                 <div className="flex gap-1.5 flex-wrap">
@@ -522,20 +741,32 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
           </div>
         </div>
 
-        <div className="lg:w-3/4 border-2 border-primary/50 rounded-xl overflow-hidden neon-glow">
+        <div className="lg:w-3/4 border-2 border-primary/50 rounded-xl overflow-hidden neon-glow relative">
           <canvas
             ref={canvasRef}
-            className={`w-full h-full ${activeTab === 'flowchart' && selectedShape ? 'cursor-cell' : 'cursor-crosshair'}`}
+            className={`w-full h-full ${activeTab === 'flowchart' && selectedShape ? 'cursor-cell' : dragState ? (dragState.type === 'resize' ? 'cursor-nwse-resize' : 'cursor-move') : 'cursor-crosshair'}`}
             style={{ touchAction: 'none', backgroundColor: '#ffffff' }}
             onMouseDown={startDrawing}
-            onMouseMove={draw}
-            onMouseUp={stopDrawing}
-            onMouseLeave={stopDrawing}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            onDoubleClick={handleDoubleClick}
             onTouchStart={startDrawingTouch}
             onTouchMove={drawTouch}
             onTouchEnd={stopDrawingTouch}
             onTouchCancel={stopDrawingTouch}
           />
+          {/* Inline text editor overlay */}
+          {editingIdx !== null && (
+            <input
+              ref={editInputRef}
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+              onBlur={commitEdit}
+              onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') { setEditingIdx(null); } }}
+              style={getEditInputStyle()}
+            />
+          )}
         </div>
       </div>
     </div>
