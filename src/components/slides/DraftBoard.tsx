@@ -203,9 +203,22 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
     redrawAll();
   }, [placedShapes, selectedShapeIdx]);
 
-  // Keyboard: Ctrl+D or Delete to remove selected shape
+  // Keyboard shortcuts: Ctrl+Z undo, Ctrl+Y redo, Ctrl+D / Delete to remove shape
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // Ctrl+Z = Undo
+      if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+        return;
+      }
+      // Ctrl+Y = Redo
+      if (e.ctrlKey && e.key === 'y') {
+        e.preventDefault();
+        redo();
+        return;
+      }
+      // Delete or Ctrl+D = delete selected shape
       if (selectedShapeIdx !== null && editingIdx === null) {
         if (e.key === 'Delete' || (e.ctrlKey && e.key === 'd')) {
           e.preventDefault();
@@ -217,7 +230,7 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [selectedShapeIdx, editingIdx]);
+  }, [selectedShapeIdx, editingIdx, historyStep, history]);
 
   const saveBaseImage = () => {
     const canvas = canvasRef.current;
