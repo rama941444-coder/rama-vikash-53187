@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { Monitor, Smartphone, Tablet, RefreshCw, ExternalLink, Copy, Maximize2, Minimize2, Rocket } from 'lucide-react';
+import { Monitor, Smartphone, Tablet, RefreshCw, ExternalLink, Copy, Maximize2, Minimize2, Rocket, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import DOMPurify from 'dompurify';
 
@@ -19,6 +19,7 @@ const WebPreview = ({ htmlCode = '', cssCode = '', jsCode = '', combinedCode = '
   const [isDeploying, setIsDeploying] = useState(false);
   const [showDeployForm, setShowDeployForm] = useState(false);
   const [deployName, setDeployName] = useState('');
+  const deployInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   const previewContent = useMemo(() => {
@@ -86,53 +87,60 @@ const WebPreview = ({ htmlCode = '', cssCode = '', jsCode = '', combinedCode = '
     }
   };
 
-  const deployWebsite = async () => {
+  const handleDeployClick = () => {
     if (!previewContent.trim()) return;
-    
-    // Ask user for website name
-    const webName = window.prompt('Enter your website name (e.g., my-portfolio, cool-app):');
-    if (!webName || !webName.trim()) return;
-    
-    const sanitizedName = webName.trim()
+    setShowDeployForm(true);
+    setDeployName('');
+    setTimeout(() => deployInputRef.current?.focus(), 100);
+  };
+
+  const confirmDeploy = () => {
+    const webName = deployName.trim();
+    if (!webName) {
+      toast({ title: "Please enter a website name", variant: "destructive" });
+      return;
+    }
+
+    const sanitizedName = webName
       .toLowerCase()
       .replace(/[^a-z0-9-]+/g, '-')
       .replace(/^-|-$/g, '')
       .substring(0, 40);
-    
+
     if (!sanitizedName) {
       toast({ title: "Invalid name", description: "Please enter a valid website name", variant: "destructive" });
       return;
     }
-    
+
     setIsDeploying(true);
-    
+    setShowDeployForm(false);
+
     try {
       const deployUrl = `https://www.${sanitizedName}.com`;
       setDeployedUrl(deployUrl);
-      
-      // Open the rendered HTML in a new tab using data URI
-      const blob = new Blob([previewContent], { type: 'text/html' });
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const dataUrl = reader.result as string;
-        const newTab = window.open('', '_blank');
-        if (newTab) {
-          newTab.document.write(previewContent);
-          newTab.document.close();
-          newTab.document.title = sanitizedName;
-        }
-      };
-      reader.readAsDataURL(blob);
-      
-      toast({ 
-        title: "🚀 Website Deployed!", 
-        description: `Your site is live at ${deployUrl}` 
+
+      // Open the rendered HTML in a new tab
+      const newTab = window.open('', '_blank');
+      if (newTab) {
+        newTab.document.write(previewContent);
+        newTab.document.close();
+        newTab.document.title = sanitizedName;
+      }
+
+      toast({
+        title: "🚀 Website Deployed!",
+        description: `Your site is live at ${deployUrl}`
       });
     } catch (error: any) {
       toast({ title: "Deploy failed", description: error.message, variant: "destructive" });
     } finally {
       setIsDeploying(false);
     }
+  };
+
+  const cancelDeploy = () => {
+    setShowDeployForm(false);
+    setDeployName('');
   };
 
   const copyDeployedUrl = async () => {
@@ -213,7 +221,7 @@ const WebPreview = ({ htmlCode = '', cssCode = '', jsCode = '', combinedCode = '
           {/* Deploy Button */}
           <Button 
             size="sm" 
-            onClick={deployWebsite}
+            onClick={handleDeployClick}
             disabled={isDeploying}
             className="h-8 px-4 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold gap-1"
           >
@@ -228,8 +236,48 @@ const WebPreview = ({ htmlCode = '', cssCode = '', jsCode = '', combinedCode = '
         </div>
       </div>
 
+      {/* Deploy Form - Inline box instead of browser prompt */}
+      {showDeployForm && (
+        <div className="mx-auto max-w-md bg-[#16213e] border-2 border-green-500/50 rounded-xl p-6 shadow-2xl shadow-green-500/20">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-bold text-green-400 flex items-center gap-2">
+              <Rocket className="w-5 h-5" />
+              Deploy Website
+            </h3>
+            <Button variant="ghost" size="sm" onClick={cancelDeploy} className="h-7 w-7 p-0 text-gray-400 hover:text-white">
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+          <label className="block text-sm text-gray-300 mb-2">Enter your website name:</label>
+          <div className="flex items-center gap-2 bg-[#0f3460] rounded-lg px-3 py-2 mb-4">
+            <span className="text-gray-500 text-sm shrink-0">https://www.</span>
+            <input
+              ref={deployInputRef}
+              type="text"
+              value={deployName}
+              onChange={(e) => setDeployName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') confirmDeploy(); if (e.key === 'Escape') cancelDeploy(); }}
+              placeholder="my-portfolio"
+              className="flex-1 bg-transparent text-white text-sm outline-none placeholder-gray-500"
+            />
+            <span className="text-gray-500 text-sm shrink-0">.com</span>
+          </div>
+          <p className="text-[11px] text-gray-500 mb-4">Use lowercase letters, numbers, and hyphens only.</p>
+          <div className="flex gap-3 justify-end">
+            <Button variant="outline" size="sm" onClick={cancelDeploy} className="text-gray-300 border-gray-600 hover:bg-gray-700">
+              Cancel
+            </Button>
+            <Button size="sm" onClick={confirmDeploy} disabled={!deployName.trim()}
+              className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold gap-1">
+              <Rocket className="w-4 h-4" />
+              Deploy Now
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Deployed URL */}
-      {deployedUrl && (
+      {deployedUrl && !showDeployForm && (
         <div className="flex items-center gap-2 px-4 py-2 bg-green-500/10 border border-green-500/30 rounded-lg">
           <Rocket className="w-4 h-4 text-green-400 shrink-0" />
           <span className="text-xs text-green-300 font-medium">Deployed!</span>

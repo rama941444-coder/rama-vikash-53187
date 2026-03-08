@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Eraser, Pen, Download, Trash2, Undo, Redo, Code } from 'lucide-react';
+import { Eraser, Pen, Download, Trash2, Undo, Redo, Code, Copy, Clipboard, MousePointer, Link2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { jsPDF } from 'jspdf';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -24,8 +24,8 @@ const FLOWCHART_SHAPES: FlowShape[] = [
       ctx.beginPath(); ctx.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
       ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
       ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.fill();
-      ctx.fillStyle = '#000'; ctx.font = '14px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(text || 'Start/End', x + w / 2, y + h / 2);
+      ctx.fillStyle = '#000'; ctx.font = 'bold 14px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      wrapText(ctx, text || 'Start/End', x + w / 2, y + h / 2, w - 20);
     }
   },
   {
@@ -35,8 +35,8 @@ const FLOWCHART_SHAPES: FlowShape[] = [
       ctx.beginPath(); ctx.moveTo(x + skew, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w - skew, y + h); ctx.lineTo(x, y + h); ctx.closePath();
       ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
       ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.fill();
-      ctx.fillStyle = '#000'; ctx.font = '14px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(text || 'I/O', x + w / 2, y + h / 2);
+      ctx.fillStyle = '#000'; ctx.font = 'bold 14px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      wrapText(ctx, text || 'I/O', x + w / 2, y + h / 2, w - 40);
     }
   },
   {
@@ -44,8 +44,8 @@ const FLOWCHART_SHAPES: FlowShape[] = [
     draw: (ctx, x, y, w, h, color, text) => {
       ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.strokeRect(x, y, w, h);
       ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
-      ctx.fillStyle = '#000'; ctx.font = '14px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(text || 'Process', x + w / 2, y + h / 2);
+      ctx.fillStyle = '#000'; ctx.font = 'bold 14px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      wrapText(ctx, text || 'Process', x + w / 2, y + h / 2, w - 16);
     }
   },
   {
@@ -54,8 +54,8 @@ const FLOWCHART_SHAPES: FlowShape[] = [
       ctx.beginPath(); ctx.moveTo(x + w / 2, y); ctx.lineTo(x + w, y + h / 2); ctx.lineTo(x + w / 2, y + h); ctx.lineTo(x, y + h / 2); ctx.closePath();
       ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
       ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.fill();
-      ctx.fillStyle = '#000'; ctx.font = '13px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(text || 'Condition?', x + w / 2, y + h / 2);
+      ctx.fillStyle = '#000'; ctx.font = 'bold 13px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      wrapText(ctx, text || 'Condition?', x + w / 2, y + h / 2, w * 0.5);
     }
   },
   {
@@ -66,8 +66,8 @@ const FLOWCHART_SHAPES: FlowShape[] = [
       const inset = 12;
       ctx.beginPath(); ctx.moveTo(x + inset, y); ctx.lineTo(x + inset, y + h); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(x + w - inset, y); ctx.lineTo(x + w - inset, y + h); ctx.stroke();
-      ctx.fillStyle = '#000'; ctx.font = '13px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(text || 'Function()', x + w / 2, y + h / 2);
+      ctx.fillStyle = '#000'; ctx.font = 'bold 13px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      wrapText(ctx, text || 'Function()', x + w / 2, y + h / 2, w - 30);
     }
   },
   {
@@ -81,8 +81,8 @@ const FLOWCHART_SHAPES: FlowShape[] = [
       ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.fill();
       ctx.beginPath(); ctx.ellipse(x + w / 2, y + h - ry, w / 2, ry, 0, Math.PI, Math.PI * 2); ctx.stroke();
       ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.fillRect(x + 1, y + ry, w - 2, h - 2 * ry);
-      ctx.fillStyle = '#000'; ctx.font = '13px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(text || 'Database', x + w / 2, y + h / 2);
+      ctx.fillStyle = '#000'; ctx.font = 'bold 13px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      wrapText(ctx, text || 'Database', x + w / 2, y + h / 2, w - 16);
     }
   },
   {
@@ -92,8 +92,8 @@ const FLOWCHART_SHAPES: FlowShape[] = [
       ctx.beginPath(); ctx.moveTo(x + inset, y); ctx.lineTo(x + w - inset, y); ctx.lineTo(x + w, y + h / 2); ctx.lineTo(x + w - inset, y + h); ctx.lineTo(x + inset, y + h); ctx.lineTo(x, y + h / 2); ctx.closePath();
       ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
       ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.fill();
-      ctx.fillStyle = '#000'; ctx.font = '13px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(text || 'Init', x + w / 2, y + h / 2);
+      ctx.fillStyle = '#000'; ctx.font = 'bold 13px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      wrapText(ctx, text || 'Init', x + w / 2, y + h / 2, w - 30);
     }
   },
   {
@@ -103,7 +103,7 @@ const FLOWCHART_SHAPES: FlowShape[] = [
       ctx.beginPath(); ctx.arc(x + w / 2, y + h / 2, r, 0, Math.PI * 2);
       ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
       ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.fill();
-      ctx.fillStyle = '#000'; ctx.font = '14px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#000'; ctx.font = 'bold 14px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(text || 'A', x + w / 2, y + h / 2);
     }
   },
@@ -113,7 +113,7 @@ const FLOWCHART_SHAPES: FlowShape[] = [
       ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + h * 0.65); ctx.lineTo(x + w / 2, y + h); ctx.lineTo(x, y + h * 0.65); ctx.closePath();
       ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
       ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.fill();
-      ctx.fillStyle = '#000'; ctx.font = '13px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#000'; ctx.font = 'bold 13px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(text || '1', x + w / 2, y + h * 0.4);
     }
   },
@@ -124,8 +124,8 @@ const FLOWCHART_SHAPES: FlowShape[] = [
       ctx.bezierCurveTo(x + w * 0.75, y + h * 0.75, x + w * 0.25, y + h * 1.05, x, y + h * 0.85); ctx.closePath();
       ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
       ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.fill();
-      ctx.fillStyle = '#000'; ctx.font = '13px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(text || 'Document', x + w / 2, y + h * 0.4);
+      ctx.fillStyle = '#000'; ctx.font = 'bold 13px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      wrapText(ctx, text || 'Document', x + w / 2, y + h * 0.4, w - 16);
     }
   },
   {
@@ -146,7 +146,47 @@ const FLOWCHART_SHAPES: FlowShape[] = [
       ctx.beginPath(); ctx.moveTo(x + w * 0.65, cy - 8); ctx.lineTo(x + w, cy); ctx.lineTo(x + w * 0.65, cy + 8); ctx.fill();
     }
   },
+  {
+    id: 'arrow_left', name: 'Arrow Left', icon: '←', desc: 'Flow direction',
+    draw: (ctx, x, y, w, h, color) => {
+      ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.fillStyle = color;
+      const cy = y + h / 2;
+      ctx.beginPath(); ctx.moveTo(x + w, cy); ctx.lineTo(x + w * 0.3, cy); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x + w * 0.35, cy - 8); ctx.lineTo(x, cy); ctx.lineTo(x + w * 0.35, cy + 8); ctx.fill();
+    }
+  },
+  {
+    id: 'arrow_up', name: 'Arrow Up', icon: '↑', desc: 'Flow direction',
+    draw: (ctx, x, y, w, h, color) => {
+      ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.fillStyle = color;
+      const cx = x + w / 2;
+      ctx.beginPath(); ctx.moveTo(cx, y + h); ctx.lineTo(cx, y + h * 0.3); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx - 8, y + h * 0.35); ctx.lineTo(cx, y); ctx.lineTo(cx + 8, y + h * 0.35); ctx.fill();
+    }
+  },
 ];
+
+// Helper: wrap text inside shape
+function wrapText(ctx: CanvasRenderingContext2D, text: string, cx: number, cy: number, maxWidth: number) {
+  const words = text.split(' ');
+  const lineHeight = 16;
+  const lines: string[] = [];
+  let currentLine = '';
+  for (const word of words) {
+    const testLine = currentLine ? currentLine + ' ' + word : word;
+    if (ctx.measureText(testLine).width > maxWidth && currentLine) {
+      lines.push(currentLine);
+      currentLine = word;
+    } else {
+      currentLine = testLine;
+    }
+  }
+  if (currentLine) lines.push(currentLine);
+  const startY = cy - ((lines.length - 1) * lineHeight) / 2;
+  lines.forEach((line, i) => {
+    ctx.fillText(line, cx, startY + i * lineHeight);
+  });
+}
 
 interface PlacedShape {
   shapeId: string;
@@ -158,7 +198,15 @@ interface PlacedShape {
   color: string;
 }
 
+interface ConnectionLine {
+  fromIdx: number;
+  toIdx: number;
+  color: string;
+  label: string;
+}
+
 const HANDLE_SIZE = 8;
+const CONNECTION_PORT_SIZE = 6;
 
 const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -177,10 +225,29 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [editText, setEditText] = useState('');
   const editInputRef = useRef<HTMLInputElement>(null);
+  const [clipboard, setClipboard] = useState<PlacedShape | null>(null);
+  const [connections, setConnections] = useState<ConnectionLine[]>([]);
+  const [connectMode, setConnectMode] = useState(false);
+  const [connectFrom, setConnectFrom] = useState<number | null>(null);
+  const [flowTool, setFlowTool] = useState<'select' | 'shape' | 'connect'>('select');
+  const [multiSelect, setMultiSelect] = useState<number[]>([]);
   const { toast } = useToast();
+
+  // Undo/Redo history for shapes
+  const [shapeHistory, setShapeHistory] = useState<{ shapes: PlacedShape[]; conns: ConnectionLine[] }[]>([]);
+  const [shapeHistoryStep, setShapeHistoryStep] = useState(-1);
 
   // Base drawing layer (pen/eraser strokes only, no shapes)
   const baseImageRef = useRef<string | null>(null);
+
+  const saveShapeSnapshot = useCallback(() => {
+    setShapeHistory(prev => {
+      const newHist = prev.slice(0, shapeHistoryStep + 1);
+      newHist.push({ shapes: JSON.parse(JSON.stringify(placedShapes)), conns: JSON.parse(JSON.stringify(connections)) });
+      return newHist;
+    });
+    setShapeHistoryStep(prev => prev + 1);
+  }, [placedShapes, connections, shapeHistoryStep]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -188,7 +255,7 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
     const container = canvas.parentElement;
     if (container) {
       canvas.width = container.clientWidth;
-      canvas.height = Math.max(container.clientHeight, 25000);
+      canvas.height = Math.max(container.clientHeight, 5000);
     }
     const ctx = canvas.getContext('2d');
     if (ctx) {
@@ -201,41 +268,182 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
 
   useEffect(() => {
     redrawAll();
-  }, [placedShapes, selectedShapeIdx]);
+  }, [placedShapes, selectedShapeIdx, connections, connectFrom, multiSelect]);
 
-  // Keyboard shortcuts: Ctrl+Z undo, Ctrl+Y redo, Ctrl+D / Delete to remove shape
+  // Keyboard shortcuts: Ctrl+Z undo, Ctrl+Y redo, Ctrl+D/Delete delete, Ctrl+C copy, Ctrl+V paste
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // Don't handle shortcuts when editing text
+      if (editingIdx !== null) return;
+
       // Ctrl+Z = Undo
       if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
         e.preventDefault();
-        undo();
+        handleUndo();
         return;
       }
-      // Ctrl+Y = Redo
-      if (e.ctrlKey && e.key === 'y') {
+      // Ctrl+Y or Ctrl+Shift+Z = Redo
+      if ((e.ctrlKey && e.key === 'y') || (e.ctrlKey && e.shiftKey && e.key === 'Z')) {
         e.preventDefault();
-        redo();
+        handleRedo();
         return;
       }
-      // Delete or Ctrl+D = delete selected shape
-      if (selectedShapeIdx !== null && editingIdx === null) {
-        if (e.key === 'Delete' || (e.ctrlKey && e.key === 'd')) {
-          e.preventDefault();
-          setPlacedShapes(prev => prev.filter((_, i) => i !== selectedShapeIdx));
+      // Ctrl+C = Copy selected shape
+      if (e.ctrlKey && e.key === 'c' && selectedShapeIdx !== null) {
+        e.preventDefault();
+        setClipboard({ ...placedShapes[selectedShapeIdx] });
+        toast({ title: "Shape copied" });
+        return;
+      }
+      // Ctrl+V = Paste shape
+      if (e.ctrlKey && e.key === 'v' && clipboard) {
+        e.preventDefault();
+        const newShape = { ...clipboard, x: clipboard.x + 30, y: clipboard.y + 30 };
+        setPlacedShapes(prev => [...prev, newShape]);
+        setSelectedShapeIdx(placedShapes.length);
+        saveShapeSnapshot();
+        toast({ title: "Shape pasted" });
+        return;
+      }
+      // Ctrl+A = Select all
+      if (e.ctrlKey && e.key === 'a' && activeTab === 'flowchart') {
+        e.preventDefault();
+        setMultiSelect(placedShapes.map((_, i) => i));
+        return;
+      }
+      // Delete or Ctrl+D = delete selected shape(s)
+      if (e.key === 'Delete' || (e.ctrlKey && e.key === 'd')) {
+        e.preventDefault();
+        if (multiSelect.length > 0) {
+          const toDelete = new Set(multiSelect);
+          setPlacedShapes(prev => prev.filter((_, i) => !toDelete.has(i)));
+          setConnections(prev => prev.filter(c => !toDelete.has(c.fromIdx) && !toDelete.has(c.toIdx)));
+          setMultiSelect([]);
           setSelectedShapeIdx(null);
+          saveShapeSnapshot();
+          toast({ title: `${toDelete.size} shapes deleted` });
+        } else if (selectedShapeIdx !== null) {
+          const idx = selectedShapeIdx;
+          setPlacedShapes(prev => prev.filter((_, i) => i !== idx));
+          setConnections(prev => prev.filter(c => c.fromIdx !== idx && c.toIdx !== idx).map(c => ({
+            ...c,
+            fromIdx: c.fromIdx > idx ? c.fromIdx - 1 : c.fromIdx,
+            toIdx: c.toIdx > idx ? c.toIdx - 1 : c.toIdx,
+          })));
+          setSelectedShapeIdx(null);
+          saveShapeSnapshot();
           toast({ title: "Shape deleted" });
         }
+        return;
+      }
+      // Escape = deselect
+      if (e.key === 'Escape') {
+        setSelectedShapeIdx(null);
+        setMultiSelect([]);
+        setConnectFrom(null);
+        setConnectMode(false);
+        setFlowTool('select');
+        setSelectedShape(null);
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [selectedShapeIdx, editingIdx, historyStep, history]);
+  }, [selectedShapeIdx, editingIdx, clipboard, placedShapes, connections, multiSelect, activeTab, shapeHistoryStep, shapeHistory]);
+
+  const handleUndo = () => {
+    if (shapeHistoryStep > 0) {
+      const prev = shapeHistory[shapeHistoryStep - 1];
+      setPlacedShapes(JSON.parse(JSON.stringify(prev.shapes)));
+      setConnections(JSON.parse(JSON.stringify(prev.conns)));
+      setShapeHistoryStep(s => s - 1);
+      setSelectedShapeIdx(null);
+    }
+    undo();
+  };
+
+  const handleRedo = () => {
+    if (shapeHistoryStep < shapeHistory.length - 1) {
+      const next = shapeHistory[shapeHistoryStep + 1];
+      setPlacedShapes(JSON.parse(JSON.stringify(next.shapes)));
+      setConnections(JSON.parse(JSON.stringify(next.conns)));
+      setShapeHistoryStep(s => s + 1);
+      setSelectedShapeIdx(null);
+    }
+    redo();
+  };
 
   const saveBaseImage = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     baseImageRef.current = canvas.toDataURL();
+  };
+
+  const getShapeCenter = (s: PlacedShape) => ({ x: s.x + s.w / 2, y: s.y + s.h / 2 });
+
+  const getConnectionPorts = (s: PlacedShape) => [
+    { x: s.x + s.w / 2, y: s.y, side: 'top' },          // top
+    { x: s.x + s.w, y: s.y + s.h / 2, side: 'right' },    // right
+    { x: s.x + s.w / 2, y: s.y + s.h, side: 'bottom' },   // bottom
+    { x: s.x, y: s.y + s.h / 2, side: 'left' },           // left
+  ];
+
+  const drawConnectionPorts = (ctx: CanvasRenderingContext2D, s: PlacedShape, highlight: boolean) => {
+    const ports = getConnectionPorts(s);
+    ports.forEach(p => {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, CONNECTION_PORT_SIZE, 0, Math.PI * 2);
+      ctx.fillStyle = highlight ? '#3b82f6' : '#94a3b8';
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    });
+  };
+
+  const drawArrowLine = (ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, lineColor: string, label: string) => {
+    ctx.strokeStyle = lineColor;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([]);
+
+    // Draw curved line
+    const midX = (x1 + x2) / 2;
+    const midY = (y1 + y2) / 2;
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    // Slight curve offset
+    const cx = midX - dy * 0.1;
+    const cy = midY + dx * 0.1;
+
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.quadraticCurveTo(cx, cy, x2, y2);
+    ctx.stroke();
+
+    // Arrowhead
+    const angle = Math.atan2(y2 - cy, x2 - cx);
+    const headLen = 12;
+    ctx.fillStyle = lineColor;
+    ctx.beginPath();
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - headLen * Math.cos(angle - Math.PI / 6), y2 - headLen * Math.sin(angle - Math.PI / 6));
+    ctx.lineTo(x2 - headLen * Math.cos(angle + Math.PI / 6), y2 - headLen * Math.sin(angle + Math.PI / 6));
+    ctx.closePath();
+    ctx.fill();
+
+    // Label
+    if (label) {
+      ctx.fillStyle = '#000';
+      ctx.font = '12px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const lx = cx;
+      const ly = cy - 10;
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      const tw = ctx.measureText(label).width + 8;
+      ctx.fillRect(lx - tw / 2, ly - 8, tw, 16);
+      ctx.fillStyle = '#000';
+      ctx.fillText(label, lx, ly);
+    }
   };
 
   const redrawAll = () => {
@@ -244,13 +452,22 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Restore base drawing layer
     if (baseImageRef.current) {
       const img = new Image();
       img.src = baseImageRef.current;
       img.onload = () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0);
+
+        // Draw connection lines
+        connections.forEach(conn => {
+          if (conn.fromIdx < placedShapes.length && conn.toIdx < placedShapes.length) {
+            const from = getShapeCenter(placedShapes[conn.fromIdx]);
+            const to = getShapeCenter(placedShapes[conn.toIdx]);
+            drawArrowLine(ctx, from.x, from.y, to.x, to.y, conn.color, conn.label);
+          }
+        });
+
         // Draw all shapes
         placedShapes.forEach((s, idx) => {
           const shape = FLOWCHART_SHAPES.find(fs => fs.id === s.shapeId);
@@ -259,22 +476,38 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
             shape.draw(ctx, s.x, s.y, s.w, s.h, s.color, s.text);
             ctx.restore();
           }
+          // Draw connection ports on hover/selected/connect mode
+          if (idx === selectedShapeIdx || connectMode || flowTool === 'connect') {
+            drawConnectionPorts(ctx, s, idx === connectFrom);
+          }
           // Draw selection handles
-          if (idx === selectedShapeIdx) {
-            drawSelectionHandles(ctx, s);
+          if (idx === selectedShapeIdx || multiSelect.includes(idx)) {
+            drawSelectionHandles(ctx, s, multiSelect.includes(idx));
           }
         });
+
+        // Draw connecting line preview
+        if (connectFrom !== null && connectMode) {
+          const from = getShapeCenter(placedShapes[connectFrom]);
+          ctx.strokeStyle = '#3b82f6';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([6, 4]);
+          ctx.beginPath();
+          ctx.moveTo(from.x, from.y);
+          ctx.lineTo(from.x + 50, from.y); // just a hint
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
       };
     }
   };
 
-  const drawSelectionHandles = (ctx: CanvasRenderingContext2D, s: PlacedShape) => {
-    ctx.strokeStyle = '#3b82f6';
+  const drawSelectionHandles = (ctx: CanvasRenderingContext2D, s: PlacedShape, isMulti: boolean) => {
+    ctx.strokeStyle = isMulti ? '#8b5cf6' : '#3b82f6';
     ctx.lineWidth = 1.5;
     ctx.setLineDash([4, 3]);
     ctx.strokeRect(s.x - 4, s.y - 4, s.w + 8, s.h + 8);
     ctx.setLineDash([]);
-    // 4 corner handles
     const corners = [
       { x: s.x - 4, y: s.y - 4 },
       { x: s.x + s.w - 4, y: s.y - 4 },
@@ -284,7 +517,7 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
     corners.forEach(c => {
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(c.x, c.y, HANDLE_SIZE, HANDLE_SIZE);
-      ctx.strokeStyle = '#3b82f6';
+      ctx.strokeStyle = isMulti ? '#8b5cf6' : '#3b82f6';
       ctx.lineWidth = 1.5;
       ctx.strokeRect(c.x, c.y, HANDLE_SIZE, HANDLE_SIZE);
     });
@@ -327,20 +560,43 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const point = getCanvasPoint(e);
 
+    // Connect mode: click shapes to connect them
+    if (flowTool === 'connect' || connectMode) {
+      const hitIdx = hitTestShape(point.x, point.y);
+      if (hitIdx !== null) {
+        if (connectFrom === null) {
+          setConnectFrom(hitIdx);
+          toast({ title: "Now click the target shape to connect" });
+        } else if (hitIdx !== connectFrom) {
+          const label = '';
+          setConnections(prev => [...prev, { fromIdx: connectFrom, toIdx: hitIdx, color, label }]);
+          setConnectFrom(null);
+          setConnectMode(false);
+          setFlowTool('select');
+          saveShapeSnapshot();
+          toast({ title: "Shapes connected!" });
+        }
+      } else {
+        setConnectFrom(null);
+      }
+      return;
+    }
+
     // Flowchart mode: placing new shape
     if (activeTab === 'flowchart' && selectedShape) {
       const shapeDef = FLOWCHART_SHAPES.find(s => s.id === selectedShape);
       if (!shapeDef) return;
       const isArrow = selectedShape.startsWith('arrow_');
       const w = isArrow ? 30 : 140;
-      const h = isArrow ? 50 : (selectedShape === 'diamond' ? 80 : selectedShape === 'connector' ? 40 : 60);
+      const h = isArrow ? 50 : (selectedShape === 'diamond' ? 100 : selectedShape === 'connector' ? 40 : 60);
       const text = isArrow ? '' : shapeDef.name;
       const newShape: PlacedShape = { shapeId: selectedShape, x: point.x - w / 2, y: point.y - h / 2, w, h, text, color };
       setPlacedShapes(prev => [...prev, newShape]);
       setSelectedShapeIdx(placedShapes.length);
       setSelectedShape(null);
-      saveToHistory();
-      toast({ title: `${shapeDef.icon} ${shapeDef.name} placed! Double-click to edit text.` });
+      setFlowTool('select');
+      saveShapeSnapshot();
+      toast({ title: `${shapeDef.icon} ${shapeDef.name} placed! Double-click to edit.` });
       return;
     }
 
@@ -357,6 +613,12 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
     // Check if clicking on any shape to select/move
     const hitIdx = hitTestShape(point.x, point.y);
     if (hitIdx !== null) {
+      // Shift+click for multi-select
+      if (e.shiftKey) {
+        setMultiSelect(prev => prev.includes(hitIdx) ? prev.filter(i => i !== hitIdx) : [...prev, hitIdx]);
+        return;
+      }
+      setMultiSelect([]);
       setSelectedShapeIdx(hitIdx);
       const s = placedShapes[hitIdx];
       setDragState({ type: 'move', offsetX: point.x - s.x, offsetY: point.y - s.y });
@@ -365,17 +627,20 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
 
     // Clicked empty area: deselect
     setSelectedShapeIdx(null);
+    setMultiSelect([]);
     if (editingIdx !== null) {
       commitEdit();
     }
 
     // Start drawing with pen/eraser
-    setIsDrawing(true);
-    lastPointRef.current = point;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (ctx) { ctx.beginPath(); ctx.moveTo(point.x, point.y); }
+    if (activeTab === 'draw') {
+      setIsDrawing(true);
+      lastPointRef.current = point;
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (ctx) { ctx.beginPath(); ctx.moveTo(point.x, point.y); }
+    }
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -429,6 +694,7 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
       setDragState(null);
       saveBaseImage();
       saveToHistory();
+      saveShapeSnapshot();
       return;
     }
     if (isDrawing) {
@@ -460,6 +726,7 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
         return updated;
       });
       setEditingIdx(null);
+      saveShapeSnapshot();
       saveToHistory();
     }
   };
@@ -473,13 +740,13 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
       if (!shapeDef) return;
       const isArrow = selectedShape.startsWith('arrow_');
       const w = isArrow ? 30 : 140;
-      const h = isArrow ? 50 : (selectedShape === 'diamond' ? 80 : selectedShape === 'connector' ? 40 : 60);
+      const h = isArrow ? 50 : (selectedShape === 'diamond' ? 100 : selectedShape === 'connector' ? 40 : 60);
       const text = isArrow ? '' : shapeDef.name;
       const newShape: PlacedShape = { shapeId: selectedShape, x: point.x - w / 2, y: point.y - h / 2, w, h, text, color };
       setPlacedShapes(prev => [...prev, newShape]);
       setSelectedShapeIdx(placedShapes.length);
       setSelectedShape(null);
-      saveToHistory();
+      saveShapeSnapshot();
       return;
     }
     const hitIdx = hitTestShape(point.x, point.y);
@@ -490,12 +757,14 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
       return;
     }
     setSelectedShapeIdx(null);
-    setIsDrawing(true);
-    lastPointRef.current = point;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (ctx) { ctx.beginPath(); ctx.moveTo(point.x, point.y); }
+    if (activeTab === 'draw') {
+      setIsDrawing(true);
+      lastPointRef.current = point;
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (ctx) { ctx.beginPath(); ctx.moveTo(point.x, point.y); }
+    }
   };
 
   const drawTouch = (e: React.TouchEvent<HTMLCanvasElement>) => {
@@ -589,10 +858,13 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       setPlacedShapes([]);
+      setConnections([]);
       setSelectedShapeIdx(null);
       setEditingIdx(null);
+      setMultiSelect([]);
       saveBaseImage();
       saveToHistory();
+      saveShapeSnapshot();
       toast({ title: "Canvas cleared" });
     }
   };
@@ -618,6 +890,16 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
     } catch {
       toast({ title: "Export failed", variant: "destructive" });
     }
+  };
+
+  const duplicateSelected = () => {
+    if (selectedShapeIdx === null) return;
+    const s = placedShapes[selectedShapeIdx];
+    const newShape = { ...s, x: s.x + 30, y: s.y + 30 };
+    setPlacedShapes(prev => [...prev, newShape]);
+    setSelectedShapeIdx(placedShapes.length);
+    saveShapeSnapshot();
+    toast({ title: "Shape duplicated" });
   };
 
   // Get editing input position in screen coords
@@ -649,6 +931,14 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
     };
   };
 
+  const getCursorClass = () => {
+    if (activeTab === 'flowchart' && selectedShape) return 'cursor-cell';
+    if (flowTool === 'connect' || connectMode) return 'cursor-crosshair';
+    if (dragState) return dragState.type === 'resize' ? 'cursor-nwse-resize' : 'cursor-move';
+    if (activeTab === 'flowchart') return 'cursor-default';
+    return 'cursor-crosshair';
+  };
+
   return (
     <div className="space-y-6">
       {onOpenLiveCode && (
@@ -660,8 +950,8 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
       )}
 
       <div className="flex flex-col lg:flex-row gap-4">
-        <div className="lg:w-1/4 bg-card p-4 rounded-xl border border-border space-y-3">
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <div className="lg:w-1/4 bg-card p-4 rounded-xl border border-border space-y-3 max-h-[80vh] overflow-y-auto">
+          <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setSelectedShape(null); setConnectMode(false); setConnectFrom(null); }}>
             <TabsList className="w-full grid grid-cols-2">
               <TabsTrigger value="draw">🖊️ Draw</TabsTrigger>
               <TabsTrigger value="flowchart">📐 Flowchart</TabsTrigger>
@@ -697,22 +987,44 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
             </TabsContent>
 
             <TabsContent value="flowchart" className="space-y-3 mt-3">
-              <p className="text-xs text-muted-foreground">Select shape → click canvas to place. Double-click to edit text. Ctrl+D to delete. Drag to move. Corner handles to resize.</p>
+              {/* Tool selector */}
+              <div>
+                <label className="block text-xs font-medium mb-2">Tool</label>
+                <div className="grid grid-cols-3 gap-1">
+                  <Button onClick={() => { setFlowTool('select'); setConnectMode(false); setConnectFrom(null); setSelectedShape(null); }} 
+                    variant={flowTool === 'select' && !selectedShape ? 'default' : 'outline'} className="gap-1 text-xs h-8">
+                    <MousePointer className="w-3 h-3" /> Select
+                  </Button>
+                  <Button onClick={() => { setFlowTool('shape'); setConnectMode(false); setConnectFrom(null); }} 
+                    variant={flowTool === 'shape' || selectedShape ? 'default' : 'outline'} className="gap-1 text-xs h-8">
+                    <span className="text-sm">▭</span> Shape
+                  </Button>
+                  <Button onClick={() => { setFlowTool('connect'); setConnectMode(true); setConnectFrom(null); setSelectedShape(null); }} 
+                    variant={flowTool === 'connect' ? 'default' : 'outline'} className="gap-1 text-xs h-8">
+                    <Link2 className="w-3 h-3" /> Connect
+                  </Button>
+                </div>
+              </div>
+
+              {/* Color */}
               <div>
                 <label className="block text-xs font-medium mb-2">Color</label>
                 <div className="flex gap-1.5 flex-wrap">
-                  {['#6366f1', '#000000', '#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'].map((c) => (
+                  {['#6366f1', '#000000', '#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'].map((c) => (
                     <button key={c} onClick={() => setColor(c)}
                       className={`w-6 h-6 rounded-full transition-all ${color === c ? 'ring-2 ring-primary ring-offset-2 ring-offset-background' : ''}`}
                       style={{ backgroundColor: c }} />
                   ))}
+                  <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="w-6 h-6 rounded cursor-pointer" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-1.5 max-h-[350px] overflow-y-auto pr-1">
+
+              {/* Shapes grid */}
+              <div className="grid grid-cols-2 gap-1.5 max-h-[300px] overflow-y-auto pr-1">
                 {FLOWCHART_SHAPES.map(shape => (
                   <button
                     key={shape.id}
-                    onClick={() => setSelectedShape(selectedShape === shape.id ? null : shape.id)}
+                    onClick={() => { setSelectedShape(selectedShape === shape.id ? null : shape.id); setFlowTool('shape'); setConnectMode(false); }}
                     className={`flex flex-col items-center gap-0.5 p-2 rounded-lg border text-xs transition-all ${
                       selectedShape === shape.id
                         ? 'border-primary bg-primary/10 text-primary'
@@ -725,25 +1037,62 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
                   </button>
                 ))}
               </div>
+
               {selectedShape && (
                 <div className="bg-primary/10 border border-primary/30 rounded-lg p-2 text-xs text-center">
                   ✅ Click on canvas to place <b>{FLOWCHART_SHAPES.find(s => s.id === selectedShape)?.name}</b>
                 </div>
               )}
+              {connectMode && (
+                <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-2 text-xs text-center text-blue-400">
+                  🔗 {connectFrom === null ? 'Click source shape' : 'Click target shape to connect'}
+                </div>
+              )}
+
+              {/* Quick actions */}
+              {selectedShapeIdx !== null && (
+                <div className="space-y-1 pt-2 border-t border-border">
+                  <p className="text-xs font-medium text-muted-foreground">Selected Shape Actions</p>
+                  <div className="grid grid-cols-2 gap-1">
+                    <Button onClick={duplicateSelected} variant="outline" className="gap-1 text-xs h-7">
+                      <Copy className="w-3 h-3" /> Duplicate
+                    </Button>
+                    <Button onClick={() => { if (selectedShapeIdx !== null) { setPlacedShapes(prev => prev.filter((_, i) => i !== selectedShapeIdx)); setSelectedShapeIdx(null); saveShapeSnapshot(); } }} 
+                      variant="outline" className="gap-1 text-xs h-7 text-red-400 hover:text-red-300">
+                      <Trash2 className="w-3 h-3" /> Delete
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Keyboard shortcuts guide */}
+              <div className="bg-muted/50 rounded-lg p-2 text-[10px] text-muted-foreground space-y-0.5">
+                <p className="font-semibold text-xs mb-1">⌨️ Shortcuts</p>
+                <p><kbd className="bg-muted px-1 rounded">Ctrl+Z</kbd> Undo</p>
+                <p><kbd className="bg-muted px-1 rounded">Ctrl+Y</kbd> Redo</p>
+                <p><kbd className="bg-muted px-1 rounded">Ctrl+C</kbd> Copy shape</p>
+                <p><kbd className="bg-muted px-1 rounded">Ctrl+V</kbd> Paste shape</p>
+                <p><kbd className="bg-muted px-1 rounded">Ctrl+D</kbd> / <kbd className="bg-muted px-1 rounded">Delete</kbd> Delete</p>
+                <p><kbd className="bg-muted px-1 rounded">Ctrl+A</kbd> Select all</p>
+                <p><kbd className="bg-muted px-1 rounded">Shift+Click</kbd> Multi-select</p>
+                <p><kbd className="bg-muted px-1 rounded">Esc</kbd> Deselect</p>
+                <p>Double-click shape → edit text</p>
+                <p>Corner handles → resize</p>
+              </div>
             </TabsContent>
           </Tabs>
 
           <div className="space-y-2 pt-2 border-t border-border">
             <div className="flex gap-2">
-              <Button onClick={undo} variant="outline" className="flex-1 gap-1 text-xs" disabled={historyStep <= 0}>
+              <Button onClick={handleUndo} variant="outline" className="flex-1 gap-1 text-xs" disabled={historyStep <= 0 && shapeHistoryStep <= 0}>
                 <Undo className="w-3 h-3" /> Undo
               </Button>
-              <Button onClick={redo} variant="outline" className="flex-1 gap-1 text-xs" disabled={historyStep >= history.length - 1}>
+              <Button onClick={handleRedo} variant="outline" className="flex-1 gap-1 text-xs" disabled={historyStep >= history.length - 1 && shapeHistoryStep >= shapeHistory.length - 1}>
                 <Redo className="w-3 h-3" /> Redo
               </Button>
             </div>
             <Button onClick={clearCanvas} variant="destructive" className="w-full gap-2 text-xs">
-              <Trash2 className="w-3 h-3" /> Clear
+              <Trash2 className="w-3 h-3" /> Clear All
             </Button>
             <Button onClick={downloadCanvas} variant="outline" className="w-full gap-2 text-xs">
               <Download className="w-3 h-3" /> Save PNG
@@ -757,7 +1106,7 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
         <div className="lg:w-3/4 border-2 border-primary/50 rounded-xl overflow-hidden neon-glow relative">
           <canvas
             ref={canvasRef}
-            className={`w-full h-full ${activeTab === 'flowchart' && selectedShape ? 'cursor-cell' : dragState ? (dragState.type === 'resize' ? 'cursor-nwse-resize' : 'cursor-move') : 'cursor-crosshair'}`}
+            className={`w-full h-full ${getCursorClass()}`}
             style={{ touchAction: 'none', backgroundColor: '#ffffff' }}
             onMouseDown={startDrawing}
             onMouseMove={handleMouseMove}
