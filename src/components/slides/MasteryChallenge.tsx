@@ -1146,6 +1146,7 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
                   <div style={{display:'flex',gap:6,marginLeft:'auto',flexWrap:'wrap'}}>
                     <button onClick={()=>setShowSolution(!showSolution)} style={{padding:'6px 14px',borderRadius:7,fontSize:11,fontWeight:700,cursor:'pointer',border:`1px solid rgba(16,185,129,.3)`,background:S.greenLight,color:S.green}}>👁 Solution</button>
                     <button onClick={saveFile} style={{padding:'6px 14px',borderRadius:7,fontSize:11,fontWeight:700,cursor:'pointer',border:`1px solid ${S.border}`,background:S.surface,color:S.text}}>💾 Save</button>
+                    <button onClick={saveAsNative} style={{padding:'6px 14px',borderRadius:7,fontSize:11,fontWeight:700,cursor:'pointer',border:`1px solid rgba(59,130,246,.3)`,background:'rgba(59,130,246,.1)',color:'#3b82f6'}}>📂 Save As</button>
                     <button onClick={runCode} disabled={isRunning} style={{padding:'6px 14px',borderRadius:7,fontSize:11,fontWeight:700,cursor:'pointer',border:'none',background:S.green,color:'#000',opacity:isRunning?.6:1}}>▶ Run & Analyze</button>
                     <button onClick={submitCode} style={{padding:'6px 14px',borderRadius:7,fontSize:11,fontWeight:700,cursor:'pointer',border:'none',background:S.accent,color:'#fff'}}>🚀 Submit</button>
                   </div>
