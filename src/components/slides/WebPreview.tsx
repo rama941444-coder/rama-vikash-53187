@@ -269,7 +269,7 @@ const WebPreview = ({ htmlCode = '', cssCode = '', jsCode = '', combinedCode = '
       )}
 
       {/* Deployed URL */}
-      {deployedUrl && !showDeployForm && (
+      {deployedUrl && !showDeployForm && previewContent.trim() && (
         <div className="flex items-center gap-2 px-4 py-2 bg-green-500/10 border border-green-500/30 rounded-lg">
           <Rocket className="w-4 h-4 text-green-400 shrink-0" />
           <span className="text-xs text-green-300 font-medium">Deployed!</span>
@@ -281,7 +281,14 @@ const WebPreview = ({ htmlCode = '', cssCode = '', jsCode = '', combinedCode = '
           <Button size="sm" variant="ghost" onClick={copyDeployedUrl} className="h-6 px-2 text-green-400 hover:text-green-300">
             <Copy className="w-3 h-3" />
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => window.open(deployedUrl, '_blank')} className="h-6 px-2 text-green-400 hover:text-green-300">
+          <Button size="sm" variant="ghost" onClick={() => {
+            const newTab = window.open('', '_blank');
+            if (newTab) {
+              newTab.document.write(previewContent);
+              newTab.document.close();
+              newTab.document.title = deployedUrl.replace('https://www.', '').replace('.com', '');
+            }
+          }} className="h-6 px-2 text-green-400 hover:text-green-300">
             <ExternalLink className="w-3 h-3" />
           </Button>
         </div>
