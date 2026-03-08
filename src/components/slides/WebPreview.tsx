@@ -17,6 +17,8 @@ const WebPreview = ({ htmlCode = '', cssCode = '', jsCode = '', combinedCode = '
   const [key, setKey] = useState(0);
   const [deployedUrl, setDeployedUrl] = useState('');
   const [isDeploying, setIsDeploying] = useState(false);
+  const [showDeployForm, setShowDeployForm] = useState(false);
+  const [deployName, setDeployName] = useState('');
   const { toast } = useToast();
 
   const previewContent = useMemo(() => {
