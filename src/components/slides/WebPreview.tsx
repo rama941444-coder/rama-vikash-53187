@@ -136,11 +136,12 @@ const WebPreview = ({ htmlCode = '', cssCode = '', jsCode = '', combinedCode = '
   };
 
   const openPreviewInNewTab = () => {
-    const blob = new Blob([previewContent], { type: 'text/html' });
-    const blobUrl = URL.createObjectURL(blob);
-    const newTab = window.open(blobUrl, '_blank');
+    const newTab = window.open('', '_blank');
     if (newTab) {
-      newTab.addEventListener('load', () => URL.revokeObjectURL(blobUrl));
+      newTab.document.write(previewContent);
+      newTab.document.close();
+      const siteName = deployedUrl ? deployedUrl.replace('https://www.', '').replace('.com', '') : 'Preview';
+      newTab.document.title = siteName;
     }
   };
 
