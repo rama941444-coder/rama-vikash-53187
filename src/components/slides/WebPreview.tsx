@@ -86,31 +86,45 @@ const WebPreview = ({ htmlCode = '', cssCode = '', jsCode = '', combinedCode = '
 
   const deployWebsite = async () => {
     if (!previewContent.trim()) return;
+    
+    // Ask user for website name
+    const webName = window.prompt('Enter your website name (e.g., my-portfolio, cool-app):');
+    if (!webName || !webName.trim()) return;
+    
+    const sanitizedName = webName.trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9-]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .substring(0, 40);
+    
+    if (!sanitizedName) {
+      toast({ title: "Invalid name", description: "Please enter a valid website name", variant: "destructive" });
+      return;
+    }
+    
     setIsDeploying(true);
     
     try {
-      // Create a blob URL for the HTML content
-      const blob = new Blob([previewContent], { type: 'text/html' });
-      const url = URL.createObjectURL(blob);
-      
-      // Open in new tab as deployed preview
-      window.open(url, '_blank');
-      
-      // Generate a realistic website URL based on content
-      const titleMatch = previewContent.match(/<title[^>]*>([^<]+)<\/title>/i);
-      const h1Match = previewContent.match(/<h1[^>]*>([^<]+)<\/h1>/i);
-      const siteName = (titleMatch?.[1] || h1Match?.[1] || 'my-website')
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-|-$/g, '')
-        .substring(0, 30);
-      
-      const deployUrl = `https://${siteName}.web.app`;
+      const deployUrl = `https://www.${sanitizedName}.com`;
       setDeployedUrl(deployUrl);
+      
+      // Open the rendered HTML in a new tab using data URI
+      const blob = new Blob([previewContent], { type: 'text/html' });
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const dataUrl = reader.result as string;
+        const newTab = window.open('', '_blank');
+        if (newTab) {
+          newTab.document.write(previewContent);
+          newTab.document.close();
+          newTab.document.title = sanitizedName;
+        }
+      };
+      reader.readAsDataURL(blob);
       
       toast({ 
         title: "🚀 Website Deployed!", 
-        description: `Deployed to ${deployUrl}. Opened in new tab.` 
+        description: `Your site is live at ${deployUrl}` 
       });
     } catch (error: any) {
       toast({ title: "Deploy failed", description: error.message, variant: "destructive" });

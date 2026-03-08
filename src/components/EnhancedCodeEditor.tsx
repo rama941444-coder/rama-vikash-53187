@@ -217,10 +217,6 @@ const EnhancedCodeEditor = ({
             className="h-7 px-2 text-gray-400 hover:text-white hover:bg-[#3d3d3d]" title="Save">
             <Save className="w-3.5 h-3.5" />
           </Button>
-          <Button variant="ghost" size="sm" onClick={saveAs}
-            className="h-7 px-2 text-gray-400 hover:text-white hover:bg-[#3d3d3d]" title="Save As">
-            <FileDown className="w-3.5 h-3.5" />
-          </Button>
           <Button variant="ghost" size="sm" onClick={clearEditor}
             className="h-7 px-2 text-gray-400 hover:text-white hover:bg-[#3d3d3d]">
             <Trash2 className="w-3.5 h-3.5" />
