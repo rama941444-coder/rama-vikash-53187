@@ -168,20 +168,23 @@ const FLOWCHART_SHAPES: FlowShape[] = [
 
 // Helper: wrap text inside shape
 function wrapText(ctx: CanvasRenderingContext2D, text: string, cx: number, cy: number, maxWidth: number) {
-  const words = text.split(' ');
   const lineHeight = 16;
   const lines: string[] = [];
-  let currentLine = '';
-  for (const word of words) {
-    const testLine = currentLine ? currentLine + ' ' + word : word;
-    if (ctx.measureText(testLine).width > maxWidth && currentLine) {
-      lines.push(currentLine);
-      currentLine = word;
-    } else {
-      currentLine = testLine;
+  const paragraphs = text.split('\n');
+  for (const para of paragraphs) {
+    const words = para.split(' ');
+    let currentLine = '';
+    for (const word of words) {
+      const testLine = currentLine ? currentLine + ' ' + word : word;
+      if (ctx.measureText(testLine).width > maxWidth && currentLine) {
+        lines.push(currentLine);
+        currentLine = word;
+      } else {
+        currentLine = testLine;
+      }
     }
+    lines.push(currentLine || '');
   }
-  if (currentLine) lines.push(currentLine);
   const startY = cy - ((lines.length - 1) * lineHeight) / 2;
   lines.forEach((line, i) => {
     ctx.fillText(line, cx, startY + i * lineHeight);
