@@ -166,17 +166,29 @@ const EnhancedCodeEditor = ({
     toast({ title: "💾 Saved!", description: "File saved as code.txt" });
   };
 
-  const saveAs = () => {
-    const ext = prompt('Enter filename (e.g., main.py, index.js, App.java):', 'code.txt');
-    if (!ext) return;
+  const saveAs = async () => {
     const blob = new Blob([value], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = ext;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast({ title: "💾 Saved!", description: `File saved as ${ext}` });
+    if ('showSaveFilePicker' in window) {
+      try {
+        const handle = await (window as any).showSaveFilePicker({
+          suggestedName: 'code.txt',
+          types: [{ description: 'Code Files', accept: { 'text/plain': ['.py','.java','.cpp','.c','.js','.ts','.go','.rs','.cs','.kt','.rb','.txt','.html','.css','.json'] } }],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        toast({ title: "💾 Saved!", description: `File saved to PC` });
+      } catch (e: any) {
+        if (e.name !== 'AbortError') toast({ title: "Save failed", variant: "destructive" });
+      }
+    } else {
+      const ext = prompt('Enter filename (e.g., main.py, index.js):', 'code.txt');
+      if (!ext) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = ext; a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "💾 Saved!", description: `File saved as ${ext}` });
+    }
   };
 
   useEffect(() => {
