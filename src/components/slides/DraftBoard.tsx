@@ -938,7 +938,25 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
 
   const stopDrawingTouch = (e: React.TouchEvent<HTMLCanvasElement>) => {
     e.preventDefault();
-    handleMouseUp();
+    // Reset port drag and other states for touch
+    if (portDragFrom) {
+      setPortDragFrom(null);
+      setDragState(null);
+      setMousePos(null);
+    }
+    if (dragState) {
+      setDragState(null);
+      saveBaseImage();
+      saveToHistory();
+      saveShapeSnapshot();
+      return;
+    }
+    if (isDrawing) {
+      setIsDrawing(false);
+      lastPointRef.current = null;
+      saveBaseImage();
+      saveToHistory();
+    }
   };
 
   const drawLine = useCallback((point: { x: number; y: number }) => {
