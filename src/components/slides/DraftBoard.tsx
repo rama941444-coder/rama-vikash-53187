@@ -657,6 +657,11 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const point = getCanvasPoint(e);
 
+    // Always track mouse position for connect preview line
+    if ((connectMode || flowTool === 'connect') && connectFrom !== null) {
+      setMousePos(point);
+    }
+
     // Dragging a shape
     if (dragState && selectedShapeIdx !== null) {
       setPlacedShapes(prev => {
