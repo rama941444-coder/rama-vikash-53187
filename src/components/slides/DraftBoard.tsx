@@ -1238,20 +1238,6 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
                 </div>
               )}
 
-              {/* Keyboard shortcuts guide */}
-              <div className="bg-muted/50 rounded-lg p-2 text-[10px] text-muted-foreground space-y-0.5">
-                <p className="font-semibold text-xs mb-1">⌨️ Shortcuts</p>
-                <p><kbd className="bg-muted px-1 rounded">Ctrl+Z</kbd> Undo</p>
-                <p><kbd className="bg-muted px-1 rounded">Ctrl+Y</kbd> Redo</p>
-                <p><kbd className="bg-muted px-1 rounded">Ctrl+C</kbd> Copy shape</p>
-                <p><kbd className="bg-muted px-1 rounded">Ctrl+V</kbd> Paste shape</p>
-                <p><kbd className="bg-muted px-1 rounded">Ctrl+D</kbd> / <kbd className="bg-muted px-1 rounded">Delete</kbd> Delete</p>
-                <p><kbd className="bg-muted px-1 rounded">Ctrl+A</kbd> Select all</p>
-                <p><kbd className="bg-muted px-1 rounded">Shift+Click</kbd> Multi-select</p>
-                <p><kbd className="bg-muted px-1 rounded">Esc</kbd> Deselect</p>
-                <p>Double-click shape → edit text</p>
-                <p>Corner handles → resize</p>
-              </div>
             </TabsContent>
           </Tabs>
 
