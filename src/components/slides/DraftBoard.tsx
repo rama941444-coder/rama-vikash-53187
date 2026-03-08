@@ -317,9 +317,8 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
         setMultiSelect(placedShapes.map((_, i) => i));
         return;
       }
-      // Delete or Ctrl+D = delete selected shape(s)
-      if (e.key === 'Delete' || (e.ctrlKey && e.key === 'd')) {
-        e.preventDefault();
+      // Delete key only = delete selected shape(s)
+      if (e.key === 'Delete') {
         if (multiSelect.length > 0) {
           const toDelete = new Set(multiSelect);
           setPlacedShapes(prev => prev.filter((_, i) => !toDelete.has(i)));
@@ -424,41 +423,127 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
     return null;
   };
 
-  const drawArrowLine = (ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, lineColor: string, label: string, isDotted: boolean = true) => {
+  // Compute elbow path points (orthogonal routing)
+  const getElbowPoints = (x1: number, y1: number, x2: number, y2: number, fromSide: string, toSide: string): { x: number; y: number }[] => {
+    const gap = 30;
+    const pts: { x: number; y: number }[] = [{ x: x1, y: y1 }];
+
+    // Extend out from source port
+    let mx1 = x1, my1 = y1;
+    if (fromSide === 'top') my1 = y1 - gap;
+    else if (fromSide === 'bottom') my1 = y1 + gap;
+    else if (fromSide === 'left') mx1 = x1 - gap;
+    else if (fromSide === 'right') mx1 = x1 + gap;
+
+    // Extend out from target port
+    let mx2 = x2, my2 = y2;
+    if (toSide === 'top') my2 = y2 - gap;
+    else if (toSide === 'bottom') my2 = y2 + gap;
+    else if (toSide === 'left') mx2 = x2 - gap;
+    else if (toSide === 'right') mx2 = x2 + gap;
+
+    pts.push({ x: mx1, y: my1 });
+
+    // Route with up to 2 midpoints to connect the extensions
+    const isHorizontalFrom = fromSide === 'left' || fromSide === 'right';
+    const isHorizontalTo = toSide === 'left' || toSide === 'right';
+
+    if (isHorizontalFrom && isHorizontalTo) {
+      // Both horizontal: go vertical between them
+      const midX = (mx1 + mx2) / 2;
+      pts.push({ x: midX, y: my1 });
+      pts.push({ x: midX, y: my2 });
+    } else if (!isHorizontalFrom && !isHorizontalTo) {
+      // Both vertical: go horizontal between them
+      const midY = (my1 + my2) / 2;
+      pts.push({ x: mx1, y: midY });
+      pts.push({ x: mx2, y: midY });
+    } else {
+      // One horizontal, one vertical: single corner
+      if (isHorizontalFrom) {
+        pts.push({ x: mx1, y: my2 });
+      } else {
+        pts.push({ x: mx2, y: my1 });
+      }
+    }
+
+    pts.push({ x: mx2, y: my2 });
+    pts.push({ x: x2, y: y2 });
+    return pts;
+  };
+
+  const drawArrowLine = (ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, lineColor: string, label: string, isDotted: boolean = true, fromSide?: string, toSide?: string) => {
     ctx.strokeStyle = lineColor;
     ctx.lineWidth = 2;
     ctx.setLineDash(isDotted ? [8, 5] : []);
 
-    // Draw line
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.stroke();
-    ctx.setLineDash([]);
+    if (fromSide && toSide) {
+      // Draw elbow connector
+      const pts = getElbowPoints(x1, y1, x2, y2, fromSide, toSide);
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) {
+        ctx.lineTo(pts[i].x, pts[i].y);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
 
-    // Arrowhead
-    const angle = Math.atan2(y2 - y1, x2 - x1);
-    const headLen = 14;
-    ctx.fillStyle = lineColor;
-    ctx.beginPath();
-    ctx.moveTo(x2, y2);
-    ctx.lineTo(x2 - headLen * Math.cos(angle - Math.PI / 6), y2 - headLen * Math.sin(angle - Math.PI / 6));
-    ctx.lineTo(x2 - headLen * Math.cos(angle + Math.PI / 6), y2 - headLen * Math.sin(angle + Math.PI / 6));
-    ctx.closePath();
-    ctx.fill();
+      // Arrowhead at end using last two points for angle
+      const last = pts[pts.length - 1];
+      const prev = pts[pts.length - 2];
+      const angle = Math.atan2(last.y - prev.y, last.x - prev.x);
+      const headLen = 14;
+      ctx.fillStyle = lineColor;
+      ctx.beginPath();
+      ctx.moveTo(last.x, last.y);
+      ctx.lineTo(last.x - headLen * Math.cos(angle - Math.PI / 6), last.y - headLen * Math.sin(angle - Math.PI / 6));
+      ctx.lineTo(last.x - headLen * Math.cos(angle + Math.PI / 6), last.y - headLen * Math.sin(angle + Math.PI / 6));
+      ctx.closePath();
+      ctx.fill();
 
-    // Label
-    if (label) {
-      const midX = (x1 + x2) / 2;
-      const midY = (y1 + y2) / 2;
-      ctx.font = '12px Arial';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      const tw = ctx.measureText(label).width + 8;
-      ctx.fillStyle = 'rgba(255,255,255,0.9)';
-      ctx.fillRect(midX - tw / 2, midY - 8, tw, 16);
-      ctx.fillStyle = '#000';
-      ctx.fillText(label, midX, midY);
+      // Label at midpoint of path
+      if (label) {
+        const midIdx = Math.floor(pts.length / 2);
+        const midPt = pts[midIdx];
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const tw = ctx.measureText(label).width + 8;
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        ctx.fillRect(midPt.x - tw / 2, midPt.y - 8, tw, 16);
+        ctx.fillStyle = '#000';
+        ctx.fillText(label, midPt.x, midPt.y);
+      }
+    } else {
+      // Straight line fallback
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      const angle = Math.atan2(y2 - y1, x2 - x1);
+      const headLen = 14;
+      ctx.fillStyle = lineColor;
+      ctx.beginPath();
+      ctx.moveTo(x2, y2);
+      ctx.lineTo(x2 - headLen * Math.cos(angle - Math.PI / 6), y2 - headLen * Math.sin(angle - Math.PI / 6));
+      ctx.lineTo(x2 - headLen * Math.cos(angle + Math.PI / 6), y2 - headLen * Math.sin(angle + Math.PI / 6));
+      ctx.closePath();
+      ctx.fill();
+
+      if (label) {
+        const midX = (x1 + x2) / 2;
+        const midY = (y1 + y2) / 2;
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const tw = ctx.measureText(label).width + 8;
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        ctx.fillRect(midX - tw / 2, midY - 8, tw, 16);
+        ctx.fillStyle = '#000';
+        ctx.fillText(label, midX, midY);
+      }
     }
   };
 
@@ -495,7 +580,7 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
         connections.forEach(conn => {
           if (conn.fromIdx < placedShapes.length && conn.toIdx < placedShapes.length) {
             const ports = getNearestPorts(placedShapes[conn.fromIdx], placedShapes[conn.toIdx]);
-            drawArrowLine(ctx, ports.from.x, ports.from.y, ports.to.x, ports.to.y, conn.color, conn.label, true);
+            drawArrowLine(ctx, ports.from.x, ports.from.y, ports.to.x, ports.to.y, conn.color, conn.label, true, ports.from.side, ports.to.side);
           }
         });
 
@@ -1238,20 +1323,6 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
                 </div>
               )}
 
-              {/* Keyboard shortcuts guide */}
-              <div className="bg-muted/50 rounded-lg p-2 text-[10px] text-muted-foreground space-y-0.5">
-                <p className="font-semibold text-xs mb-1">⌨️ Shortcuts</p>
-                <p><kbd className="bg-muted px-1 rounded">Ctrl+Z</kbd> Undo</p>
-                <p><kbd className="bg-muted px-1 rounded">Ctrl+Y</kbd> Redo</p>
-                <p><kbd className="bg-muted px-1 rounded">Ctrl+C</kbd> Copy shape</p>
-                <p><kbd className="bg-muted px-1 rounded">Ctrl+V</kbd> Paste shape</p>
-                <p><kbd className="bg-muted px-1 rounded">Ctrl+D</kbd> / <kbd className="bg-muted px-1 rounded">Delete</kbd> Delete</p>
-                <p><kbd className="bg-muted px-1 rounded">Ctrl+A</kbd> Select all</p>
-                <p><kbd className="bg-muted px-1 rounded">Shift+Click</kbd> Multi-select</p>
-                <p><kbd className="bg-muted px-1 rounded">Esc</kbd> Deselect</p>
-                <p>Double-click shape → edit text</p>
-                <p>Corner handles → resize</p>
-              </div>
             </TabsContent>
           </Tabs>
 
