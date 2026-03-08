@@ -487,17 +487,27 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
           }
         });
 
-        // Draw connecting line preview
-        if (connectFrom !== null && connectMode) {
+        // Draw connecting line preview following cursor
+        if (connectFrom !== null && (connectMode || flowTool === 'connect') && mousePos) {
           const from = getShapeCenter(placedShapes[connectFrom]);
           ctx.strokeStyle = '#3b82f6';
           ctx.lineWidth = 2;
           ctx.setLineDash([6, 4]);
           ctx.beginPath();
           ctx.moveTo(from.x, from.y);
-          ctx.lineTo(from.x + 50, from.y); // just a hint
+          ctx.lineTo(mousePos.x, mousePos.y);
           ctx.stroke();
           ctx.setLineDash([]);
+          // Draw arrowhead at cursor
+          const angle = Math.atan2(mousePos.y - from.y, mousePos.x - from.x);
+          const headLen = 10;
+          ctx.fillStyle = '#3b82f6';
+          ctx.beginPath();
+          ctx.moveTo(mousePos.x, mousePos.y);
+          ctx.lineTo(mousePos.x - headLen * Math.cos(angle - Math.PI / 6), mousePos.y - headLen * Math.sin(angle - Math.PI / 6));
+          ctx.lineTo(mousePos.x - headLen * Math.cos(angle + Math.PI / 6), mousePos.y - headLen * Math.sin(angle + Math.PI / 6));
+          ctx.closePath();
+          ctx.fill();
         }
       };
     }
