@@ -1184,13 +1184,17 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
           />
           {/* Inline text editor overlay */}
           {editingIdx !== null && (
-            <input
+            <textarea
               ref={editInputRef}
               value={editText}
               onChange={(e) => setEditText(e.target.value)}
               onBlur={commitEdit}
-              onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') { setEditingIdx(null); } }}
+              onKeyDown={(e) => { 
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commitEdit(); } 
+                if (e.key === 'Escape') { setEditingIdx(null); } 
+              }}
               style={getEditInputStyle()}
+              placeholder="Type here..."
             />
           )}
         </div>
