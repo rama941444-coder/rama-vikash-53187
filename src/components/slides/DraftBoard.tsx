@@ -724,6 +724,12 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const point = getCanvasPoint(e);
 
+    // Port drag: track mouse for preview line
+    if (portDragFrom && dragState?.type === 'port_drag') {
+      setMousePos(point);
+      return;
+    }
+
     // Always track mouse position for connect preview line
     if ((connectMode || flowTool === 'connect') && connectFrom !== null) {
       setMousePos(point);
@@ -772,7 +778,22 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
     drawLine(point);
   };
 
-  const handleMouseUp = () => {
+  const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    // Port drag complete: check if released on another shape
+    if (portDragFrom && dragState?.type === 'port_drag') {
+      const point = getCanvasPoint(e);
+      const targetIdx = hitTestShape(point.x, point.y);
+      if (targetIdx !== null && targetIdx !== portDragFrom.shapeIdx) {
+        setConnections(prev => [...prev, { fromIdx: portDragFrom.shapeIdx, toIdx: targetIdx, color, label: '' }]);
+        saveShapeSnapshot();
+        toast({ title: "Shapes connected!" });
+      }
+      setPortDragFrom(null);
+      setDragState(null);
+      setMousePos(null);
+      return;
+    }
+
     if (dragState) {
       setDragState(null);
       saveBaseImage();
