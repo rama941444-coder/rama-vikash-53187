@@ -1071,32 +1071,36 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
     toast({ title: "Shape duplicated" });
   };
 
-  // Get editing input position in screen coords
+  // Get editing input position relative to the canvas container
   const getEditInputStyle = (): React.CSSProperties => {
     if (editingIdx === null) return { display: 'none' };
     const canvas = canvasRef.current;
-    if (!canvas) return { display: 'none' };
-    const rect = canvas.getBoundingClientRect();
+    const container = canvasContainerRef.current;
+    if (!canvas || !container) return { display: 'none' };
+    const canvasRect = canvas.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
     const s = placedShapes[editingIdx];
-    const scaleX = rect.width / canvas.width;
-    const scaleY = rect.height / canvas.height;
+    const scaleX = canvasRect.width / canvas.width;
+    const scaleY = canvasRect.height / canvas.height;
     return {
       position: 'absolute',
-      left: `${s.x * scaleX + rect.left - (canvas.parentElement?.getBoundingClientRect().left || 0)}px`,
-      top: `${s.y * scaleY}px`,
+      left: `${s.x * scaleX + (canvasRect.left - containerRect.left)}px`,
+      top: `${s.y * scaleY + (canvasRect.top - containerRect.top)}px`,
       width: `${s.w * scaleX}px`,
       height: `${s.h * scaleY}px`,
-      background: 'rgba(255,255,255,0.95)',
+      background: 'rgba(255,255,255,0.97)',
       border: '2px solid #3b82f6',
-      borderRadius: '4px',
+      borderRadius: '6px',
       textAlign: 'center' as const,
       fontSize: '14px',
+      fontWeight: 'bold',
       fontFamily: 'Arial',
       outline: 'none',
       zIndex: 50,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
+      padding: '4px 8px',
+      resize: 'none',
+      overflow: 'hidden',
+      boxShadow: '0 2px 12px rgba(59,130,246,0.3)',
     };
   };
 
