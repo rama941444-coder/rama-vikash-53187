@@ -807,6 +807,29 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
     toast({title:`💾 Saved as ${fname}`});
   };
 
+  const saveAsNative = async () => {
+    const blob = new Blob([code],{type:'text/plain'});
+    if ('showSaveFilePicker' in window) {
+      try {
+        const handle = await (window as any).showSaveFilePicker({
+          suggestedName: `${(activeQ?.t||'solution').replace(/\s+/g,'_')}.py`,
+          types: [{ description: 'Code Files', accept: { 'text/plain': ['.py','.java','.cpp','.c','.js','.ts','.go','.rs','.cs','.kt','.rb','.txt'] } }],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        toast({title:'💾 Saved to PC!'});
+      } catch (e: any) {
+        if (e.name !== 'AbortError') toast({title:'Save failed',variant:'destructive'});
+      }
+    } else {
+      const fname = prompt('Enter filename:', `${(activeQ?.t||'solution').replace(/\s+/g,'_')}.py`);
+      if (!fname) return;
+      const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=fname; a.click(); URL.revokeObjectURL(a.href);
+      toast({title:`💾 Saved as ${fname}`});
+    }
+  };
+
   const getSolCode = () => {
     if(!activeQ) return '';
     const keyMap: Record<string,string> = {'Python 3':'py','Python 2':'py','Java':'java','C++':'cpp','C':'cpp','JavaScript':'js','TypeScript':'js'};
