@@ -233,7 +233,7 @@ const WebPreview = ({ htmlCode = '', cssCode = '', jsCode = '', combinedCode = '
           <span className="text-xs text-green-300 font-medium">Deployed!</span>
           <input 
             readOnly 
-            value={deployedUrl.substring(0, 80) + '...'} 
+            value={deployedUrl} 
             className="flex-1 text-xs bg-transparent text-green-200 outline-none font-mono truncate"
           />
           <Button size="sm" variant="ghost" onClick={copyDeployedUrl} className="h-6 px-2 text-green-400 hover:text-green-300">
