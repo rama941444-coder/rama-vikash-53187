@@ -723,6 +723,13 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
       saveToHistory();
     }
   };
+    if (isDrawing) {
+      setIsDrawing(false);
+      lastPointRef.current = null;
+      saveBaseImage();
+      saveToHistory();
+    }
+  };
 
   const handleDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const point = getCanvasPoint(e);
