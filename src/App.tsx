@@ -7,6 +7,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import AdminDashboard from "./pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
+import OfflineBanner from "./components/OfflineBanner";
 
 const queryClient = new QueryClient();
 
