@@ -424,28 +424,21 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
     return null;
   };
 
-  const drawArrowLine = (ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, lineColor: string, label: string) => {
+  const drawArrowLine = (ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, lineColor: string, label: string, isDotted: boolean = true) => {
     ctx.strokeStyle = lineColor;
     ctx.lineWidth = 2;
-    ctx.setLineDash([]);
+    ctx.setLineDash(isDotted ? [8, 5] : []);
 
-    // Draw curved line
-    const midX = (x1 + x2) / 2;
-    const midY = (y1 + y2) / 2;
-    const dx = x2 - x1;
-    const dy = y2 - y1;
-    // Slight curve offset
-    const cx = midX - dy * 0.1;
-    const cy = midY + dx * 0.1;
-
+    // Draw line
     ctx.beginPath();
     ctx.moveTo(x1, y1);
-    ctx.quadraticCurveTo(cx, cy, x2, y2);
+    ctx.lineTo(x2, y2);
     ctx.stroke();
+    ctx.setLineDash([]);
 
     // Arrowhead
-    const angle = Math.atan2(y2 - cy, x2 - cx);
-    const headLen = 12;
+    const angle = Math.atan2(y2 - y1, x2 - x1);
+    const headLen = 14;
     ctx.fillStyle = lineColor;
     ctx.beginPath();
     ctx.moveTo(x2, y2);
@@ -456,18 +449,33 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
 
     // Label
     if (label) {
-      ctx.fillStyle = '#000';
+      const midX = (x1 + x2) / 2;
+      const midY = (y1 + y2) / 2;
       ctx.font = '12px Arial';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      const lx = cx;
-      const ly = cy - 10;
-      ctx.fillStyle = 'rgba(255,255,255,0.9)';
       const tw = ctx.measureText(label).width + 8;
-      ctx.fillRect(lx - tw / 2, ly - 8, tw, 16);
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.fillRect(midX - tw / 2, midY - 8, tw, 16);
       ctx.fillStyle = '#000';
-      ctx.fillText(label, lx, ly);
+      ctx.fillText(label, midX, midY);
     }
+  };
+
+  // Get the nearest port point between two shapes for connection
+  const getNearestPorts = (from: PlacedShape, to: PlacedShape) => {
+    const fromPorts = getConnectionPorts(from);
+    const toPorts = getConnectionPorts(to);
+    let minDist = Infinity;
+    let bestFrom = fromPorts[0];
+    let bestTo = toPorts[0];
+    for (const fp of fromPorts) {
+      for (const tp of toPorts) {
+        const d = Math.sqrt((fp.x - tp.x) ** 2 + (fp.y - tp.y) ** 2);
+        if (d < minDist) { minDist = d; bestFrom = fp; bestTo = tp; }
+      }
+    }
+    return { from: bestFrom, to: bestTo };
   };
 
   const redrawAll = () => {
