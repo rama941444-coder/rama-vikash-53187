@@ -734,11 +734,56 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
     }
   };
 
+  const autoResizeShape = (shapeIdx: number, newText: string): PlacedShape => {
+    const canvas = canvasRef.current;
+    const s = { ...placedShapes[shapeIdx], text: newText };
+    if (!canvas || s.shapeId.startsWith('arrow_')) return s;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return s;
+    
+    ctx.font = 'bold 14px Arial';
+    const lines = newText.split('\n');
+    let maxLineWidth = 0;
+    for (const line of lines) {
+      const words = line.split(' ');
+      let currentLine = '';
+      for (const word of words) {
+        const testLine = currentLine ? currentLine + ' ' + word : word;
+        if (ctx.measureText(testLine).width > s.w - 20 && currentLine) {
+          maxLineWidth = Math.max(maxLineWidth, ctx.measureText(currentLine).width);
+          currentLine = word;
+        } else {
+          currentLine = testLine;
+        }
+      }
+      maxLineWidth = Math.max(maxLineWidth, ctx.measureText(currentLine).width);
+    }
+    
+    const padding = s.shapeId === 'diamond' ? 60 : s.shapeId === 'parallelogram' ? 50 : 30;
+    const neededW = Math.max(80, maxLineWidth + padding);
+    const totalLines = lines.reduce((count, line) => {
+      const words = line.split(' ');
+      let cl = '';
+      let lc = 1;
+      for (const word of words) {
+        const tl = cl ? cl + ' ' + word : word;
+        if (ctx.measureText(tl).width > Math.max(s.w, neededW) - 20 && cl) { lc++; cl = word; }
+        else cl = tl;
+      }
+      return count + lc;
+    }, 0);
+    const neededH = Math.max(50, totalLines * 18 + 24);
+    
+    s.w = Math.max(s.w, neededW);
+    s.h = Math.max(s.h, neededH);
+    return s;
+  };
+
   const commitEdit = () => {
     if (editingIdx !== null) {
       setPlacedShapes(prev => {
         const updated = [...prev];
-        updated[editingIdx] = { ...updated[editingIdx], text: editText };
+        updated[editingIdx] = autoResizeShape(editingIdx, editText);
         return updated;
       });
       setEditingIdx(null);
