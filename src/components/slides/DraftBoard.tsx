@@ -209,10 +209,11 @@ interface ConnectionLine {
 }
 
 const HANDLE_SIZE = 8;
-const CONNECTION_PORT_SIZE = 6;
+const CONNECTION_PORT_SIZE = 7;
 
 const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [mode, setMode] = useState<'pen' | 'eraser'>('pen');
   const [color, setColor] = useState('#6366f1');
@@ -224,7 +225,7 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
   const [selectedShape, setSelectedShape] = useState<string | null>(null);
   const [placedShapes, setPlacedShapes] = useState<PlacedShape[]>([]);
   const [selectedShapeIdx, setSelectedShapeIdx] = useState<number | null>(null);
-  const [dragState, setDragState] = useState<{ type: 'move' | 'resize'; corner?: string; offsetX: number; offsetY: number } | null>(null);
+  const [dragState, setDragState] = useState<{ type: 'move' | 'resize' | 'port_drag'; corner?: string; offsetX: number; offsetY: number; fromIdx?: number } | null>(null);
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [editText, setEditText] = useState('');
   const editInputRef = useRef<HTMLTextAreaElement>(null);
@@ -235,6 +236,7 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
   const [flowTool, setFlowTool] = useState<'select' | 'shape' | 'connect'>('select');
   const [multiSelect, setMultiSelect] = useState<number[]>([]);
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
+  const [portDragFrom, setPortDragFrom] = useState<{ shapeIdx: number; portSide: string } | null>(null);
   const { toast } = useToast();
 
   // Undo/Redo history for shapes
@@ -272,7 +274,7 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
 
   useEffect(() => {
     redrawAll();
-  }, [placedShapes, selectedShapeIdx, connections, connectFrom, multiSelect, mousePos]);
+  }, [placedShapes, selectedShapeIdx, connections, connectFrom, multiSelect, mousePos, portDragFrom]);
 
   // Keyboard shortcuts: Ctrl+Z undo, Ctrl+Y redo, Ctrl+D/Delete delete, Ctrl+C copy, Ctrl+V paste
   useEffect(() => {
@@ -396,36 +398,47 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
     ports.forEach(p => {
       ctx.beginPath();
       ctx.arc(p.x, p.y, CONNECTION_PORT_SIZE, 0, Math.PI * 2);
-      ctx.fillStyle = highlight ? '#3b82f6' : '#94a3b8';
+      ctx.fillStyle = highlight ? '#3b82f6' : 'rgba(100,116,139,0.6)';
       ctx.fill();
       ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = 2;
       ctx.stroke();
+      // Inner dot
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
     });
   };
 
-  const drawArrowLine = (ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, lineColor: string, label: string) => {
+  const hitTestPort = (px: number, py: number): { shapeIdx: number; portSide: string } | null => {
+    for (let i = placedShapes.length - 1; i >= 0; i--) {
+      const ports = getConnectionPorts(placedShapes[i]);
+      for (const port of ports) {
+        const dist = Math.sqrt((px - port.x) ** 2 + (py - port.y) ** 2);
+        if (dist <= CONNECTION_PORT_SIZE + 4) {
+          return { shapeIdx: i, portSide: port.side };
+        }
+      }
+    }
+    return null;
+  };
+
+  const drawArrowLine = (ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, lineColor: string, label: string, isDotted: boolean = true) => {
     ctx.strokeStyle = lineColor;
     ctx.lineWidth = 2;
-    ctx.setLineDash([]);
+    ctx.setLineDash(isDotted ? [8, 5] : []);
 
-    // Draw curved line
-    const midX = (x1 + x2) / 2;
-    const midY = (y1 + y2) / 2;
-    const dx = x2 - x1;
-    const dy = y2 - y1;
-    // Slight curve offset
-    const cx = midX - dy * 0.1;
-    const cy = midY + dx * 0.1;
-
+    // Draw line
     ctx.beginPath();
     ctx.moveTo(x1, y1);
-    ctx.quadraticCurveTo(cx, cy, x2, y2);
+    ctx.lineTo(x2, y2);
     ctx.stroke();
+    ctx.setLineDash([]);
 
     // Arrowhead
-    const angle = Math.atan2(y2 - cy, x2 - cx);
-    const headLen = 12;
+    const angle = Math.atan2(y2 - y1, x2 - x1);
+    const headLen = 14;
     ctx.fillStyle = lineColor;
     ctx.beginPath();
     ctx.moveTo(x2, y2);
@@ -436,18 +449,33 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
 
     // Label
     if (label) {
-      ctx.fillStyle = '#000';
+      const midX = (x1 + x2) / 2;
+      const midY = (y1 + y2) / 2;
       ctx.font = '12px Arial';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      const lx = cx;
-      const ly = cy - 10;
-      ctx.fillStyle = 'rgba(255,255,255,0.9)';
       const tw = ctx.measureText(label).width + 8;
-      ctx.fillRect(lx - tw / 2, ly - 8, tw, 16);
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.fillRect(midX - tw / 2, midY - 8, tw, 16);
       ctx.fillStyle = '#000';
-      ctx.fillText(label, lx, ly);
+      ctx.fillText(label, midX, midY);
     }
+  };
+
+  // Get the nearest port point between two shapes for connection
+  const getNearestPorts = (from: PlacedShape, to: PlacedShape) => {
+    const fromPorts = getConnectionPorts(from);
+    const toPorts = getConnectionPorts(to);
+    let minDist = Infinity;
+    let bestFrom = fromPorts[0];
+    let bestTo = toPorts[0];
+    for (const fp of fromPorts) {
+      for (const tp of toPorts) {
+        const d = Math.sqrt((fp.x - tp.x) ** 2 + (fp.y - tp.y) ** 2);
+        if (d < minDist) { minDist = d; bestFrom = fp; bestTo = tp; }
+      }
+    }
+    return { from: bestFrom, to: bestTo };
   };
 
   const redrawAll = () => {
@@ -463,12 +491,11 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0);
 
-        // Draw connection lines
+        // Draw connection lines using nearest ports (dotted with arrows)
         connections.forEach(conn => {
           if (conn.fromIdx < placedShapes.length && conn.toIdx < placedShapes.length) {
-            const from = getShapeCenter(placedShapes[conn.fromIdx]);
-            const to = getShapeCenter(placedShapes[conn.toIdx]);
-            drawArrowLine(ctx, from.x, from.y, to.x, to.y, conn.color, conn.label);
+            const ports = getNearestPorts(placedShapes[conn.fromIdx], placedShapes[conn.toIdx]);
+            drawArrowLine(ctx, ports.from.x, ports.from.y, ports.to.x, ports.to.y, conn.color, conn.label, true);
           }
         });
 
@@ -480,9 +507,10 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
             shape.draw(ctx, s.x, s.y, s.w, s.h, s.color, s.text);
             ctx.restore();
           }
-          // Draw connection ports on hover/selected/connect mode
-          if (idx === selectedShapeIdx || connectMode || flowTool === 'connect') {
-            drawConnectionPorts(ctx, s, idx === connectFrom);
+          // Always show connection ports on all shapes in flowchart tab
+          if (activeTab === 'flowchart') {
+            const isHighlighted = idx === selectedShapeIdx || idx === connectFrom || (portDragFrom?.shapeIdx === idx);
+            drawConnectionPorts(ctx, s, isHighlighted);
           }
           // Draw selection handles
           if (idx === selectedShapeIdx || multiSelect.includes(idx)) {
@@ -490,20 +518,45 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
           }
         });
 
-        // Draw connecting line preview following cursor
-        if (connectFrom !== null && (connectMode || flowTool === 'connect') && mousePos) {
-          const from = getShapeCenter(placedShapes[connectFrom]);
+        // Draw port drag preview (dotted line with arrow following cursor)
+        if (portDragFrom && mousePos) {
+          const fromShape = placedShapes[portDragFrom.shapeIdx];
+          const ports = getConnectionPorts(fromShape);
+          const fromPort = ports.find(p => p.side === portDragFrom.portSide) || ports[0];
           ctx.strokeStyle = '#3b82f6';
           ctx.lineWidth = 2;
-          ctx.setLineDash([6, 4]);
+          ctx.setLineDash([8, 5]);
           ctx.beginPath();
-          ctx.moveTo(from.x, from.y);
+          ctx.moveTo(fromPort.x, fromPort.y);
           ctx.lineTo(mousePos.x, mousePos.y);
           ctx.stroke();
           ctx.setLineDash([]);
-          // Draw arrowhead at cursor
-          const angle = Math.atan2(mousePos.y - from.y, mousePos.x - from.x);
-          const headLen = 10;
+          // Arrowhead at cursor
+          const angle = Math.atan2(mousePos.y - fromPort.y, mousePos.x - fromPort.x);
+          const headLen = 12;
+          ctx.fillStyle = '#3b82f6';
+          ctx.beginPath();
+          ctx.moveTo(mousePos.x, mousePos.y);
+          ctx.lineTo(mousePos.x - headLen * Math.cos(angle - Math.PI / 6), mousePos.y - headLen * Math.sin(angle - Math.PI / 6));
+          ctx.lineTo(mousePos.x - headLen * Math.cos(angle + Math.PI / 6), mousePos.y - headLen * Math.sin(angle + Math.PI / 6));
+          ctx.closePath();
+          ctx.fill();
+        }
+
+        // Draw connecting line preview following cursor (click-connect mode)
+        if (connectFrom !== null && (connectMode || flowTool === 'connect') && mousePos && !portDragFrom) {
+          const fromShape = placedShapes[connectFrom];
+          const fromCenter = getShapeCenter(fromShape);
+          ctx.strokeStyle = '#3b82f6';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([8, 5]);
+          ctx.beginPath();
+          ctx.moveTo(fromCenter.x, fromCenter.y);
+          ctx.lineTo(mousePos.x, mousePos.y);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          const angle = Math.atan2(mousePos.y - fromCenter.y, mousePos.x - fromCenter.x);
+          const headLen = 12;
           ctx.fillStyle = '#3b82f6';
           ctx.beginPath();
           ctx.moveTo(mousePos.x, mousePos.y);
@@ -573,6 +626,17 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
 
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const point = getCanvasPoint(e);
+
+    // Check if clicking on a connection port to drag-connect
+    if (activeTab === 'flowchart') {
+      const portHit = hitTestPort(point.x, point.y);
+      if (portHit) {
+        setPortDragFrom(portHit);
+        setDragState({ type: 'port_drag', offsetX: point.x, offsetY: point.y, fromIdx: portHit.shapeIdx });
+        setMousePos(point);
+        return;
+      }
+    }
 
     // Connect mode: click shapes to connect them
     if (flowTool === 'connect' || connectMode) {
@@ -660,6 +724,12 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const point = getCanvasPoint(e);
 
+    // Port drag: track mouse for preview line
+    if (portDragFrom && dragState?.type === 'port_drag') {
+      setMousePos(point);
+      return;
+    }
+
     // Always track mouse position for connect preview line
     if ((connectMode || flowTool === 'connect') && connectFrom !== null) {
       setMousePos(point);
@@ -708,7 +778,22 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
     drawLine(point);
   };
 
-  const handleMouseUp = () => {
+  const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    // Port drag complete: check if released on another shape
+    if (portDragFrom && dragState?.type === 'port_drag') {
+      const point = getCanvasPoint(e);
+      const targetIdx = hitTestShape(point.x, point.y);
+      if (targetIdx !== null && targetIdx !== portDragFrom.shapeIdx) {
+        setConnections(prev => [...prev, { fromIdx: portDragFrom.shapeIdx, toIdx: targetIdx, color, label: '' }]);
+        saveShapeSnapshot();
+        toast({ title: "Shapes connected!" });
+      }
+      setPortDragFrom(null);
+      setDragState(null);
+      setMousePos(null);
+      return;
+    }
+
     if (dragState) {
       setDragState(null);
       saveBaseImage();
@@ -853,7 +938,25 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
 
   const stopDrawingTouch = (e: React.TouchEvent<HTMLCanvasElement>) => {
     e.preventDefault();
-    handleMouseUp();
+    // Reset port drag and other states for touch
+    if (portDragFrom) {
+      setPortDragFrom(null);
+      setDragState(null);
+      setMousePos(null);
+    }
+    if (dragState) {
+      setDragState(null);
+      saveBaseImage();
+      saveToHistory();
+      saveShapeSnapshot();
+      return;
+    }
+    if (isDrawing) {
+      setIsDrawing(false);
+      lastPointRef.current = null;
+      saveBaseImage();
+      saveToHistory();
+    }
   };
 
   const drawLine = useCallback((point: { x: number; y: number }) => {
@@ -968,32 +1071,36 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
     toast({ title: "Shape duplicated" });
   };
 
-  // Get editing input position in screen coords
+  // Get editing input position relative to the canvas container
   const getEditInputStyle = (): React.CSSProperties => {
     if (editingIdx === null) return { display: 'none' };
     const canvas = canvasRef.current;
-    if (!canvas) return { display: 'none' };
-    const rect = canvas.getBoundingClientRect();
+    const container = canvasContainerRef.current;
+    if (!canvas || !container) return { display: 'none' };
+    const canvasRect = canvas.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
     const s = placedShapes[editingIdx];
-    const scaleX = rect.width / canvas.width;
-    const scaleY = rect.height / canvas.height;
+    const scaleX = canvasRect.width / canvas.width;
+    const scaleY = canvasRect.height / canvas.height;
     return {
       position: 'absolute',
-      left: `${s.x * scaleX + rect.left - (canvas.parentElement?.getBoundingClientRect().left || 0)}px`,
-      top: `${s.y * scaleY}px`,
+      left: `${s.x * scaleX + (canvasRect.left - containerRect.left)}px`,
+      top: `${s.y * scaleY + (canvasRect.top - containerRect.top)}px`,
       width: `${s.w * scaleX}px`,
       height: `${s.h * scaleY}px`,
-      background: 'rgba(255,255,255,0.95)',
+      background: 'rgba(255,255,255,0.97)',
       border: '2px solid #3b82f6',
-      borderRadius: '4px',
+      borderRadius: '6px',
       textAlign: 'center' as const,
       fontSize: '14px',
+      fontWeight: 'bold',
       fontFamily: 'Arial',
       outline: 'none',
       zIndex: 50,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
+      padding: '4px 8px',
+      resize: 'none',
+      overflow: 'hidden',
+      boxShadow: '0 2px 12px rgba(59,130,246,0.3)',
     };
   };
 
@@ -1169,7 +1276,7 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
           </div>
         </div>
 
-        <div className="lg:w-3/4 border-2 border-primary/50 rounded-xl overflow-hidden neon-glow relative">
+        <div ref={canvasContainerRef} className="lg:w-3/4 border-2 border-primary/50 rounded-xl overflow-hidden neon-glow relative">
           <canvas
             ref={canvasRef}
             className={`w-full h-full ${getCursorClass()}`}
@@ -1177,7 +1284,7 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
             onMouseDown={startDrawing}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
+            onMouseLeave={(e) => handleMouseUp(e as unknown as React.MouseEvent<HTMLCanvasElement>)}
             onDoubleClick={handleDoubleClick}
             onTouchStart={startDrawingTouch}
             onTouchMove={drawTouch}
