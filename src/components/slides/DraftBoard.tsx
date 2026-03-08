@@ -1284,7 +1284,7 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
             onMouseDown={startDrawing}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
+            onMouseLeave={(e) => handleMouseUp(e as unknown as React.MouseEvent<HTMLCanvasElement>)}
             onDoubleClick={handleDoubleClick}
             onTouchStart={startDrawingTouch}
             onTouchMove={drawTouch}
