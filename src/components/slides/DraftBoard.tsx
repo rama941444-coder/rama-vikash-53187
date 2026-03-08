@@ -168,20 +168,23 @@ const FLOWCHART_SHAPES: FlowShape[] = [
 
 // Helper: wrap text inside shape
 function wrapText(ctx: CanvasRenderingContext2D, text: string, cx: number, cy: number, maxWidth: number) {
-  const words = text.split(' ');
   const lineHeight = 16;
   const lines: string[] = [];
-  let currentLine = '';
-  for (const word of words) {
-    const testLine = currentLine ? currentLine + ' ' + word : word;
-    if (ctx.measureText(testLine).width > maxWidth && currentLine) {
-      lines.push(currentLine);
-      currentLine = word;
-    } else {
-      currentLine = testLine;
+  const paragraphs = text.split('\n');
+  for (const para of paragraphs) {
+    const words = para.split(' ');
+    let currentLine = '';
+    for (const word of words) {
+      const testLine = currentLine ? currentLine + ' ' + word : word;
+      if (ctx.measureText(testLine).width > maxWidth && currentLine) {
+        lines.push(currentLine);
+        currentLine = word;
+      } else {
+        currentLine = testLine;
+      }
     }
+    lines.push(currentLine || '');
   }
-  if (currentLine) lines.push(currentLine);
   const startY = cy - ((lines.length - 1) * lineHeight) / 2;
   lines.forEach((line, i) => {
     ctx.fillText(line, cx, startY + i * lineHeight);
@@ -224,13 +227,14 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
   const [dragState, setDragState] = useState<{ type: 'move' | 'resize'; corner?: string; offsetX: number; offsetY: number } | null>(null);
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [editText, setEditText] = useState('');
-  const editInputRef = useRef<HTMLInputElement>(null);
+  const editInputRef = useRef<HTMLTextAreaElement>(null);
   const [clipboard, setClipboard] = useState<PlacedShape | null>(null);
   const [connections, setConnections] = useState<ConnectionLine[]>([]);
   const [connectMode, setConnectMode] = useState(false);
   const [connectFrom, setConnectFrom] = useState<number | null>(null);
   const [flowTool, setFlowTool] = useState<'select' | 'shape' | 'connect'>('select');
   const [multiSelect, setMultiSelect] = useState<number[]>([]);
+  const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
   const { toast } = useToast();
 
   // Undo/Redo history for shapes
@@ -268,7 +272,7 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
 
   useEffect(() => {
     redrawAll();
-  }, [placedShapes, selectedShapeIdx, connections, connectFrom, multiSelect]);
+  }, [placedShapes, selectedShapeIdx, connections, connectFrom, multiSelect, mousePos]);
 
   // Keyboard shortcuts: Ctrl+Z undo, Ctrl+Y redo, Ctrl+D/Delete delete, Ctrl+C copy, Ctrl+V paste
   useEffect(() => {
@@ -486,17 +490,27 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
           }
         });
 
-        // Draw connecting line preview
-        if (connectFrom !== null && connectMode) {
+        // Draw connecting line preview following cursor
+        if (connectFrom !== null && (connectMode || flowTool === 'connect') && mousePos) {
           const from = getShapeCenter(placedShapes[connectFrom]);
           ctx.strokeStyle = '#3b82f6';
           ctx.lineWidth = 2;
           ctx.setLineDash([6, 4]);
           ctx.beginPath();
           ctx.moveTo(from.x, from.y);
-          ctx.lineTo(from.x + 50, from.y); // just a hint
+          ctx.lineTo(mousePos.x, mousePos.y);
           ctx.stroke();
           ctx.setLineDash([]);
+          // Draw arrowhead at cursor
+          const angle = Math.atan2(mousePos.y - from.y, mousePos.x - from.x);
+          const headLen = 10;
+          ctx.fillStyle = '#3b82f6';
+          ctx.beginPath();
+          ctx.moveTo(mousePos.x, mousePos.y);
+          ctx.lineTo(mousePos.x - headLen * Math.cos(angle - Math.PI / 6), mousePos.y - headLen * Math.sin(angle - Math.PI / 6));
+          ctx.lineTo(mousePos.x - headLen * Math.cos(angle + Math.PI / 6), mousePos.y - headLen * Math.sin(angle + Math.PI / 6));
+          ctx.closePath();
+          ctx.fill();
         }
       };
     }
@@ -646,6 +660,11 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const point = getCanvasPoint(e);
 
+    // Always track mouse position for connect preview line
+    if ((connectMode || flowTool === 'connect') && connectFrom !== null) {
+      setMousePos(point);
+    }
+
     // Dragging a shape
     if (dragState && selectedShapeIdx !== null) {
       setPlacedShapes(prev => {
@@ -705,6 +724,8 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
     }
   };
 
+
+
   const handleDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const point = getCanvasPoint(e);
     const hitIdx = hitTestShape(point.x, point.y);
@@ -718,11 +739,56 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
     }
   };
 
+  const autoResizeShape = (shapeIdx: number, newText: string): PlacedShape => {
+    const canvas = canvasRef.current;
+    const s = { ...placedShapes[shapeIdx], text: newText };
+    if (!canvas || s.shapeId.startsWith('arrow_')) return s;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return s;
+    
+    ctx.font = 'bold 14px Arial';
+    const lines = newText.split('\n');
+    let maxLineWidth = 0;
+    for (const line of lines) {
+      const words = line.split(' ');
+      let currentLine = '';
+      for (const word of words) {
+        const testLine = currentLine ? currentLine + ' ' + word : word;
+        if (ctx.measureText(testLine).width > s.w - 20 && currentLine) {
+          maxLineWidth = Math.max(maxLineWidth, ctx.measureText(currentLine).width);
+          currentLine = word;
+        } else {
+          currentLine = testLine;
+        }
+      }
+      maxLineWidth = Math.max(maxLineWidth, ctx.measureText(currentLine).width);
+    }
+    
+    const padding = s.shapeId === 'diamond' ? 60 : s.shapeId === 'parallelogram' ? 50 : 30;
+    const neededW = Math.max(80, maxLineWidth + padding);
+    const totalLines = lines.reduce((count, line) => {
+      const words = line.split(' ');
+      let cl = '';
+      let lc = 1;
+      for (const word of words) {
+        const tl = cl ? cl + ' ' + word : word;
+        if (ctx.measureText(tl).width > Math.max(s.w, neededW) - 20 && cl) { lc++; cl = word; }
+        else cl = tl;
+      }
+      return count + lc;
+    }, 0);
+    const neededH = Math.max(50, totalLines * 18 + 24);
+    
+    s.w = Math.max(s.w, neededW);
+    s.h = Math.max(s.h, neededH);
+    return s;
+  };
+
   const commitEdit = () => {
     if (editingIdx !== null) {
       setPlacedShapes(prev => {
         const updated = [...prev];
-        updated[editingIdx] = { ...updated[editingIdx], text: editText };
+        updated[editingIdx] = autoResizeShape(editingIdx, editText);
         return updated;
       });
       setEditingIdx(null);
@@ -1120,13 +1186,17 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
           />
           {/* Inline text editor overlay */}
           {editingIdx !== null && (
-            <input
+            <textarea
               ref={editInputRef}
               value={editText}
               onChange={(e) => setEditText(e.target.value)}
               onBlur={commitEdit}
-              onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') { setEditingIdx(null); } }}
+              onKeyDown={(e) => { 
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commitEdit(); } 
+                if (e.key === 'Escape') { setEditingIdx(null); } 
+              }}
               style={getEditInputStyle()}
+              placeholder="Type here..."
             />
           )}
         </div>
