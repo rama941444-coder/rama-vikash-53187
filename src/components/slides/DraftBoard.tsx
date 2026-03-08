@@ -278,9 +278,14 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
     redrawAll();
   }, [placedShapes, selectedShapeIdx, connections, connectFrom, multiSelect, mousePos, portDragFrom]);
 
-  // Keyboard shortcuts: Ctrl+Z undo, Ctrl+Y redo, Ctrl+D/Delete delete, Ctrl+C copy, Ctrl+V paste
+   // Keyboard shortcuts: Ctrl+Z undo, Ctrl+Y redo, Delete delete, Ctrl+C copy, Ctrl+V paste
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // Block Ctrl+D from opening browser bookmark dialog
+      if (e.ctrlKey && e.key === 'd') {
+        e.preventDefault();
+        return;
+      }
       // Don't handle shortcuts when editing text
       if (editingIdx !== null) return;
 
