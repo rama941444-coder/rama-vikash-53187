@@ -135,8 +135,18 @@ const WebPreview = ({ htmlCode = '', cssCode = '', jsCode = '', combinedCode = '
     setDeployName('');
   };
 
+  const openPreviewInNewTab = () => {
+    const blob = new Blob([previewContent], { type: 'text/html' });
+    const blobUrl = URL.createObjectURL(blob);
+    const newTab = window.open(blobUrl, '_blank');
+    if (newTab) {
+      newTab.addEventListener('load', () => URL.revokeObjectURL(blobUrl));
+    }
+  };
+
   const copyDeployedUrl = async () => {
     if (!deployedUrl) return;
+    // Copy the display URL (simulation URL)
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(deployedUrl);
@@ -150,7 +160,7 @@ const WebPreview = ({ htmlCode = '', cssCode = '', jsCode = '', combinedCode = '
         document.execCommand('copy');
         document.body.removeChild(textArea);
       }
-      toast({ title: "Link Copied!", description: "Share this link to view the website" });
+      toast({ title: "Link Copied!", description: "Simulation URL copied. Click the open icon to view your site." });
     } catch {
       toast({ title: "Copy failed", variant: "destructive" });
     }
