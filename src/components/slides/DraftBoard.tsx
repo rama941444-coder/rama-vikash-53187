@@ -206,6 +206,8 @@ interface ConnectionLine {
   toIdx: number;
   color: string;
   label: string;
+  fromSide?: string;
+  toSide?: string;
 }
 
 const HANDLE_SIZE = 8;
