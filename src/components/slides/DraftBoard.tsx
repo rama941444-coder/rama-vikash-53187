@@ -231,6 +231,7 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
   const [connectFrom, setConnectFrom] = useState<number | null>(null);
   const [flowTool, setFlowTool] = useState<'select' | 'shape' | 'connect'>('select');
   const [multiSelect, setMultiSelect] = useState<number[]>([]);
+  const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
   const { toast } = useToast();
 
   // Undo/Redo history for shapes
