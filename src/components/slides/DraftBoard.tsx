@@ -581,7 +581,7 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
         connections.forEach(conn => {
           if (conn.fromIdx < placedShapes.length && conn.toIdx < placedShapes.length) {
             const ports = getNearestPorts(placedShapes[conn.fromIdx], placedShapes[conn.toIdx]);
-            drawArrowLine(ctx, ports.from.x, ports.from.y, ports.to.x, ports.to.y, conn.color, conn.label, true);
+            drawArrowLine(ctx, ports.from.x, ports.from.y, ports.to.x, ports.to.y, conn.color, conn.label, true, ports.from.side, ports.to.side);
           }
         });
 
