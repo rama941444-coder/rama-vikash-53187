@@ -491,12 +491,11 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0);
 
-        // Draw connection lines
+        // Draw connection lines using nearest ports (dotted with arrows)
         connections.forEach(conn => {
           if (conn.fromIdx < placedShapes.length && conn.toIdx < placedShapes.length) {
-            const from = getShapeCenter(placedShapes[conn.fromIdx]);
-            const to = getShapeCenter(placedShapes[conn.toIdx]);
-            drawArrowLine(ctx, from.x, from.y, to.x, to.y, conn.color, conn.label);
+            const ports = getNearestPorts(placedShapes[conn.fromIdx], placedShapes[conn.toIdx]);
+            drawArrowLine(ctx, ports.from.x, ports.from.y, ports.to.x, ports.to.y, conn.color, conn.label, true);
           }
         });
 
@@ -508,9 +507,10 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
             shape.draw(ctx, s.x, s.y, s.w, s.h, s.color, s.text);
             ctx.restore();
           }
-          // Draw connection ports on hover/selected/connect mode
-          if (idx === selectedShapeIdx || connectMode || flowTool === 'connect') {
-            drawConnectionPorts(ctx, s, idx === connectFrom);
+          // Always show connection ports on all shapes in flowchart tab
+          if (activeTab === 'flowchart') {
+            const isHighlighted = idx === selectedShapeIdx || idx === connectFrom || (portDragFrom?.shapeIdx === idx);
+            drawConnectionPorts(ctx, s, isHighlighted);
           }
           // Draw selection handles
           if (idx === selectedShapeIdx || multiSelect.includes(idx)) {
@@ -518,20 +518,45 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
           }
         });
 
-        // Draw connecting line preview following cursor
-        if (connectFrom !== null && (connectMode || flowTool === 'connect') && mousePos) {
-          const from = getShapeCenter(placedShapes[connectFrom]);
+        // Draw port drag preview (dotted line with arrow following cursor)
+        if (portDragFrom && mousePos) {
+          const fromShape = placedShapes[portDragFrom.shapeIdx];
+          const ports = getConnectionPorts(fromShape);
+          const fromPort = ports.find(p => p.side === portDragFrom.portSide) || ports[0];
           ctx.strokeStyle = '#3b82f6';
           ctx.lineWidth = 2;
-          ctx.setLineDash([6, 4]);
+          ctx.setLineDash([8, 5]);
           ctx.beginPath();
-          ctx.moveTo(from.x, from.y);
+          ctx.moveTo(fromPort.x, fromPort.y);
           ctx.lineTo(mousePos.x, mousePos.y);
           ctx.stroke();
           ctx.setLineDash([]);
-          // Draw arrowhead at cursor
-          const angle = Math.atan2(mousePos.y - from.y, mousePos.x - from.x);
-          const headLen = 10;
+          // Arrowhead at cursor
+          const angle = Math.atan2(mousePos.y - fromPort.y, mousePos.x - fromPort.x);
+          const headLen = 12;
+          ctx.fillStyle = '#3b82f6';
+          ctx.beginPath();
+          ctx.moveTo(mousePos.x, mousePos.y);
+          ctx.lineTo(mousePos.x - headLen * Math.cos(angle - Math.PI / 6), mousePos.y - headLen * Math.sin(angle - Math.PI / 6));
+          ctx.lineTo(mousePos.x - headLen * Math.cos(angle + Math.PI / 6), mousePos.y - headLen * Math.sin(angle + Math.PI / 6));
+          ctx.closePath();
+          ctx.fill();
+        }
+
+        // Draw connecting line preview following cursor (click-connect mode)
+        if (connectFrom !== null && (connectMode || flowTool === 'connect') && mousePos && !portDragFrom) {
+          const fromShape = placedShapes[connectFrom];
+          const fromCenter = getShapeCenter(fromShape);
+          ctx.strokeStyle = '#3b82f6';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([8, 5]);
+          ctx.beginPath();
+          ctx.moveTo(fromCenter.x, fromCenter.y);
+          ctx.lineTo(mousePos.x, mousePos.y);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          const angle = Math.atan2(mousePos.y - fromCenter.y, mousePos.x - fromCenter.x);
+          const headLen = 12;
           ctx.fillStyle = '#3b82f6';
           ctx.beginPath();
           ctx.moveTo(mousePos.x, mousePos.y);
