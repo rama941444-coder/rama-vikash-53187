@@ -274,7 +274,7 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
 
   useEffect(() => {
     redrawAll();
-  }, [placedShapes, selectedShapeIdx, connections, connectFrom, multiSelect, mousePos]);
+  }, [placedShapes, selectedShapeIdx, connections, connectFrom, multiSelect, mousePos, portDragFrom]);
 
   // Keyboard shortcuts: Ctrl+Z undo, Ctrl+Y redo, Ctrl+D/Delete delete, Ctrl+C copy, Ctrl+V paste
   useEffect(() => {
