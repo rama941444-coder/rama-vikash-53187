@@ -227,7 +227,7 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
   const [dragState, setDragState] = useState<{ type: 'move' | 'resize'; corner?: string; offsetX: number; offsetY: number } | null>(null);
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [editText, setEditText] = useState('');
-  const editInputRef = useRef<HTMLInputElement>(null);
+  const editInputRef = useRef<HTMLTextAreaElement>(null);
   const [clipboard, setClipboard] = useState<PlacedShape | null>(null);
   const [connections, setConnections] = useState<ConnectionLine[]>([]);
   const [connectMode, setConnectMode] = useState(false);
