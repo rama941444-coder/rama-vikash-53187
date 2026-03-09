@@ -324,9 +324,8 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
         setMultiSelect(placedShapes.map((_, i) => i));
         return;
       }
-      // Delete or Backspace = delete selected shape(s)
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        e.preventDefault();
+      // Delete key only = delete selected shape(s)
+      if (e.key === 'Delete') {
         if (multiSelect.length > 0) {
           const toDelete = new Set(multiSelect);
           setPlacedShapes(prev => prev.filter((_, i) => !toDelete.has(i)));
