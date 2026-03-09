@@ -121,6 +121,9 @@ export type Database = {
       }
       profiles: {
         Row: {
+          avatar_url: string | null
+          city: string | null
+          country: string | null
           created_at: string
           email: string | null
           full_name: string | null
@@ -129,6 +132,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          avatar_url?: string | null
+          city?: string | null
+          country?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
@@ -137,12 +143,54 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          avatar_url?: string | null
+          city?: string | null
+          country?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
           id?: string
           phone?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      student_progress: {
+        Row: {
+          company: string
+          created_at: string | null
+          id: string
+          language: string
+          level: string
+          points: number | null
+          question_difficulty: string
+          question_title: string
+          solved_at: string | null
+          user_id: string
+        }
+        Insert: {
+          company: string
+          created_at?: string | null
+          id?: string
+          language: string
+          level: string
+          points?: number | null
+          question_difficulty: string
+          question_title: string
+          solved_at?: string | null
+          user_id: string
+        }
+        Update: {
+          company?: string
+          created_at?: string | null
+          id?: string
+          language?: string
+          level?: string
+          points?: number | null
+          question_difficulty?: string
+          question_title?: string
+          solved_at?: string | null
+          user_id?: string
         }
         Relationships: []
       }
