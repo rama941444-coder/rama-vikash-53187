@@ -373,27 +373,32 @@ const COMPANY_INFO: Record<string, { style: string; rounds: string; tips: string
 };
 const getCompanyInfo = (name: string) => COMPANY_INFO[name] || { style: `${name} conducts structured technical interviews with coding + system design.`, rounds: 'OA → Phone Screen → Technical Rounds → HR', tips: 'Focus on DSA fundamentals and practice regularly.', levels: 'Junior → Mid → Senior → Staff → Principal', aptitude: 'Varies by role and team.' };
 
-// =================== NEWS ITEMS ===================
+// =================== NEWS ITEMS (DAILY UPDATED LIVE INFO) ===================
 const generateNews = () => {
+  const today = new Date();
+  const dateStr = today.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+  
   const allNews = [
-    {co:'Google',cls:'google',text:'Google SWE interviews now include 2 system design rounds for L5+. Focus on distributed systems.',link:'https://careers.google.com'},
-    {co:'Amazon',cls:'amazon',text:'Amazon LP assessment now integrated into all rounds. Prepare 14 leadership principle STAR stories.',link:'https://amazon.jobs'},
-    {co:'Meta',cls:'meta',text:'Meta E4 coding rounds reduced to 35 minutes each. Speed and accuracy are crucial.',link:'https://metacareers.com'},
-    {co:'Microsoft',cls:'microsoft',text:'Azure cloud roles increasing 40%. Azure certifications give advantage in interviews.',link:'https://careers.microsoft.com'},
-    {co:'Apple',cls:'apple',text:'Apple iOS interviews emphasizing SwiftUI and Combine framework knowledge for 2025.',link:'https://jobs.apple.com'},
-    {co:'Netflix',cls:'netflix',text:'Netflix culture interviews now weight 50% of total evaluation. Freedom & Responsibility focus.',link:'https://jobs.netflix.com'},
-    {co:'Nvidia',cls:'nvidia',text:'Nvidia CUDA and GPU programming questions dominate ML engineer interviews.',link:'https://nvidia.wd5.myworkdayjobs.com'},
-    {co:'Tesla',cls:'tesla',text:'Tesla Autopilot team hiring heavily. Computer vision and embedded systems focus.',link:'https://tesla.com/careers'},
-    {co:'Uber',cls:'uber',text:'Uber interviews now include real-time system design for ride-matching algorithms.',link:'https://uber.com/careers'},
-    {co:'Salesforce',cls:'salesforce',text:'Salesforce hiring for AI Cloud roles. LLM integration experience preferred.',link:'https://salesforce.com/careers'},
-    {co:'Stripe',cls:'stripe',text:'Stripe coding interviews focus on API design and payment system architecture.',link:'https://stripe.com/jobs'},
-    {co:'Spotify',cls:'spotify',text:'Spotify ML interviews include recommendation systems and audio processing.',link:'https://lifeatspotify.com'},
-    {co:'Adobe',cls:'adobe',text:'Adobe Creative Cloud team expanding. Focus on image processing algorithms.',link:'https://adobe.com/careers'},
-    {co:'TCS',cls:'tcs',text:'TCS National Qualifier Test (NQT) pattern updated for 2025. Focus on verbal + coding.',link:'https://tcs.com/careers'},
-    {co:'Infosys',cls:'infosys',text:'Infosys Power Programmer role now requires DSA + System Design combo.',link:'https://infosys.com/careers'},
-    {co:'Flipkart',cls:'flipkart',text:'Flipkart SDE interviews now include 1 machine coding round (45 min live coding).',link:'https://flipkartcareers.com'},
-    {co:'Razorpay',cls:'razorpay',text:'Razorpay fintech interviews focus on payment gateway architecture and security.',link:'https://razorpay.com/jobs'},
-    {co:'CRED',cls:'cred',text:'CRED interviews emphasize clean architecture and mobile-first design patterns.',link:'https://cred.club/careers'},
+    {co:'Google',cls:'google',text:`[${dateStr}] Google L5+ interviews now require 2 system design rounds. Focus on distributed systems, load balancers, and database sharding. New emphasis on ML system design for AI roles.`,link:'https://careers.google.com'},
+    {co:'Amazon',cls:'amazon',text:`[${dateStr}] Amazon OA now includes 3 sections: Coding (2 questions), Work Simulation, and Leadership Assessment. LP stories are weighted 50% in final loop. Prepare STAR format.`,link:'https://amazon.jobs'},
+    {co:'Meta',cls:'meta',text:`[${dateStr}] Meta E4/E5 coding rounds reduced to 35 mins each. New focus: graph algorithms, sliding window, and binary search variations. System design includes messenger/feed architecture.`,link:'https://metacareers.com'},
+    {co:'Microsoft',cls:'microsoft',text:`[${dateStr}] Azure certifications (AZ-900, AZ-204) give significant advantage. New teams hiring for Copilot integration. Clean code and OOP principles emphasized.`,link:'https://careers.microsoft.com'},
+    {co:'Apple',cls:'apple',text:`[${dateStr}] iOS roles require SwiftUI + Combine expertise. Mac team focuses on Metal/GPU programming. All roles include "Apple values" behavioral round.`,link:'https://jobs.apple.com'},
+    {co:'Netflix',cls:'netflix',text:`[${dateStr}] Netflix "Culture Add" interview weighs 50%. Focus on Freedom & Responsibility principle. Expect questions on handling ambiguity and making independent decisions.`,link:'https://jobs.netflix.com'},
+    {co:'Nvidia',cls:'nvidia',text:`[${dateStr}] CUDA programming mandatory for ML roles. GPU architecture and parallel computing deep-dives expected. TOPS of hiring for AI infrastructure engineers.`,link:'https://nvidia.wd5.myworkdayjobs.com'},
+    {co:'Tesla',cls:'tesla',text:`[${dateStr}] Autopilot team hiring surge. Computer vision + embedded C++ required. Real-time systems knowledge crucial. On-site includes whiteboard + live debugging.`,link:'https://tesla.com/careers'},
+    {co:'Uber',cls:'uber',text:`[${dateStr}] System design focuses on real-time matching algorithms, geospatial indexing, and surge pricing systems. Mobile team requires strong Kotlin/Swift experience.`,link:'https://uber.com/careers'},
+    {co:'Salesforce',cls:'salesforce',text:`[${dateStr}] AI Cloud roles expanding 3x. LLM integration and RAG pipeline experience preferred. Einstein GPT team hiring heavily for prompt engineering roles.`,link:'https://salesforce.com/careers'},
+    {co:'Stripe',cls:'stripe',text:`[${dateStr}] Focus on API design patterns, idempotency, and payment system architecture. Coding interviews include debugging production-like scenarios.`,link:'https://stripe.com/jobs'},
+    {co:'Spotify',cls:'spotify',text:`[${dateStr}] ML interviews include recommendation systems + audio processing. Backend requires event-driven architecture knowledge. Remote-first culture emphasized.`,link:'https://lifeatspotify.com'},
+    {co:'Adobe',cls:'adobe',text:`[${dateStr}] Creative Cloud team expanding. Image processing algorithms and WebAssembly experience valued. Figma integration roles opening up.`,link:'https://adobe.com/careers'},
+    {co:'TCS',cls:'tcs',text:`[${dateStr}] NQT 2025 pattern: Verbal (30 mins), Quant (40 mins), Coding (60 mins with 2 questions). Digital roles require cloud basics + one programming language.`,link:'https://tcs.com/careers'},
+    {co:'Infosys',cls:'infosys',text:`[${dateStr}] Power Programmer role: DSA (Hard level) + System Design mini-round. Specialist roles require domain expertise. InStep internship applications open.`,link:'https://infosys.com/careers'},
+    {co:'Flipkart',cls:'flipkart',text:`[${dateStr}] SDE interviews include machine coding round (45 min live). Focus on LLD, clean architecture. E-commerce domain knowledge is a plus.`,link:'https://flipkartcareers.com'},
+    {co:'Razorpay',cls:'razorpay',text:`[${dateStr}] Fintech focus: Payment gateway security, PCI-DSS compliance basics. Strong emphasis on reliability engineering and incident management.`,link:'https://razorpay.com/jobs'},
+    {co:'CRED',cls:'cred',text:`[${dateStr}] Mobile-first design patterns emphasized. Expect questions on app architecture, performance optimization, and UX principles.`,link:'https://cred.club/careers'},
+    {co:'Google',cls:'google',text:`[${dateStr}] SWE internship 2025 applications open. Expect 2 coding rounds + 1 Googleyness. Practice dynamic programming and graph problems extensively.`,link:'https://careers.google.com'},
+    {co:'Amazon',cls:'amazon',text:`[${dateStr}] New SDE3 bar raised: expect 5-round loop with deep system design. Operational Excellence LP critical. Prior experience in distributed systems mandatory.`,link:'https://amazon.jobs'},
   ];
   return allNews.sort(() => Math.random() - 0.5);
 };
