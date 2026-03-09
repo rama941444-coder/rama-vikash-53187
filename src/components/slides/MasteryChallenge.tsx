@@ -591,13 +591,13 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
             topic: '',
             desc: '',
             tc: [],
-            time: '',
+            time: p.points?.toString() || '',
             space: '',
             sol: {},
             company: p.company,
             level: p.level,
             lang: p.language,
-            time: new Date(p.solved_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+            solvedTime: new Date(p.solved_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
           }));
           setSolved(loadedSolved);
         }
