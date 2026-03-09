@@ -502,18 +502,78 @@ const generateMCQs = (topic: string, seed: number = 0): { q: string; opts: strin
 };
 
 // =================== LEADERBOARD ===================
-const LB_DATA = [
-  {name:'Arjun Sharma',college:'IIT Bombay',score:2450,solved:87,streak:14},
-  {name:'Priya Nair',college:'NIT Trichy',score:2180,solved:76,streak:21},
-  {name:'Rahul Gupta',college:'BITS Pilani',score:1920,solved:68,streak:9},
-  {name:'Ananya Reddy',college:'IIT Delhi',score:1750,solved:62,streak:12},
-  {name:'Sai Krishna',college:'VIT Vellore',score:1580,solved:55,streak:7},
-  {name:'Deepak Kumar',college:'IIT Madras',score:1420,solved:49,streak:5},
-  {name:'Lavanya M',college:'IIIT Hyderabad',score:1290,solved:44,streak:11},
-  {name:'Vikram S',college:'Amrita',score:1100,solved:38,streak:3},
-  {name:'Meera P',college:'SRM Chennai',score:950,solved:33,streak:6},
-];
 const AVATAR_COLORS = ['#4285f4','#ea4335','#fbbc04','#34a853','#ff6d01','#46bdc6','#7baaf7','#f07b72','#fcd04f','#57bb8a'];
+
+// =================== GLOBAL CP LEADERS ===================
+const GLOBAL_CP_LEADERS = [
+  {name:'tourist (Gennady Korotkevich)',platform:'Codeforces',rating:'3979',country:'🇧🇾 Belarus',handle:'tourist',url:'https://codeforces.com/profile/tourist'},
+  {name:'Benq (Benjamin Qi)',platform:'Codeforces',rating:'3684',country:'🇺🇸 USA',handle:'Benq',url:'https://codeforces.com/profile/Benq'},
+  {name:'jiangly (Jiang Yuelin)',platform:'Codeforces',rating:'3639',country:'🇨🇳 China',handle:'jiangly',url:'https://codeforces.com/profile/jiangly'},
+  {name:'ecnerwala (Andrew He)',platform:'Codeforces',rating:'3534',country:'🇺🇸 USA',handle:'ecnerwala',url:'https://codeforces.com/profile/ecnerwala'},
+  {name:'ksun48 (Kevin Sun)',platform:'Codeforces',rating:'3454',country:'🇺🇸 USA',handle:'ksun48',url:'https://codeforces.com/profile/ksun48'},
+  {name:'neal (Neal Wu)',platform:'LeetCode',rating:'3370+',country:'🇺🇸 USA',handle:'neal_wu',url:'https://leetcode.com/neal_wu/'},
+  {name:'Lee215 (Lee)',platform:'LeetCode',rating:'3300+',country:'🇺🇸 USA',handle:'lee215',url:'https://leetcode.com/lee215/'},
+  {name:'Errichto (Kamil Debowski)',platform:'Codeforces',rating:'3206',country:'🇵🇱 Poland',handle:'Errichto',url:'https://codeforces.com/profile/Errichto'},
+  {name:'Um_nik (Alex Danilyuk)',platform:'Codeforces',rating:'3400+',country:'🇺🇦 Ukraine',handle:'Um_nik',url:'https://codeforces.com/profile/Um_nik'},
+  {name:'Petr (Petr Mitrichev)',platform:'Codeforces',rating:'3320+',country:'🇷🇺 Russia',handle:'Petr',url:'https://codeforces.com/profile/Petr'},
+  {name:'uwi (Takahashi)',platform:'AtCoder',rating:'3000+',country:'🇯🇵 Japan',handle:'uwi',url:'https://atcoder.jp/users/uwi'},
+  {name:'rng_58 (Makoto Soejima)',platform:'AtCoder',rating:'3200+',country:'🇯🇵 Japan',handle:'rng_58',url:'https://atcoder.jp/users/rng_58'},
+  {name:'Striver (Raj Vikramaditya)',platform:'GeeksForGeeks',rating:'Legend',country:'🇮🇳 India',handle:'striver',url:'https://www.geeksforgeeks.org/user/striver/'},
+  {name:'Love Babbar',platform:'GeeksForGeeks',rating:'Legend',country:'🇮🇳 India',handle:'lovebabbar',url:'https://www.geeksforgeeks.org/user/lovebabbar/'},
+  {name:'Neetcode (Navdeep Singh)',platform:'LeetCode',rating:'2800+',country:'🇨🇦 Canada',handle:'neetcode',url:'https://leetcode.com/neetcode/'},
+  {name:'votrubac',platform:'LeetCode',rating:'3100+',country:'🇺🇸 USA',handle:'votrubac',url:'https://leetcode.com/votrubac/'},
+  {name:'Adarsh Verma',platform:'Coding Ninjas',rating:'Ninja Grandmaster',country:'🇮🇳 India',handle:'adarsh',url:'https://www.codingninjas.com'},
+  {name:'SecondThread (William Lin)',platform:'Codeforces',rating:'3100+',country:'🇺🇸 USA',handle:'SecondThread',url:'https://codeforces.com/profile/SecondThread'},
+  {name:'tmwilliamlin168',platform:'LeetCode',rating:'3200+',country:'🇺🇸 USA',handle:'tmwilliamlin168',url:'https://leetcode.com/tmwilliamlin168/'},
+  {name:'pashka (Pavel Mavrin)',platform:'Codeforces',rating:'3320+',country:'🇷🇺 Russia',handle:'pashka',url:'https://codeforces.com/profile/pashka'},
+];
+
+// =================== LANG KEY MAPPING ===================
+const LANG_KEY_MAP: Record<string, string> = {
+  'Python 3':'py','Python 2':'py','Java':'java','C++':'cpp','C':'c',
+  'JavaScript':'js','TypeScript':'ts','Go':'go','Rust':'rs','Kotlin':'kt',
+  'Swift':'swift','C#':'cs','Ruby':'rb','PHP':'php','Dart':'dart',
+  'Scala':'scala','R':'r','Perl':'pl','Lua':'lua','Julia':'jl',
+  'Bash':'sh','Haskell':'hs',
+};
+
+const getLangKey = (language: string): string => LANG_KEY_MAP[language] || 'py';
+
+// Detect language mismatch - check if code matches the selected language
+const detectLanguageMismatch = (code: string, selectedLang: string): string | null => {
+  const stripped = code.replace(/\/\/.*|#.*|\/\*[\s\S]*?\*\//g, '').trim();
+  if (!stripped || stripped.length < 20) return null;
+
+  const langPatterns: Record<string, { must?: RegExp[]; mustNot?: RegExp[]; name: string }> = {
+    'Python 3': { must: [/def |print\(|import |class |if .*:/], mustNot: [/public\s+class|System\.out|#include|console\.log/], name: 'Python' },
+    'Python 2': { must: [/def |print |import |class /], mustNot: [/public\s+class|System\.out|#include|console\.log/], name: 'Python' },
+    'Java': { must: [/public\s+(class|static)|System\.|import\s+java/], mustNot: [/def |#include|console\.log|func |fn /], name: 'Java' },
+    'C++': { must: [/#include|using\s+namespace|cout|cin|std::/], mustNot: [/System\.out|console\.log|def |import\s+java/], name: 'C++' },
+    'C': { must: [/#include|printf|scanf|int\s+main/], mustNot: [/cout|cin|System\.out|console\.log|class |def /], name: 'C' },
+    'JavaScript': { must: [/console\.log|function |const |let |var |=>/], mustNot: [/System\.out|#include|def .*:|public\s+class/], name: 'JavaScript' },
+    'TypeScript': { must: [/console\.log|function |const |let |: string|: number|interface /], mustNot: [/System\.out|#include|def .*:/], name: 'TypeScript' },
+    'Go': { must: [/package\s+main|func\s+main|fmt\./], mustNot: [/System\.out|console\.log|def |#include/], name: 'Go' },
+    'Rust': { must: [/fn\s+main|println!|let\s+mut/], mustNot: [/System\.out|console\.log|def |#include/], name: 'Rust' },
+    'Ruby': { must: [/puts |def |end$|require /m], mustNot: [/System\.out|console\.log|#include|public\s+class/], name: 'Ruby' },
+  };
+
+  const pattern = langPatterns[selectedLang];
+  if (!pattern) return null;
+
+  // Check if code contains keywords from a DIFFERENT language
+  const otherLangs = Object.entries(langPatterns).filter(([k]) => k !== selectedLang);
+  for (const [otherLang, otherPattern] of otherLangs) {
+    if (otherPattern.must?.some(re => re.test(stripped))) {
+      if (pattern.mustNot?.some(re => re.test(stripped))) {
+        const config = getLangConfig(selectedLang);
+        return `${config.compiled ? config.compileCmd : config.cmd}: fatal error: This appears to be ${otherPattern.name} code, but the selected compiler is ${pattern.name}.\n` +
+          `error: ${pattern.name} compiler cannot compile ${otherPattern.name} code.\n` +
+          `hint: Change the language selector to "${otherLang}" or rewrite the code in ${pattern.name}.\n1 error generated.`;
+      }
+    }
+  }
+  return null;
+};
 
 // =================== MAIN COMPONENT ===================
 const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryChallengeProps) => {
