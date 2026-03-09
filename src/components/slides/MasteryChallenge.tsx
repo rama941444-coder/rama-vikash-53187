@@ -572,6 +572,41 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
     tick(); const iv=setInterval(tick,1000); return()=>clearInterval(iv);
   },[]);
 
+  // Load user and progress from database
+  useEffect(() => {
+    const loadUserProgress = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setUserId(user.id);
+        // Load progress from database
+        const { data: progressData, error } = await supabase
+          .from('student_progress')
+          .select('*')
+          .eq('user_id', user.id);
+        
+        if (!error && progressData && progressData.length > 0) {
+          const loadedSolved = progressData.map((p: any) => ({
+            t: p.question_title,
+            d: p.question_difficulty,
+            topic: '',
+            desc: '',
+            tc: [],
+            time: '',
+            space: '',
+            sol: {},
+            company: p.company,
+            level: p.level,
+            lang: p.language,
+            time: new Date(p.solved_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+          }));
+          setSolved(loadedSolved);
+        }
+      }
+      setProgressLoaded(true);
+    };
+    loadUserProgress();
+  }, []);
+
   // Live news rotation every 30s
   useEffect(() => {
     const iv = setInterval(() => {
