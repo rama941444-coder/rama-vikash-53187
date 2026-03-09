@@ -1488,7 +1488,7 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
                   <div style={{fontFamily:"'Space Mono',monospace",fontSize:15,fontWeight:700,color:i===0?'#f59e0b':i===1?'#94a3b8':i===2?'#cd7c47':'inherit'}}>{i===0?'🥇':i===1?'🥈':i===2?'🥉':`#${i+1}`}</div>
                   <div style={{display:'flex',alignItems:'center',gap:10}}>
                     <div style={{width:32,height:32,borderRadius:'50%',background:AVATAR_COLORS[i%10],display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:700}}>{r.name[0]}</div>
-                    <div><div style={{fontSize:14,fontWeight:600}}>{r.name}{r.you?' (You)':''}</div><div style={{fontSize:11,color:S.muted}}>{r.college}</div></div>
+                    <div><div style={{fontSize:14,fontWeight:600}}>{r.name}{r.you?' (You)':''}</div><div style={{fontSize:11,color:S.muted}}>{r.email||''}</div></div>
                   </div>
                   <div style={{fontFamily:"'Space Mono',monospace",fontSize:14,fontWeight:700,color:S.green}}>{r.score.toLocaleString()}</div>
                   <div style={{fontSize:13,color:S.muted2}}>{r.solved}</div>
