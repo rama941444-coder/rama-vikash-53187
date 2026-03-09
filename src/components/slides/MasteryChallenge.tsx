@@ -616,6 +616,7 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
   const [newsIdx, setNewsIdx] = useState(0);
   const [userId, setUserId] = useState<string | null>(null);
   const [progressLoaded, setProgressLoaded] = useState(false);
+  const [leaderboardUsers, setLeaderboardUsers] = useState<{name:string;email:string;score:number;solved:number;streak:number}[]>([]);
 
   const codeRef = useRef<HTMLTextAreaElement>(null);
   const lineNumRef = useRef<HTMLDivElement>(null);
