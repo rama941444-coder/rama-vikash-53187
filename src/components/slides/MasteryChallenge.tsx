@@ -815,6 +815,14 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
 
     const config = getLangConfig(lang);
 
+    // Language mismatch check
+    const langMismatch = detectLanguageMismatch(code, lang);
+    if(langMismatch){
+      setOutput([{text:langMismatch,type:'stderr'}]);
+      if(activeQ) setTcResults((activeQ.tc||[]).slice(0,3).map(()=>({pass:false,got:'Language Mismatch'})));
+      setIsRunning(false); return;
+    }
+
     // Syntax check
     const syntaxErr = detectSyntaxErrors(code, lang);
     if(syntaxErr){
