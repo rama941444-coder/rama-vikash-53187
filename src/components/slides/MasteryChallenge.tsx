@@ -1246,8 +1246,8 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
                   ))}
                   <button onClick={()=>{setCompanyMcqSeed(prev=>prev+1);setMcqAnswers({});setMcqSubmitted({});toast({title:'🔄 New questions generated!'});}} style={{padding:'5px 12px',borderRadius:7,fontSize:10,fontWeight:700,cursor:'pointer',border:`1px solid ${S.green}`,background:S.greenLight,color:S.green,marginLeft:'auto'}}>🔄 New Questions</button>
                 </div>
-                <div style={{maxHeight:400,overflowY:'auto',padding:'12px 16px'}}>
-                  {generateMCQs(company, companyMcqSeed).slice(0,5).map((q,idx)=>{
+                <div style={{maxHeight:500,overflowY:'auto',padding:'12px 16px'}}>
+                  {generateMCQs(company, companyMcqSeed).slice(0,20).map((q,idx)=>{
                     const key = `comp-${idx}-${companyMcqSeed}`;
                     return (
                       <div key={key} style={{padding:'12px 0',borderBottom:`1px solid rgba(16,185,129,.15)`}}>
