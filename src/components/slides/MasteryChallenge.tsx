@@ -729,13 +729,29 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
   },[company,level,qTab]);
 
   const loadTemplate = (q: QItem) => {
-    const langKey: Record<string,string> = {'Python 3':'py','Python 2':'py','Java':'java','C++':'cpp','C':'cpp','JavaScript':'js','TypeScript':'js'};
-    const key = langKey[lang]||'py';
+    const key = getLangKey(lang);
     const templates: Record<string,string> = {
       'py':`# ${q.t} — ${company}\n# ${q.d} | ${q.topic}\n\ndef solution():\n    # Write your solution here\n    pass\n\nresult = solution()\nprint(result)`,
       'java':`// ${q.t} — ${company}\nimport java.util.*;\npublic class Solution {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        // Write your solution here\n    }\n}`,
       'cpp':`// ${q.t} — ${company}\n#include <bits/stdc++.h>\nusing namespace std;\nint main() {\n    // Write your solution here\n    return 0;\n}`,
+      'c':`// ${q.t} — ${company}\n#include <stdio.h>\n#include <stdlib.h>\nint main() {\n    // Write your solution here\n    return 0;\n}`,
       'js':`// ${q.t} — ${company}\nfunction solution() {\n    // Write your solution here\n}\nconsole.log(solution());`,
+      'ts':`// ${q.t} — ${company}\nfunction solution(): void {\n    // Write your solution here\n}\nconsole.log(solution());`,
+      'go':`// ${q.t} — ${company}\npackage main\nimport "fmt"\nfunc main() {\n    // Write your solution here\n    fmt.Println()\n}`,
+      'rs':`// ${q.t} — ${company}\nfn main() {\n    // Write your solution here\n    println!();\n}`,
+      'kt':`// ${q.t} — ${company}\nfun main() {\n    // Write your solution here\n    println()\n}`,
+      'swift':`// ${q.t} — ${company}\nimport Foundation\n// Write your solution here\nprint()`,
+      'cs':`// ${q.t} — ${company}\nusing System;\nclass Solution {\n    static void Main() {\n        // Write your solution here\n    }\n}`,
+      'rb':`# ${q.t} — ${company}\ndef solution()\n    # Write your solution here\nend\nputs solution()`,
+      'php':`<?php\n// ${q.t} — ${company}\nfunction solution() {\n    // Write your solution here\n}\necho solution();\n?>`,
+      'dart':`// ${q.t} — ${company}\nvoid main() {\n    // Write your solution here\n    print('');\n}`,
+      'scala':`// ${q.t} — ${company}\nobject Solution {\n    def main(args: Array[String]): Unit = {\n        // Write your solution here\n    }\n}`,
+      'r':`# ${q.t} — ${company}\nsolution <- function() {\n    # Write your solution here\n}\nprint(solution())`,
+      'pl':`#!/usr/bin/perl\n# ${q.t} — ${company}\nuse strict;\nuse warnings;\n# Write your solution here\n`,
+      'lua':`-- ${q.t} — ${company}\nfunction solution()\n    -- Write your solution here\nend\nprint(solution())`,
+      'jl':`# ${q.t} — ${company}\nfunction solution()\n    # Write your solution here\nend\nprintln(solution())`,
+      'sh':`#!/bin/bash\n# ${q.t} — ${company}\n# Write your solution here\n`,
+      'hs':`-- ${q.t} — ${company}\nmain :: IO ()\nmain = do\n    -- Write your solution here\n    putStrLn ""`,
     };
     setCode(templates[key]||`# ${q.t}\n# Language: ${lang}\n\n# Write your solution here\n`);
     setOutput([]); setTcResults([]); setAnalysisVis(false); setShowSolution(false); setAiResp(''); setWaitingForInput(false);
