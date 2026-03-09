@@ -639,7 +639,6 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setUserId(user.id);
-        // Load progress from database
         const { data: progressData, error } = await supabase
           .from('student_progress')
           .select('*')
@@ -647,17 +646,8 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
         
         if (!error && progressData && progressData.length > 0) {
           const loadedSolved = progressData.map((p: any) => ({
-            t: p.question_title,
-            d: p.question_difficulty,
-            topic: '',
-            desc: '',
-            tc: [],
-            time: p.points?.toString() || '',
-            space: '',
-            sol: {},
-            company: p.company,
-            level: p.level,
-            lang: p.language,
+            t: p.question_title, d: p.question_difficulty, topic: '', desc: '', tc: [], time: p.points?.toString() || '', space: '', sol: {},
+            company: p.company, level: p.level, lang: p.language,
             solvedTime: new Date(p.solved_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
           }));
           setSolved(loadedSolved);
@@ -667,6 +657,39 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
     };
     loadUserProgress();
   }, []);
+
+  // Load leaderboard from real users
+  useEffect(() => {
+    const loadLeaderboard = async () => {
+      try {
+        // Get all student progress grouped by user
+        const { data: allProgress } = await supabase.from('student_progress').select('user_id, points, question_title');
+        const { data: allProfiles } = await supabase.from('profiles').select('id, full_name, email');
+        
+        if (allProgress && allProfiles) {
+          const userMap: Record<string, { score: number; solved: Set<string>; name: string; email: string }> = {};
+          
+          for (const profile of allProfiles) {
+            userMap[profile.id] = { score: 0, solved: new Set(), name: profile.full_name || profile.email?.split('@')[0] || 'Student', email: profile.email || '' };
+          }
+          
+          for (const p of allProgress) {
+            if (!userMap[p.user_id]) continue;
+            userMap[p.user_id].score += (p.points || 0);
+            userMap[p.user_id].solved.add(p.question_title);
+          }
+          
+          const users = Object.entries(userMap)
+            .map(([_, u]) => ({ name: u.name, email: u.email, score: u.score, solved: u.solved.size, streak: Math.min(u.solved.size, 14) }))
+            .filter(u => u.score > 0 || u.solved > 0)
+            .sort((a, b) => b.score - a.score);
+          
+          setLeaderboardUsers(users);
+        }
+      } catch (err) { console.error('Leaderboard load error:', err); }
+    };
+    loadLeaderboard();
+  }, [solved]);
 
   // Live news rotation every 30s
   useEffect(() => {
