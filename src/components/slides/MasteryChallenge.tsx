@@ -828,14 +828,33 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
     setOutput(outLines); setTcResults(results); setAnalysisVis(true); setIsRunning(false);
   };
 
-  const submitCode = () => {
+  const submitCode = async () => {
     if(!code.trim()||isBoilerplate(code)){ toast({title:'⚠️ Write solution first!'}); return; }
     runCode();
-    setTimeout(()=>{
+    setTimeout(async ()=>{
       if(activeQ && !solved.find(p=>p.t===activeQ.t)){
         const pts = activeQ.d==='Easy'?10:activeQ.d==='Medium'?25:activeQ.d==='Hard'?50:100;
-        setSolved(prev=>[...prev,{...activeQ,company,level,lang,time:new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}]);
+        const newSolved = {...activeQ,company,level,lang,time:new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})};
+        setSolved(prev=>[...prev,newSolved]);
         toast({title:`🎉 Solved! +${pts} points`});
+        
+        // Save to database
+        if (userId) {
+          try {
+            await supabase.from('student_progress').upsert({
+              user_id: userId,
+              company: company,
+              level: level,
+              question_title: activeQ.t,
+              question_difficulty: activeQ.d,
+              language: lang,
+              points: pts,
+              solved_at: new Date().toISOString(),
+            }, { onConflict: 'user_id,question_title' });
+          } catch (err) {
+            console.error('Failed to save progress:', err);
+          }
+        }
       } else toast({title:'✅ Already submitted!'});
     },2000);
   };
