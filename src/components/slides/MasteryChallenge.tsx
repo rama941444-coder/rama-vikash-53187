@@ -554,6 +554,8 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
   const [blueDiamonds, setBlueDiamonds] = useState(0);
   const [newsItems, setNewsItems] = useState(generateNews);
   const [newsIdx, setNewsIdx] = useState(0);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [progressLoaded, setProgressLoaded] = useState(false);
 
   const codeRef = useRef<HTMLTextAreaElement>(null);
   const lineNumRef = useRef<HTMLDivElement>(null);
