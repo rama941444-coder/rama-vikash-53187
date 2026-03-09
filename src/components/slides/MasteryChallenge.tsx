@@ -971,9 +971,16 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
 
   const getSolCode = () => {
     if(!activeQ) return '';
-    const keyMap: Record<string,string> = {'Python 3':'py','Python 2':'py','Java':'java','C++':'cpp','C':'cpp','JavaScript':'js','TypeScript':'js'};
-    const key = keyMap[lang]||'py';
-    return activeQ.sol?.[key]||activeQ.sol?.['py']||`# Solution for ${activeQ.t} in ${lang}`;
+    const key = getLangKey(lang);
+    // Try exact match first, then fall back to closest match, then py
+    if (activeQ.sol?.[key]) return activeQ.sol[key];
+    // For C, try cpp solution
+    if (key === 'c' && activeQ.sol?.['cpp']) return activeQ.sol['cpp'].replace(/#include <bits\/stdc\+\+\.h>/g, '#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>').replace(/using namespace std;\n?/g, '').replace(/cout<</g, 'printf(').replace(/cin>>/g, 'scanf(');
+    // For TypeScript, try js
+    if (key === 'ts' && activeQ.sol?.['js']) return activeQ.sol['js'];
+    // For other languages, generate a comment
+    if (activeQ.sol?.['py']) return activeQ.sol['py'];
+    return `# Solution for ${activeQ.t} in ${lang}\n# Implement the algorithm described above`;
   };
 
   const aiAction = (type:'hint'|'explain'|'optimize'|'review') => {
