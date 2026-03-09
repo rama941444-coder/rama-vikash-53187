@@ -1509,10 +1509,17 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
           <div style={{padding:'24px 28px 48px'}}>
             <div style={{fontSize:13,fontWeight:600,color:S.green,textTransform:'uppercase',letterSpacing:2,fontFamily:"'Space Mono',monospace",marginBottom:6}}>Rankings</div>
             <div style={{fontSize:22,fontWeight:800,marginBottom:18}}>Global Leaderboard</div>
-            <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:14,overflow:'hidden'}}>
+            
+            {/* Real Users Leaderboard */}
+            <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:14,overflow:'hidden',marginBottom:28}}>
               <div style={{display:'grid',gridTemplateColumns:'60px 1fr 120px 120px 100px',padding:'12px 20px',background:S.surface,borderBottom:`1px solid ${S.border}`,fontSize:11,fontWeight:700,color:S.muted,textTransform:'uppercase',fontFamily:"'Space Mono',monospace"}}>
                 <div>Rank</div><div>Student</div><div>Score</div><div>Solved</div><div>Streak</div>
               </div>
+              {getLBData().length <= 1 && !getLBData().some(r => !r.you && r.score > 0) ? (
+                <div style={{padding:'28px 20px',textAlign:'center',color:S.muted,fontSize:13}}>
+                  🏗️ No other students have solved problems yet. Be the first to top the leaderboard!
+                </div>
+              ) : null}
               {getLBData().map((r,i)=>(
                 <div key={i} style={{display:'grid',gridTemplateColumns:'60px 1fr 120px 120px 100px',padding:'14px 20px',borderBottom:`1px solid rgba(42,51,71,.5)`,alignItems:'center',
                   background:r.you?'rgba(16,185,129,.06)':'transparent',borderLeft:r.you?`3px solid ${S.green}`:'none'}}>
@@ -1524,6 +1531,30 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
                   <div style={{fontFamily:"'Space Mono',monospace",fontSize:14,fontWeight:700,color:S.green}}>{r.score.toLocaleString()}</div>
                   <div style={{fontSize:13,color:S.muted2}}>{r.solved}</div>
                   <div style={{fontSize:12,color:'#f97316'}}>🔥 {r.streak}d</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Orange Box - Global CP Leaders */}
+            <div style={{background:'linear-gradient(135deg,rgba(249,115,22,.12),rgba(249,115,22,.05))',border:'2px solid #f97316',borderRadius:14,padding:20}}>
+              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16}}>
+                <span style={{background:'#f97316',color:'#fff',fontSize:10,fontWeight:700,padding:'3px 10px',borderRadius:100,fontFamily:"'Space Mono',monospace",textTransform:'uppercase',animation:'pulse 1.5s infinite'}}>🔴 LIVE</span>
+                <span style={{fontSize:16,fontWeight:800}}>🌍 Global Competitive Programming Leaders</span>
+                <span style={{fontSize:10,color:S.muted,marginLeft:'auto'}}>LeetCode · Codeforces · GFG · AtCoder · Coding Ninjas</span>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'40px 1fr 130px 100px 120px 60px',padding:'10px 16px',background:'rgba(249,115,22,.08)',borderRadius:8,marginBottom:8,fontSize:10,fontWeight:700,color:'#f97316',textTransform:'uppercase',fontFamily:"'Space Mono',monospace"}}>
+                <div>#</div><div>Name</div><div>Platform</div><div>Rating</div><div>Country</div><div>Link</div>
+              </div>
+              {GLOBAL_CP_LEADERS.map((leader,i)=>(
+                <div key={i} style={{display:'grid',gridTemplateColumns:'40px 1fr 130px 100px 120px 60px',padding:'10px 16px',borderBottom:i<GLOBAL_CP_LEADERS.length-1?'1px solid rgba(249,115,22,.15)':'none',alignItems:'center',fontSize:12}}>
+                  <div style={{fontFamily:"'Space Mono',monospace",fontWeight:700,color:i<3?'#f97316':S.muted}}>{i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}`}</div>
+                  <div style={{fontWeight:600,color:S.text}}>{leader.name}</div>
+                  <div><span style={{padding:'2px 8px',borderRadius:4,fontSize:10,fontFamily:"'Space Mono',monospace",
+                    background:leader.platform==='Codeforces'?'rgba(239,68,68,.15)':leader.platform==='LeetCode'?'rgba(249,115,22,.15)':leader.platform==='GeeksForGeeks'?'rgba(16,185,129,.15)':leader.platform==='AtCoder'?'rgba(59,130,246,.15)':'rgba(124,58,237,.15)',
+                    color:leader.platform==='Codeforces'?'#ef4444':leader.platform==='LeetCode'?'#f97316':leader.platform==='GeeksForGeeks'?S.green:leader.platform==='AtCoder'?'#3b82f6':S.accent}}>{leader.platform}</span></div>
+                  <div style={{fontFamily:"'Space Mono',monospace",fontWeight:700,color:'#f97316'}}>{leader.rating}</div>
+                  <div style={{color:S.muted2}}>{leader.country}</div>
+                  <a href={leader.url} target="_blank" rel="noopener noreferrer" style={{fontSize:10,color:'#f97316',textDecoration:'none',padding:'2px 8px',border:'1px solid rgba(249,115,22,.3)',borderRadius:6,textAlign:'center'}}>View →</a>
                 </div>
               ))}
             </div>
