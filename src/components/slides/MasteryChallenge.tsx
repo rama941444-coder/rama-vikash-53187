@@ -1002,8 +1002,8 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
   const companyInfo = getCompanyInfo(company);
 
   const getLBData = ()=>{
-    const user = {name:'You',college:'Your College',score,solved:totalSolved,streak:Math.min(totalSolved,7),you:true};
-    return [...LB_DATA.map(r=>({...r,you:false})),user].sort((a,b)=>b.score-a.score);
+    const user = {name:'You',email:'',score,solved:totalSolved,streak:Math.min(totalSolved,7),you:true};
+    return [...leaderboardUsers.map(r=>({...r,you:false})),user].sort((a,b)=>b.score-a.score);
   };
 
   const h = new Date().getHours();
