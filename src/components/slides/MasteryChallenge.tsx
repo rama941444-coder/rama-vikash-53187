@@ -502,18 +502,78 @@ const generateMCQs = (topic: string, seed: number = 0): { q: string; opts: strin
 };
 
 // =================== LEADERBOARD ===================
-const LB_DATA = [
-  {name:'Arjun Sharma',college:'IIT Bombay',score:2450,solved:87,streak:14},
-  {name:'Priya Nair',college:'NIT Trichy',score:2180,solved:76,streak:21},
-  {name:'Rahul Gupta',college:'BITS Pilani',score:1920,solved:68,streak:9},
-  {name:'Ananya Reddy',college:'IIT Delhi',score:1750,solved:62,streak:12},
-  {name:'Sai Krishna',college:'VIT Vellore',score:1580,solved:55,streak:7},
-  {name:'Deepak Kumar',college:'IIT Madras',score:1420,solved:49,streak:5},
-  {name:'Lavanya M',college:'IIIT Hyderabad',score:1290,solved:44,streak:11},
-  {name:'Vikram S',college:'Amrita',score:1100,solved:38,streak:3},
-  {name:'Meera P',college:'SRM Chennai',score:950,solved:33,streak:6},
-];
 const AVATAR_COLORS = ['#4285f4','#ea4335','#fbbc04','#34a853','#ff6d01','#46bdc6','#7baaf7','#f07b72','#fcd04f','#57bb8a'];
+
+// =================== GLOBAL CP LEADERS ===================
+const GLOBAL_CP_LEADERS = [
+  {name:'tourist (Gennady Korotkevich)',platform:'Codeforces',rating:'3979',country:'🇧🇾 Belarus',handle:'tourist',url:'https://codeforces.com/profile/tourist'},
+  {name:'Benq (Benjamin Qi)',platform:'Codeforces',rating:'3684',country:'🇺🇸 USA',handle:'Benq',url:'https://codeforces.com/profile/Benq'},
+  {name:'jiangly (Jiang Yuelin)',platform:'Codeforces',rating:'3639',country:'🇨🇳 China',handle:'jiangly',url:'https://codeforces.com/profile/jiangly'},
+  {name:'ecnerwala (Andrew He)',platform:'Codeforces',rating:'3534',country:'🇺🇸 USA',handle:'ecnerwala',url:'https://codeforces.com/profile/ecnerwala'},
+  {name:'ksun48 (Kevin Sun)',platform:'Codeforces',rating:'3454',country:'🇺🇸 USA',handle:'ksun48',url:'https://codeforces.com/profile/ksun48'},
+  {name:'neal (Neal Wu)',platform:'LeetCode',rating:'3370+',country:'🇺🇸 USA',handle:'neal_wu',url:'https://leetcode.com/neal_wu/'},
+  {name:'Lee215 (Lee)',platform:'LeetCode',rating:'3300+',country:'🇺🇸 USA',handle:'lee215',url:'https://leetcode.com/lee215/'},
+  {name:'Errichto (Kamil Debowski)',platform:'Codeforces',rating:'3206',country:'🇵🇱 Poland',handle:'Errichto',url:'https://codeforces.com/profile/Errichto'},
+  {name:'Um_nik (Alex Danilyuk)',platform:'Codeforces',rating:'3400+',country:'🇺🇦 Ukraine',handle:'Um_nik',url:'https://codeforces.com/profile/Um_nik'},
+  {name:'Petr (Petr Mitrichev)',platform:'Codeforces',rating:'3320+',country:'🇷🇺 Russia',handle:'Petr',url:'https://codeforces.com/profile/Petr'},
+  {name:'uwi (Takahashi)',platform:'AtCoder',rating:'3000+',country:'🇯🇵 Japan',handle:'uwi',url:'https://atcoder.jp/users/uwi'},
+  {name:'rng_58 (Makoto Soejima)',platform:'AtCoder',rating:'3200+',country:'🇯🇵 Japan',handle:'rng_58',url:'https://atcoder.jp/users/rng_58'},
+  {name:'Striver (Raj Vikramaditya)',platform:'GeeksForGeeks',rating:'Legend',country:'🇮🇳 India',handle:'striver',url:'https://www.geeksforgeeks.org/user/striver/'},
+  {name:'Love Babbar',platform:'GeeksForGeeks',rating:'Legend',country:'🇮🇳 India',handle:'lovebabbar',url:'https://www.geeksforgeeks.org/user/lovebabbar/'},
+  {name:'Neetcode (Navdeep Singh)',platform:'LeetCode',rating:'2800+',country:'🇨🇦 Canada',handle:'neetcode',url:'https://leetcode.com/neetcode/'},
+  {name:'votrubac',platform:'LeetCode',rating:'3100+',country:'🇺🇸 USA',handle:'votrubac',url:'https://leetcode.com/votrubac/'},
+  {name:'Adarsh Verma',platform:'Coding Ninjas',rating:'Ninja Grandmaster',country:'🇮🇳 India',handle:'adarsh',url:'https://www.codingninjas.com'},
+  {name:'SecondThread (William Lin)',platform:'Codeforces',rating:'3100+',country:'🇺🇸 USA',handle:'SecondThread',url:'https://codeforces.com/profile/SecondThread'},
+  {name:'tmwilliamlin168',platform:'LeetCode',rating:'3200+',country:'🇺🇸 USA',handle:'tmwilliamlin168',url:'https://leetcode.com/tmwilliamlin168/'},
+  {name:'pashka (Pavel Mavrin)',platform:'Codeforces',rating:'3320+',country:'🇷🇺 Russia',handle:'pashka',url:'https://codeforces.com/profile/pashka'},
+];
+
+// =================== LANG KEY MAPPING ===================
+const LANG_KEY_MAP: Record<string, string> = {
+  'Python 3':'py','Python 2':'py','Java':'java','C++':'cpp','C':'c',
+  'JavaScript':'js','TypeScript':'ts','Go':'go','Rust':'rs','Kotlin':'kt',
+  'Swift':'swift','C#':'cs','Ruby':'rb','PHP':'php','Dart':'dart',
+  'Scala':'scala','R':'r','Perl':'pl','Lua':'lua','Julia':'jl',
+  'Bash':'sh','Haskell':'hs',
+};
+
+const getLangKey = (language: string): string => LANG_KEY_MAP[language] || 'py';
+
+// Detect language mismatch - check if code matches the selected language
+const detectLanguageMismatch = (code: string, selectedLang: string): string | null => {
+  const stripped = code.replace(/\/\/.*|#.*|\/\*[\s\S]*?\*\//g, '').trim();
+  if (!stripped || stripped.length < 20) return null;
+
+  const langPatterns: Record<string, { must?: RegExp[]; mustNot?: RegExp[]; name: string }> = {
+    'Python 3': { must: [/def |print\(|import |class |if .*:/], mustNot: [/public\s+class|System\.out|#include|console\.log/], name: 'Python' },
+    'Python 2': { must: [/def |print |import |class /], mustNot: [/public\s+class|System\.out|#include|console\.log/], name: 'Python' },
+    'Java': { must: [/public\s+(class|static)|System\.|import\s+java/], mustNot: [/def |#include|console\.log|func |fn /], name: 'Java' },
+    'C++': { must: [/#include|using\s+namespace|cout|cin|std::/], mustNot: [/System\.out|console\.log|def |import\s+java/], name: 'C++' },
+    'C': { must: [/#include|printf|scanf|int\s+main/], mustNot: [/cout|cin|System\.out|console\.log|class |def /], name: 'C' },
+    'JavaScript': { must: [/console\.log|function |const |let |var |=>/], mustNot: [/System\.out|#include|def .*:|public\s+class/], name: 'JavaScript' },
+    'TypeScript': { must: [/console\.log|function |const |let |: string|: number|interface /], mustNot: [/System\.out|#include|def .*:/], name: 'TypeScript' },
+    'Go': { must: [/package\s+main|func\s+main|fmt\./], mustNot: [/System\.out|console\.log|def |#include/], name: 'Go' },
+    'Rust': { must: [/fn\s+main|println!|let\s+mut/], mustNot: [/System\.out|console\.log|def |#include/], name: 'Rust' },
+    'Ruby': { must: [/puts |def |end$|require /m], mustNot: [/System\.out|console\.log|#include|public\s+class/], name: 'Ruby' },
+  };
+
+  const pattern = langPatterns[selectedLang];
+  if (!pattern) return null;
+
+  // Check if code contains keywords from a DIFFERENT language
+  const otherLangs = Object.entries(langPatterns).filter(([k]) => k !== selectedLang);
+  for (const [otherLang, otherPattern] of otherLangs) {
+    if (otherPattern.must?.some(re => re.test(stripped))) {
+      if (pattern.mustNot?.some(re => re.test(stripped))) {
+        const config = getLangConfig(selectedLang);
+        return `${config.compiled ? config.compileCmd : config.cmd}: fatal error: This appears to be ${otherPattern.name} code, but the selected compiler is ${pattern.name}.\n` +
+          `error: ${pattern.name} compiler cannot compile ${otherPattern.name} code.\n` +
+          `hint: Change the language selector to "${otherLang}" or rewrite the code in ${pattern.name}.\n1 error generated.`;
+      }
+    }
+  }
+  return null;
+};
 
 // =================== MAIN COMPONENT ===================
 const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryChallengeProps) => {
@@ -556,6 +616,7 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
   const [newsIdx, setNewsIdx] = useState(0);
   const [userId, setUserId] = useState<string | null>(null);
   const [progressLoaded, setProgressLoaded] = useState(false);
+  const [leaderboardUsers, setLeaderboardUsers] = useState<{name:string;email:string;score:number;solved:number;streak:number}[]>([]);
 
   const codeRef = useRef<HTMLTextAreaElement>(null);
   const lineNumRef = useRef<HTMLDivElement>(null);
@@ -578,7 +639,6 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setUserId(user.id);
-        // Load progress from database
         const { data: progressData, error } = await supabase
           .from('student_progress')
           .select('*')
@@ -586,17 +646,8 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
         
         if (!error && progressData && progressData.length > 0) {
           const loadedSolved = progressData.map((p: any) => ({
-            t: p.question_title,
-            d: p.question_difficulty,
-            topic: '',
-            desc: '',
-            tc: [],
-            time: p.points?.toString() || '',
-            space: '',
-            sol: {},
-            company: p.company,
-            level: p.level,
-            lang: p.language,
+            t: p.question_title, d: p.question_difficulty, topic: '', desc: '', tc: [], time: p.points?.toString() || '', space: '', sol: {},
+            company: p.company, level: p.level, lang: p.language,
             solvedTime: new Date(p.solved_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
           }));
           setSolved(loadedSolved);
@@ -606,6 +657,39 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
     };
     loadUserProgress();
   }, []);
+
+  // Load leaderboard from real users
+  useEffect(() => {
+    const loadLeaderboard = async () => {
+      try {
+        // Get all student progress grouped by user
+        const { data: allProgress } = await supabase.from('student_progress').select('user_id, points, question_title');
+        const { data: allProfiles } = await supabase.from('profiles').select('id, full_name, email');
+        
+        if (allProgress && allProfiles) {
+          const userMap: Record<string, { score: number; solved: Set<string>; name: string; email: string }> = {};
+          
+          for (const profile of allProfiles) {
+            userMap[profile.id] = { score: 0, solved: new Set(), name: profile.full_name || profile.email?.split('@')[0] || 'Student', email: profile.email || '' };
+          }
+          
+          for (const p of allProgress) {
+            if (!userMap[p.user_id]) continue;
+            userMap[p.user_id].score += (p.points || 0);
+            userMap[p.user_id].solved.add(p.question_title);
+          }
+          
+          const users = Object.entries(userMap)
+            .map(([_, u]) => ({ name: u.name, email: u.email, score: u.score, solved: u.solved.size, streak: Math.min(u.solved.size, 14) }))
+            .filter(u => u.score > 0 || u.solved > 0)
+            .sort((a, b) => b.score - a.score);
+          
+          setLeaderboardUsers(users);
+        }
+      } catch (err) { console.error('Leaderboard load error:', err); }
+    };
+    loadLeaderboard();
+  }, [solved]);
 
   // Live news rotation every 30s
   useEffect(() => {
@@ -645,13 +729,29 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
   },[company,level,qTab]);
 
   const loadTemplate = (q: QItem) => {
-    const langKey: Record<string,string> = {'Python 3':'py','Python 2':'py','Java':'java','C++':'cpp','C':'cpp','JavaScript':'js','TypeScript':'js'};
-    const key = langKey[lang]||'py';
+    const key = getLangKey(lang);
     const templates: Record<string,string> = {
       'py':`# ${q.t} — ${company}\n# ${q.d} | ${q.topic}\n\ndef solution():\n    # Write your solution here\n    pass\n\nresult = solution()\nprint(result)`,
       'java':`// ${q.t} — ${company}\nimport java.util.*;\npublic class Solution {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        // Write your solution here\n    }\n}`,
       'cpp':`// ${q.t} — ${company}\n#include <bits/stdc++.h>\nusing namespace std;\nint main() {\n    // Write your solution here\n    return 0;\n}`,
+      'c':`// ${q.t} — ${company}\n#include <stdio.h>\n#include <stdlib.h>\nint main() {\n    // Write your solution here\n    return 0;\n}`,
       'js':`// ${q.t} — ${company}\nfunction solution() {\n    // Write your solution here\n}\nconsole.log(solution());`,
+      'ts':`// ${q.t} — ${company}\nfunction solution(): void {\n    // Write your solution here\n}\nconsole.log(solution());`,
+      'go':`// ${q.t} — ${company}\npackage main\nimport "fmt"\nfunc main() {\n    // Write your solution here\n    fmt.Println()\n}`,
+      'rs':`// ${q.t} — ${company}\nfn main() {\n    // Write your solution here\n    println!();\n}`,
+      'kt':`// ${q.t} — ${company}\nfun main() {\n    // Write your solution here\n    println()\n}`,
+      'swift':`// ${q.t} — ${company}\nimport Foundation\n// Write your solution here\nprint()`,
+      'cs':`// ${q.t} — ${company}\nusing System;\nclass Solution {\n    static void Main() {\n        // Write your solution here\n    }\n}`,
+      'rb':`# ${q.t} — ${company}\ndef solution()\n    # Write your solution here\nend\nputs solution()`,
+      'php':`<?php\n// ${q.t} — ${company}\nfunction solution() {\n    // Write your solution here\n}\necho solution();\n?>`,
+      'dart':`// ${q.t} — ${company}\nvoid main() {\n    // Write your solution here\n    print('');\n}`,
+      'scala':`// ${q.t} — ${company}\nobject Solution {\n    def main(args: Array[String]): Unit = {\n        // Write your solution here\n    }\n}`,
+      'r':`# ${q.t} — ${company}\nsolution <- function() {\n    # Write your solution here\n}\nprint(solution())`,
+      'pl':`#!/usr/bin/perl\n# ${q.t} — ${company}\nuse strict;\nuse warnings;\n# Write your solution here\n`,
+      'lua':`-- ${q.t} — ${company}\nfunction solution()\n    -- Write your solution here\nend\nprint(solution())`,
+      'jl':`# ${q.t} — ${company}\nfunction solution()\n    # Write your solution here\nend\nprintln(solution())`,
+      'sh':`#!/bin/bash\n# ${q.t} — ${company}\n# Write your solution here\n`,
+      'hs':`-- ${q.t} — ${company}\nmain :: IO ()\nmain = do\n    -- Write your solution here\n    putStrLn ""`,
     };
     setCode(templates[key]||`# ${q.t}\n# Language: ${lang}\n\n# Write your solution here\n`);
     setOutput([]); setTcResults([]); setAnalysisVis(false); setShowSolution(false); setAiResp(''); setWaitingForInput(false);
@@ -714,6 +814,14 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
     setIsRunning(true); setOutput([]); setTcResults([]); setAnalysisVis(false); setWaitingForInput(false);
 
     const config = getLangConfig(lang);
+
+    // Language mismatch check
+    const langMismatch = detectLanguageMismatch(code, lang);
+    if(langMismatch){
+      setOutput([{text:langMismatch,type:'stderr'}]);
+      if(activeQ) setTcResults((activeQ.tc||[]).slice(0,3).map(()=>({pass:false,got:'Language Mismatch'})));
+      setIsRunning(false); return;
+    }
 
     // Syntax check
     const syntaxErr = detectSyntaxErrors(code, lang);
@@ -871,9 +979,16 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
 
   const getSolCode = () => {
     if(!activeQ) return '';
-    const keyMap: Record<string,string> = {'Python 3':'py','Python 2':'py','Java':'java','C++':'cpp','C':'cpp','JavaScript':'js','TypeScript':'js'};
-    const key = keyMap[lang]||'py';
-    return activeQ.sol?.[key]||activeQ.sol?.['py']||`# Solution for ${activeQ.t} in ${lang}`;
+    const key = getLangKey(lang);
+    // Try exact match first, then fall back to closest match, then py
+    if (activeQ.sol?.[key]) return activeQ.sol[key];
+    // For C, try cpp solution
+    if (key === 'c' && activeQ.sol?.['cpp']) return activeQ.sol['cpp'].replace(/#include <bits\/stdc\+\+\.h>/g, '#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>').replace(/using namespace std;\n?/g, '').replace(/cout<</g, 'printf(').replace(/cin>>/g, 'scanf(');
+    // For TypeScript, try js
+    if (key === 'ts' && activeQ.sol?.['js']) return activeQ.sol['js'];
+    // For other languages, generate a comment
+    if (activeQ.sol?.['py']) return activeQ.sol['py'];
+    return `# Solution for ${activeQ.t} in ${lang}\n# Implement the algorithm described above`;
   };
 
   const aiAction = (type:'hint'|'explain'|'optimize'|'review') => {
@@ -918,8 +1033,8 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
   const companyInfo = getCompanyInfo(company);
 
   const getLBData = ()=>{
-    const user = {name:'You',college:'Your College',score,solved:totalSolved,streak:Math.min(totalSolved,7),you:true};
-    return [...LB_DATA.map(r=>({...r,you:false})),user].sort((a,b)=>b.score-a.score);
+    const user = {name:'You',email:'',score,solved:totalSolved,streak:Math.min(totalSolved,7),you:true};
+    return [...leaderboardUsers.map(r=>({...r,you:false})),user].sort((a,b)=>b.score-a.score);
   };
 
   const h = new Date().getHours();
@@ -1394,21 +1509,52 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
           <div style={{padding:'24px 28px 48px'}}>
             <div style={{fontSize:13,fontWeight:600,color:S.green,textTransform:'uppercase',letterSpacing:2,fontFamily:"'Space Mono',monospace",marginBottom:6}}>Rankings</div>
             <div style={{fontSize:22,fontWeight:800,marginBottom:18}}>Global Leaderboard</div>
-            <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:14,overflow:'hidden'}}>
+            
+            {/* Real Users Leaderboard */}
+            <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:14,overflow:'hidden',marginBottom:28}}>
               <div style={{display:'grid',gridTemplateColumns:'60px 1fr 120px 120px 100px',padding:'12px 20px',background:S.surface,borderBottom:`1px solid ${S.border}`,fontSize:11,fontWeight:700,color:S.muted,textTransform:'uppercase',fontFamily:"'Space Mono',monospace"}}>
                 <div>Rank</div><div>Student</div><div>Score</div><div>Solved</div><div>Streak</div>
               </div>
+              {getLBData().length <= 1 && !getLBData().some(r => !r.you && r.score > 0) ? (
+                <div style={{padding:'28px 20px',textAlign:'center',color:S.muted,fontSize:13}}>
+                  🏗️ No other students have solved problems yet. Be the first to top the leaderboard!
+                </div>
+              ) : null}
               {getLBData().map((r,i)=>(
                 <div key={i} style={{display:'grid',gridTemplateColumns:'60px 1fr 120px 120px 100px',padding:'14px 20px',borderBottom:`1px solid rgba(42,51,71,.5)`,alignItems:'center',
                   background:r.you?'rgba(16,185,129,.06)':'transparent',borderLeft:r.you?`3px solid ${S.green}`:'none'}}>
                   <div style={{fontFamily:"'Space Mono',monospace",fontSize:15,fontWeight:700,color:i===0?'#f59e0b':i===1?'#94a3b8':i===2?'#cd7c47':'inherit'}}>{i===0?'🥇':i===1?'🥈':i===2?'🥉':`#${i+1}`}</div>
                   <div style={{display:'flex',alignItems:'center',gap:10}}>
                     <div style={{width:32,height:32,borderRadius:'50%',background:AVATAR_COLORS[i%10],display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:700}}>{r.name[0]}</div>
-                    <div><div style={{fontSize:14,fontWeight:600}}>{r.name}{r.you?' (You)':''}</div><div style={{fontSize:11,color:S.muted}}>{r.college}</div></div>
+                    <div><div style={{fontSize:14,fontWeight:600}}>{r.name}{r.you?' (You)':''}</div><div style={{fontSize:11,color:S.muted}}>{r.email||''}</div></div>
                   </div>
                   <div style={{fontFamily:"'Space Mono',monospace",fontSize:14,fontWeight:700,color:S.green}}>{r.score.toLocaleString()}</div>
                   <div style={{fontSize:13,color:S.muted2}}>{r.solved}</div>
                   <div style={{fontSize:12,color:'#f97316'}}>🔥 {r.streak}d</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Orange Box - Global CP Leaders */}
+            <div style={{background:'linear-gradient(135deg,rgba(249,115,22,.12),rgba(249,115,22,.05))',border:'2px solid #f97316',borderRadius:14,padding:20}}>
+              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16}}>
+                <span style={{background:'#f97316',color:'#fff',fontSize:10,fontWeight:700,padding:'3px 10px',borderRadius:100,fontFamily:"'Space Mono',monospace",textTransform:'uppercase',animation:'pulse 1.5s infinite'}}>🔴 LIVE</span>
+                <span style={{fontSize:16,fontWeight:800}}>🌍 Global Competitive Programming Leaders</span>
+                <span style={{fontSize:10,color:S.muted,marginLeft:'auto'}}>LeetCode · Codeforces · GFG · AtCoder · Coding Ninjas</span>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'40px 1fr 130px 100px 120px 60px',padding:'10px 16px',background:'rgba(249,115,22,.08)',borderRadius:8,marginBottom:8,fontSize:10,fontWeight:700,color:'#f97316',textTransform:'uppercase',fontFamily:"'Space Mono',monospace"}}>
+                <div>#</div><div>Name</div><div>Platform</div><div>Rating</div><div>Country</div><div>Link</div>
+              </div>
+              {GLOBAL_CP_LEADERS.map((leader,i)=>(
+                <div key={i} style={{display:'grid',gridTemplateColumns:'40px 1fr 130px 100px 120px 60px',padding:'10px 16px',borderBottom:i<GLOBAL_CP_LEADERS.length-1?'1px solid rgba(249,115,22,.15)':'none',alignItems:'center',fontSize:12}}>
+                  <div style={{fontFamily:"'Space Mono',monospace",fontWeight:700,color:i<3?'#f97316':S.muted}}>{i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}`}</div>
+                  <div style={{fontWeight:600,color:S.text}}>{leader.name}</div>
+                  <div><span style={{padding:'2px 8px',borderRadius:4,fontSize:10,fontFamily:"'Space Mono',monospace",
+                    background:leader.platform==='Codeforces'?'rgba(239,68,68,.15)':leader.platform==='LeetCode'?'rgba(249,115,22,.15)':leader.platform==='GeeksForGeeks'?'rgba(16,185,129,.15)':leader.platform==='AtCoder'?'rgba(59,130,246,.15)':'rgba(124,58,237,.15)',
+                    color:leader.platform==='Codeforces'?'#ef4444':leader.platform==='LeetCode'?'#f97316':leader.platform==='GeeksForGeeks'?S.green:leader.platform==='AtCoder'?'#3b82f6':S.accent}}>{leader.platform}</span></div>
+                  <div style={{fontFamily:"'Space Mono',monospace",fontWeight:700,color:'#f97316'}}>{leader.rating}</div>
+                  <div style={{color:S.muted2}}>{leader.country}</div>
+                  <a href={leader.url} target="_blank" rel="noopener noreferrer" style={{fontSize:10,color:'#f97316',textDecoration:'none',padding:'2px 8px',border:'1px solid rgba(249,115,22,.3)',borderRadius:6,textAlign:'center'}}>View →</a>
                 </div>
               ))}
             </div>
