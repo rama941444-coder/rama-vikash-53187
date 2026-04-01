@@ -5,6 +5,23 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const SYSTEM_PROMPT = `You are a coding agent that's an expert at building front-ends.
+
+# Tone and style
+- Be extremely concise in your chat responses.
+- At the end of the task, respond with the code only.
+
+# Stack-specific instructions
+
+## Tailwind
+- Use this script to include Tailwind: <script src="https://cdn.tailwindcss.com"></script>
+
+## General instructions
+- You can use Google Fonts or other publicly accessible fonts.
+- Font Awesome for icons: <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css"></link>
+- Output a single self-contained HTML file that works standalone in a browser.
+`;
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -22,38 +39,42 @@ serve(async (req) => {
       throw new Error("No image provided");
     }
 
-    let prompt: string;
+    let systemPrompt: string;
+    let userPrompt: string;
     
     if (mode === 'generate_code_for_image') {
-      prompt = `You are the WORLD'S BEST programmer specializing in creating PIXEL-PERFECT, EXACT visual reproductions using code.
+      // Use the screenshot-to-code approach: detailed system prompt + image replication instructions
+      systemPrompt = SYSTEM_PROMPT;
 
-ABSOLUTE MISSION: Generate code that when rendered/executed produces the EXACT SAME visual as this image. NOT approximately - EXACTLY the same.
+      userPrompt = `Generate code for a web page that looks exactly like the provided screenshot/image.
 
-Language: ${language !== 'Auto-Detect' ? language : 'HTML/CSS/JavaScript (default for visual output)'}
+Selected stack: HTML + Tailwind CSS.
 
-CRITICAL RULES FOR 100% EXACT REPRODUCTION:
-1. COLORS: Extract EVERY single color as EXACT hex values (#RRGGBB). Use a color picker mentally - get the PRECISE shade. Not "green" but the EXACT hex.
-2. SHAPES: Measure exact proportions. If a trunk is 1/5th the width of the canopy, code it exactly that way.
-3. POSITIONS: Every element must be placed at its EXACT position relative to the canvas.
-4. GRADIENTS: If there's a gradient from color A to color B, use the EXACT start and end colors.
-5. CURVES: Use bezier curves to match EXACT curve shapes - branches, petals, clouds, etc.
-6. SHADOWS: Reproduce exact shadow colors, blur, and positions.
-7. TEXTURES: Use patterns/noise to match any textures visible.
-8. PROPORTIONS: The aspect ratio and relative sizing of ALL elements must be EXACT.
+## Replication instructions
 
-APPROACH BY IMAGE TYPE:
-- TREES/PLANTS: Use Canvas API. Draw EXACT trunk shape (width, taper, color), EXACT branch patterns (angles, lengths, thickness), EXACT leaf/canopy shape and colors. Include bark texture, leaf details.
-- LANDSCAPES: Use Canvas. Layer sky gradient, ground, horizon line at EXACT position. Place objects at EXACT coordinates.
-- OBJECTS/SHAPES: Use SVG or Canvas. Match EXACT dimensions, curves, colors.
-- UI/WEBSITES: Use HTML+CSS. Match EXACT layout, fonts (use closest Google Font), colors, spacing in pixels.
-- CHARTS/GRAPHS: Use Canvas/SVG. EXACT data points, labels, colors, grid lines.
-- PHOTOS: Create the CLOSEST artistic rendering using Canvas gradients and shapes.
+- Make sure the app looks EXACTLY like the image - pixel perfect reproduction.
+- Use the exact text from the image if any text is visible.
+- For any images or icons in the screenshot, use placeholder URLs (https://placehold.co) with the correct dimensions and colors.
+- Match exact colors (extract precise hex values), spacing, fonts, sizes, layouts.
+- For trees, plants, landscapes, objects: Use HTML5 Canvas or SVG to create an EXACT visual reproduction.
+- For UI mockups: Use HTML+CSS+Tailwind to replicate the exact layout.
 
-OUTPUT: Return ONLY the complete standalone HTML file. No explanations. No markdown. The code MUST produce the EXACT same visual when opened in a browser.
+## Canvas/SVG specific rules for non-UI images:
+- Extract EVERY color as EXACT hex values (#RRGGBB)
+- Measure exact proportions between elements
+- Place elements at their EXACT positions
+- Use bezier curves for organic shapes (branches, petals, curves)
+- Match gradients precisely with exact start/end colors
+- Set canvas to fill the viewport: canvas.width = window.innerWidth; canvas.height = window.innerHeight;
 
-IMPORTANT: Include <html><head><style>body{margin:0;overflow:hidden;}</style></head><body><canvas id="c"></canvas><script>...</script></body></html> structure for Canvas-based output. Set canvas size to fill viewport.`;
+## Output format
+Return ONLY the complete standalone HTML file. No explanations. No markdown code blocks.
+The code MUST produce the EXACT same visual when opened in a browser.
+Include proper <!DOCTYPE html> structure.`;
     } else {
-      prompt = `You are a highly accurate code extraction AI. Extract the EXACT code from this image.
+      // Code extraction mode - unchanged logic
+      systemPrompt = "You are a highly accurate code extraction AI.";
+      userPrompt = `Extract the EXACT code from this image.
 
 CRITICAL RULES:
 1. Extract ONLY the code visible in the image - do NOT imagine or add any code
@@ -68,6 +89,17 @@ ${language && language !== 'Auto-Detect' ? `The code is written in ${language}.`
 Return ONLY the extracted code, nothing else.`;
     }
 
+    const messages: any[] = [
+      { role: "system", content: systemPrompt },
+      {
+        role: "user",
+        content: [
+          { type: "text", text: userPrompt },
+          { type: "image_url", image_url: { url: imageBase64, detail: "high" } }
+        ]
+      }
+    ];
+
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -76,15 +108,7 @@ Return ONLY the extracted code, nothing else.`;
       },
       body: JSON.stringify({
         model: "google/gemini-2.5-pro",
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "text", text: prompt },
-              { type: "image_url", image_url: { url: imageBase64 } }
-            ]
-          }
-        ],
+        messages,
       }),
     });
 
@@ -116,6 +140,8 @@ Return ONLY the extracted code, nothing else.`;
     let extractedCode = data.choices?.[0]?.message?.content || '';
     
     // Clean markdown code blocks if present
+    extractedCode = extractedCode.replace(/^```(?:html|css|javascript|js|svg|canvas)?\n?/i, '').replace(/\n?```$/i, '');
+    // Also handle triple backtick anywhere
     if (extractedCode.startsWith('```')) {
       extractedCode = extractedCode.replace(/^```\w*\n/, '').replace(/\n```$/, '');
     }
