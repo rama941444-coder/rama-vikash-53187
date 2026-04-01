@@ -63,8 +63,8 @@ const AITeacherAnimation = ({ text, className = '' }: AITeacherAnimationProps) =
   const [waveformData, setWaveformData] = useState<number[]>(new Array(24).fill(0));
   const [mouthOpenness, setMouthOpenness] = useState(0);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
-  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const waveformIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const waveformIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const textChunksRef = useRef<string[]>([]);
   const currentChunkIndexRef = useRef(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
