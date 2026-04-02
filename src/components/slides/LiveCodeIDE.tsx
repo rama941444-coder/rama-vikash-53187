@@ -144,7 +144,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       { regex: /\bconsole\.(?!log|error|warn|info|debug|table|trace|dir|clear|group|groupEnd|time|timeEnd|count|assert)\w+/, message: 'Unknown console method', type: 'TypeError' },
       { regex: /\bundefined\s*\(/, message: 'undefined is not a function', type: 'TypeError' },
       { regex: /\bnull\s*\./, message: 'Cannot read property of null', type: 'TypeError' },
-      { regex: /\bvar\s+\w+\s*;\s*var\s+\1\b/, message: 'Duplicate variable declaration', type: 'SyntaxError' },
+      { regex: /\bvar\s+(\w+)\s*;\s*var\s+\w+\b/, message: 'Possible duplicate variable declaration', type: 'SyntaxError' },
     ],
     typescript: [
       { regex: /\bconst\s+(\w+)\s*=\s*$/, message: 'Assignment value expected', type: 'SyntaxError' },
