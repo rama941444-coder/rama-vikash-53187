@@ -22,23 +22,27 @@ serve(async (req) => {
       throw new Error("No code provided");
     }
 
-    // Use Gemini image generation to create the EXACT visual output of the code
-    const prompt = `Generate an image that shows the EXACT visual output of running this code. 
-    
-CRITICAL: Show what the code RENDERS/PRODUCES, NOT a screenshot of the code text itself.
+    const prompt = `You are a perfect code execution visualizer. Generate an image showing the EXACT visual output of this code.
 
-If the code is HTML/CSS/JS: Show the rendered webpage exactly as a browser would display it - every element, color, layout, font.
-If the code draws on canvas: Show the exact canvas output with every shape, color, gradient, curve.
-If the code creates SVG: Show the rendered SVG with exact colors and shapes.
-If the code is a console program: Show a dark terminal window with the exact console output text.
-If the code creates a chart/graph: Show the exact chart with data points, labels, colors.
+ABSOLUTE RULES:
+1. Show ONLY what the code RENDERS when executed - NEVER show the code text itself
+2. Match every color EXACTLY as specified in the code (hex values, rgb, named colors)
+3. Match every shape, size, position, font exactly as the code defines
+4. Match gradients, shadows, borders, border-radius exactly
+
+CODE TYPE HANDLING:
+- HTML/CSS/JS → Show the rendered webpage: exact layout, colors, typography, spacing, shadows
+- Canvas drawing → Show exact canvas output: every shape, curve, gradient at exact positions
+- SVG → Show rendered SVG with exact colors, paths, transforms
+- Console/terminal → Dark terminal window with exact output text in monospace font
+- Chart/graph → Exact chart with all data points, labels, colors, axes
 
 The code (${language || 'auto-detect'}):
 \`\`\`
-${code.substring(0, 8000)}
+${code.substring(0, 10000)}
 \`\`\`
 
-Generate a HIGH QUALITY, PIXEL-PERFECT representation of what this code produces when executed. The image must match the code's output exactly.`;
+Generate a PIXEL-PERFECT, HIGH-FIDELITY image of the EXACT visual output. Every detail must match what a browser/runtime would produce.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",

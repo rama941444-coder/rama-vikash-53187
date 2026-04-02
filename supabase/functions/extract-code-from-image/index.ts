@@ -56,31 +56,39 @@ serve(async (req) => {
       // Use the screenshot-to-code approach: detailed system prompt + image replication instructions
       systemPrompt = SYSTEM_PROMPT;
 
-      userPrompt = `Generate code for a web page that looks exactly like the provided screenshot/image.
+      userPrompt = `Generate code for a web page that EXACTLY reproduces the provided image with 100% pixel-perfect accuracy.
 
-Selected stack: HTML + Tailwind CSS.
+Stack: HTML + Tailwind CSS + Canvas/SVG as needed.
 
-## Replication instructions
+## STEP-BY-STEP ANALYSIS (do this internally before coding):
+1. Identify every visual element in the image (shapes, text, colors, gradients, shadows)
+2. Extract EXACT hex color values for every color visible (#RRGGBB format)
+3. Measure proportions: width/height ratios, spacing between elements, margins
+4. Identify fonts, sizes, weights, and text content exactly
+5. Note every gradient with exact start/end colors and direction
+6. Map every element to exact x,y coordinates relative to the canvas/viewport
 
-- Make sure the app looks EXACTLY like the image - pixel perfect reproduction.
-- Use the exact text from the image if any text is visible.
-- For any images or icons in the screenshot, use placeholder URLs (https://placehold.co) with the correct dimensions and colors.
-- Match exact colors (extract precise hex values), spacing, fonts, sizes, layouts.
-- For trees, plants, landscapes, objects: Use HTML5 Canvas or SVG to create an EXACT visual reproduction.
-- For UI mockups: Use HTML+CSS+Tailwind to replicate the exact layout.
+## REPRODUCTION RULES:
+- Extract text EXACTLY as shown - no paraphrasing, no changing
+- Colors must be EXACT hex values - never approximate (#FF6B35 not "orange")
+- For photos/complex images in UI: use placeholder with EXACT dimensions and matching solid color
+- For organic shapes (trees, flowers, landscapes, animals): Use Canvas with bezierCurveTo for smooth curves
+- For geometric shapes: Use exact coordinates, dimensions, border-radius
+- For gradients: Use exact color stops with precise positions (e.g., 0%, 25%, 50%, 100%)
+- Shadows: Match exact blur, spread, color, and offset
+- Border-radius: Match exact values (not just "rounded")
 
-## Canvas/SVG specific rules for non-UI images:
-- Extract EVERY color as EXACT hex values (#RRGGBB)
-- Measure exact proportions between elements
-- Place elements at their EXACT positions
-- Use bezier curves for organic shapes (branches, petals, curves)
-- Match gradients precisely with exact start/end colors
-- Set canvas to fill the viewport: canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+## CANVAS RULES (for non-UI/artistic images):
+- Set canvas size to match image aspect ratio (e.g., 800x600 for landscape)
+- Draw EVERY element - don't skip small details
+- Use quadraticCurveTo/bezierCurveTo for all curved shapes
+- Layer elements back-to-front (background first, foreground last)
+- Use createLinearGradient/createRadialGradient with exact color stops
+- For complex scenes: break into layers and draw each layer completely
 
-## Output format
-Return ONLY the complete standalone HTML file. No explanations. No markdown code blocks.
-The code MUST produce the EXACT same visual when opened in a browser.
-Include proper <!DOCTYPE html> structure.`;
+## OUTPUT:
+Return ONLY the complete <!DOCTYPE html> file. No markdown. No explanation.
+The rendered output MUST be visually IDENTICAL to the source image.`;
     } else {
       // Code extraction mode - unchanged logic
       systemPrompt = "You are a highly accurate code extraction AI.";

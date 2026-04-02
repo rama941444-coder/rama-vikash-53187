@@ -119,8 +119,44 @@ const ImageOutput = ({ code = '', language = 'Auto-Detect', draggedImage }: Imag
         />
       </div>
 
-      {/* Dragged/Uploaded Image Display */}
-      {(localImage || draggedImage) && (
+      {/* Side-by-Side Comparison View */}
+      {(localImage || draggedImage) && generatedImage ? (
+        <div className="bg-gradient-to-br from-purple-500/10 to-blue-500/10 border-2 border-purple-500/50 rounded-xl p-6">
+          <h3 className="text-xl font-bold text-center mb-6 flex items-center justify-center gap-2">
+            🔍 Side-by-Side Comparison
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <h4 className="text-center font-semibold text-blue-300 text-lg">📷 Original Image</h4>
+              <div className="flex justify-center bg-black/20 rounded-lg p-3 min-h-[300px] items-center">
+                <img
+                  src={localImage || draggedImage}
+                  alt="Original uploaded image"
+                  className="max-w-full max-h-[450px] rounded-lg shadow-2xl border border-blue-500/30 object-contain"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <h4 className="text-center font-semibold text-green-300 text-lg">🎨 AI Generated</h4>
+              <div className="flex justify-center bg-black/20 rounded-lg p-3 min-h-[300px] items-center">
+                <img
+                  src={generatedImage}
+                  alt="AI generated visualization"
+                  className="max-w-full max-h-[450px] rounded-lg shadow-2xl border border-green-500/30 object-contain"
+                />
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-center mt-4 gap-3">
+            <Button variant="outline" size="sm" onClick={generateImageFromCode} disabled={isGenerating} className="gap-1">
+              <RefreshCw className="w-4 h-4" />Regenerate
+            </Button>
+            <Button variant="default" size="sm" onClick={downloadImage} className="gap-1 bg-purple-500 hover:bg-purple-600">
+              <Download className="w-4 h-4" />Download
+            </Button>
+          </div>
+        </div>
+      ) : (localImage || draggedImage) ? (
         <div className="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border-2 border-blue-500/50 rounded-xl p-6">
           <h3 className="text-lg font-semibold text-blue-300 flex items-center gap-2 mb-4">
             🖼️ Original Image (from Slide 2 / Upload)
@@ -133,7 +169,7 @@ const ImageOutput = ({ code = '', language = 'Auto-Detect', draggedImage }: Imag
             />
           </div>
         </div>
-      )}
+      ) : null}
 
       {/* Code Preview */}
       <div className="bg-card border border-border rounded-xl p-4">
