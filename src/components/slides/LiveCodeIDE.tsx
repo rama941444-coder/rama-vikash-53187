@@ -82,12 +82,57 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
   const lineCount = lines.length;
   const maxLines = 500000;
 
-  // Comprehensive error patterns for multiple languages
-  const errorPatterns = {
-    js: [
-      { regex: /\bconst\s+(\w+)\s*=\s*$/, message: 'Assignment value expected', type: 'SyntaxError' },
+  // Auto-detect language from code content
+  const autoDetectLanguage = useCallback((codeText: string): string => {
+    const t = codeText.trim();
+    if (!t) return 'javascript';
+    // Python
+    if (/\bdef\s+\w+\s*\(/.test(t) || /\bimport\s+\w+/.test(t) && !/\bimport\s+\{/.test(t) || /\bprint\s*\(/.test(t) || /^\s*#.*$/m.test(t) && !/^\s*#include/.test(t) || /\belif\b/.test(t) || /:\s*$/m.test(t) && /\b(if|for|while|def|class)\b/.test(t)) return 'python';
+    // Java
+    if (/\bpublic\s+(static\s+)?class\b/.test(t) || /\bSystem\.out\.print/.test(t) || /\bpublic\s+static\s+void\s+main/.test(t) || /\bimport\s+java\./.test(t)) return 'java';
+    // C++
+    if (/\b#include\s*<(iostream|vector|string|algorithm|cstdio|map|set|queue|stack)>/.test(t) || /\bcout\s*<</.test(t) || /\bcin\s*>>/.test(t) || /\busing\s+namespace\s+std/.test(t) || /\bstd::/.test(t)) return 'cpp';
+    // C
+    if (/\b#include\s*<(stdio|stdlib|string|math)\.h>/.test(t) || /\bprintf\s*\(/.test(t) && !/\bcout/.test(t) || /\bscanf\s*\(/.test(t) || /\bint\s+main\s*\(/.test(t) && !/class\b/.test(t)) return 'c';
+    // C#
+    if (/\busing\s+System/.test(t) || /\bConsole\.(Write|ReadLine)/.test(t) || /\bnamespace\s+\w+/.test(t) && /\bclass\b/.test(t)) return 'csharp';
+    // Go
+    if (/\bpackage\s+main/.test(t) || /\bfunc\s+main\s*\(/.test(t) || /\bfmt\.(Print|Scan)/.test(t) || /\bimport\s*\(/.test(t) && /\b"fmt"/.test(t)) return 'go';
+    // Rust
+    if (/\bfn\s+main\s*\(/.test(t) || /\blet\s+mut\b/.test(t) || /\bprintln!\s*\(/.test(t) || /\bimpl\s+\w+/.test(t) || /\b->\s*(i32|u32|String|bool|f64)/.test(t)) return 'rust';
+    // Ruby
+    if (/\bputs\s+/.test(t) || /\bdef\s+\w+\s*\n/.test(t) || /\bend\s*$/m.test(t) || /\brequire\s+['"]/.test(t) || /\battr_(accessor|reader|writer)\b/.test(t)) return 'ruby';
+    // PHP
+    if (/^\s*<\?php/m.test(t) || /\$\w+\s*=/.test(t) || /\becho\s+/.test(t) || /\bfunction\s+\w+\s*\([^)]*\$/.test(t)) return 'php';
+    // Swift
+    if (/\bvar\s+\w+\s*:\s*(Int|String|Double|Bool|Array)/.test(t) || /\bfunc\s+\w+\s*\(.*\)\s*->/.test(t) || /\bguard\s+let\b/.test(t) || /\bimport\s+Foundation/.test(t)) return 'swift';
+    // Kotlin
+    if (/\bfun\s+main\s*\(/.test(t) || /\bprintln\s*\(/.test(t) && /\bval\s+/.test(t) || /\bvar\s+\w+\s*:\s*(Int|String)/.test(t) && /\bfun\b/.test(t)) return 'kotlin';
+    // TypeScript
+    if (/\binterface\s+\w+\s*\{/.test(t) || /:\s*(string|number|boolean|any)\b/.test(t) || /\btype\s+\w+\s*=/.test(t) || /\bas\s+(string|number|any)\b/.test(t)) return 'typescript';
+    // HTML
+    if (/^\s*<!DOCTYPE|<html|<head|<body|<div|<span|<p\b/mi.test(t)) return 'html';
+    // CSS
+    if (/^\s*[\.\#\w\*\:]+\s*\{[^}]*\}/m.test(t) && !/\bfunction\b/.test(t) && !/\bconst\b/.test(t)) return 'css';
+    // SQL
+    if (/\b(SELECT|INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|CREATE\s+TABLE|ALTER\s+TABLE)\b/i.test(t)) return 'sql';
+    // R
+    if (/\b<-\s*function\s*\(/.test(t) || /\blibrary\s*\(/.test(t) || /\bdata\.frame\s*\(/.test(t)) return 'r';
+    // Perl
+    if (/^\s*use\s+strict\s*;/m.test(t) || /\$_\b/.test(t) || /\bmy\s+\$/.test(t)) return 'perl';
+    // Scala
+    if (/\bobject\s+\w+\s*(extends)?/.test(t) || /\bval\s+\w+\s*:\s*\w+\s*=/.test(t) && /\bdef\b/.test(t)) return 'scala';
+    // JavaScript (default fallback for code-like text)
+    if (/\b(const|let|var|function|=>|require\(|module\.exports)\b/.test(t)) return 'javascript';
+    return 'javascript';
+  }, []);
+
+  // Comprehensive error patterns for 15+ languages
+  const errorPatterns: Record<string, Array<{ regex: RegExp; message: string; type: string; suggestion?: string }>> = {
+    javascript: [
+      { regex: /\bconst\s+(\w+)\s*=\s*$/, message: 'Assignment value expected', type: 'SyntaxError', suggestion: 'Add a value after =' },
       { regex: /\bfunction\s*$/, message: 'Function name expected', type: 'SyntaxError' },
-      { regex: /\bif\s*$/, message: 'Condition expected after if', type: 'SyntaxError' },
+      { regex: /\bif\s*$/, message: 'Condition expected after if', type: 'SyntaxError', suggestion: 'Add condition: if (condition)' },
       { regex: /\bfor\s*$/, message: 'Loop expression expected', type: 'SyntaxError' },
       { regex: /\bwhile\s*$/, message: 'Condition expected after while', type: 'SyntaxError' },
       { regex: /==\s*$/, message: 'Value expected after comparison', type: 'SyntaxError' },
@@ -96,49 +141,201 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       { regex: /\.\s*$/, message: 'Property or method expected after dot', type: 'SyntaxError' },
       { regex: /\basync\s+(?!function|(\(|\w))/, message: 'async must be followed by function or arrow function', type: 'SyntaxError' },
       { regex: /\bawait\s*$/, message: 'Expression expected after await', type: 'SyntaxError' },
-      { regex: /\bconsole\.(?!log|error|warn|info|debug|table|trace|dir|clear|group|groupEnd|time|timeEnd)/, message: 'Unknown console method', type: 'TypeError' },
+      { regex: /\bconsole\.(?!log|error|warn|info|debug|table|trace|dir|clear|group|groupEnd|time|timeEnd|count|assert)\w+/, message: 'Unknown console method', type: 'TypeError' },
       { regex: /\bundefined\s*\(/, message: 'undefined is not a function', type: 'TypeError' },
+      { regex: /\bnull\s*\./, message: 'Cannot read property of null', type: 'TypeError' },
+      { regex: /\bvar\s+(\w+)\s*;\s*var\s+\w+\b/, message: 'Possible duplicate variable declaration', type: 'SyntaxError' },
+    ],
+    typescript: [
+      { regex: /\bconst\s+(\w+)\s*=\s*$/, message: 'Assignment value expected', type: 'SyntaxError' },
+      { regex: /\bfunction\s*$/, message: 'Function name expected', type: 'SyntaxError' },
+      { regex: /\bif\s*$/, message: 'Condition expected after if', type: 'SyntaxError' },
+      { regex: /:\s*(string|number|boolean)\s*=\s*\d+\s*;/, message: 'Possible type mismatch', type: 'TypeError', suggestion: 'Check that assigned value matches declared type' },
+      { regex: /\bany\b/, message: 'Avoid using "any" type - use specific types', type: 'Warning', suggestion: 'Replace "any" with a specific type' },
+      { regex: /\bas\s+any\b/, message: 'Unsafe type assertion to "any"', type: 'Warning' },
+      { regex: /=>\s*$/, message: 'Arrow function body expected', type: 'SyntaxError' },
+      { regex: /\.\s*$/, message: 'Property or method expected after dot', type: 'SyntaxError' },
       { regex: /\bnull\s*\./, message: 'Cannot read property of null', type: 'TypeError' },
     ],
     python: [
-      { regex: /\bdef\s*$/, message: 'Function name expected', type: 'SyntaxError' },
+      { regex: /\bdef\s*$/, message: 'Function name expected after def', type: 'SyntaxError', suggestion: 'Add function name: def function_name():' },
+      { regex: /\bdef\s+\w+\s*[^(:]*$/, message: 'Missing parentheses and colon after function name', type: 'SyntaxError', suggestion: 'Add (): after function name' },
       { regex: /\bif\s*:\s*$/, message: 'Condition expected before colon', type: 'SyntaxError' },
-      { regex: /\bfor\s+\w+\s*$/, message: '"in" keyword expected in for loop', type: 'SyntaxError' },
-      { regex: /\bclass\s*$/, message: 'Class name expected', type: 'SyntaxError' },
+      { regex: /\bif\s+[^:]+$/, message: 'Missing colon at end of if statement', type: 'SyntaxError', suggestion: 'Add : at the end' },
+      { regex: /\bfor\s+\w+\s*$/, message: '"in" keyword expected in for loop', type: 'SyntaxError', suggestion: 'Use: for item in iterable:' },
+      { regex: /\bfor\s+\w+\s+in\s+[^:]+$/, message: 'Missing colon at end of for loop', type: 'SyntaxError', suggestion: 'Add : at the end' },
+      { regex: /\bwhile\s+[^:]+$/, message: 'Missing colon at end of while loop', type: 'SyntaxError', suggestion: 'Add : at the end' },
+      { regex: /\bclass\s*$/, message: 'Class name expected after class', type: 'SyntaxError' },
+      { regex: /\bclass\s+\w+[^(:]*$/, message: 'Missing colon after class name', type: 'SyntaxError', suggestion: 'Add : after class declaration' },
       { regex: /\bimport\s*$/, message: 'Module name expected after import', type: 'SyntaxError' },
-      { regex: /\bprint\s+[^(]/, message: 'print is a function in Python 3, use print()', type: 'SyntaxError' },
-      { regex: /\breturn\s*$/, message: 'Return value expected (or remove return)', type: 'SyntaxError' },
-      { regex: /\bexcept\s*$/, message: 'Exception type expected', type: 'SyntaxError' },
-      { regex: /\:\s*\n\s*\n/, message: 'IndentationError: expected an indented block', type: 'IndentationError' },
+      { regex: /\bprint\s+[^(]/, message: 'print is a function in Python 3, use print()', type: 'SyntaxError', suggestion: 'Replace with print(...)' },
+      { regex: /\belif\s*:\s*$/, message: 'Condition expected before colon in elif', type: 'SyntaxError' },
+      { regex: /\belif\s+[^:]+$/, message: 'Missing colon at end of elif statement', type: 'SyntaxError', suggestion: 'Add : at the end' },
+      { regex: /\belse\s*[^:\s]/, message: 'else should be followed by colon only', type: 'SyntaxError', suggestion: 'Use: else:' },
+      { regex: /\btry\s*$/, message: 'Missing colon after try', type: 'SyntaxError', suggestion: 'Use: try:' },
+      { regex: /\bexcept\s*$/, message: 'Missing colon or exception type after except', type: 'SyntaxError', suggestion: 'Use: except ExceptionType:' },
+      { regex: /;\s*$/, message: 'Semicolons are not needed in Python', type: 'Warning', suggestion: 'Remove the semicolon' },
+      { regex: /\{\s*$/, message: 'Python uses indentation, not braces {}', type: 'SyntaxError', suggestion: 'Use colon and indentation instead of braces' },
+      { regex: /\bint\s+\w+\s*=/, message: 'Python does not use type declarations like this', type: 'SyntaxError', suggestion: 'Just write: variable = value' },
+      { regex: /\b(true|false)\b/, message: 'Python uses True/False (capitalized)', type: 'SyntaxError', suggestion: 'Capitalize: True, False' },
+      { regex: /\bnull\b/, message: 'Python uses None, not null', type: 'SyntaxError', suggestion: 'Replace null with None' },
+      { regex: /&&/, message: 'Python uses "and" not "&&"', type: 'SyntaxError', suggestion: 'Replace && with and' },
+      { regex: /\|\|/, message: 'Python uses "or" not "||"', type: 'SyntaxError', suggestion: 'Replace || with or' },
+      { regex: /!=\s*$/, message: 'Value expected after != operator', type: 'SyntaxError' },
     ],
     java: [
       { regex: /\bpublic\s+class\s*$/, message: 'Class name expected', type: 'SyntaxError' },
-      { regex: /\bpublic\s+static\s+void\s+main\s*\(\s*\)/, message: 'main method requires String[] args parameter', type: 'SyntaxError' },
-      { regex: /\bSystem\.out\.print(?!ln|f)/, message: 'Did you mean System.out.println()?', type: 'SyntaxError' },
+      { regex: /\bpublic\s+static\s+void\s+main\s*\(\s*\)/, message: 'main method requires String[] args parameter', type: 'SyntaxError', suggestion: 'Use: public static void main(String[] args)' },
+      { regex: /\bSystem\.out\.print(?!ln|f)\s*\(/, message: 'Did you mean System.out.println()?', type: 'Warning' },
       { regex: /\bint\s+\w+\s*=\s*"/, message: 'Type mismatch: cannot assign String to int', type: 'TypeError' },
       { regex: /\bString\s+\w+\s*=\s*\d+\s*;/, message: 'Type mismatch: cannot assign int to String', type: 'TypeError' },
+      { regex: /\bdouble\s+\w+\s*=\s*"/, message: 'Type mismatch: cannot assign String to double', type: 'TypeError' },
+      { regex: /\bboolean\s+\w+\s*=\s*[^tfTF\s]/, message: 'boolean can only be true or false', type: 'TypeError' },
+      { regex: /\bclass\s+\w+\s*\{[^}]*\bvoid\s+main\b(?!\s*\()/, message: 'main needs parameter list', type: 'SyntaxError' },
+      { regex: /\bScanner\b.*\bnew\s+Scanner\s*\(\s*\)/, message: 'Scanner requires System.in parameter', type: 'SyntaxError', suggestion: 'Use: new Scanner(System.in)' },
+      { regex: /\bimport\s*$/, message: 'Package path expected after import', type: 'SyntaxError' },
+      { regex: /\bimport\s+[^;]+$/, message: 'Missing semicolon after import statement', type: 'SyntaxError' },
+      { regex: /\breturn\s*$/, message: 'Return value expected', type: 'SyntaxError' },
+      { regex: /\bpackage\s+[^;]+$/, message: 'Missing semicolon after package declaration', type: 'SyntaxError' },
+      { regex: /\bprint\s*\(/, message: 'Java uses System.out.println(), not print()', type: 'SyntaxError', suggestion: 'Use System.out.println(...)' },
+      { regex: /\bdef\s+/, message: '"def" is not a Java keyword. Use method syntax with return type', type: 'SyntaxError', suggestion: 'Use: public void methodName()' },
+    ],
+    c: [
+      { regex: /#include\s*$/, message: 'Header file expected after #include', type: 'PreprocessorError', suggestion: 'Add header: #include <stdio.h>' },
+      { regex: /\bprintf\s*\(\s*[^"]/, message: 'printf requires format string in quotes', type: 'SyntaxError', suggestion: 'Use: printf("format", args)' },
+      { regex: /\bscanf\s*\(\s*"[^"]*",\s*[^&\s]/, message: 'scanf requires address-of operator (&) for variables', type: 'SyntaxError', suggestion: 'Add & before variable name' },
+      { regex: /\bint\s+main\s*\(\s*\)\s*[^{;]/, message: 'Opening brace expected for main function', type: 'SyntaxError' },
+      { regex: /\bmalloc\s*\([^)]*\)\s*;/, message: 'malloc return value should be assigned to a pointer', type: 'Warning' },
+      { regex: /\breturn\s*$/, message: 'Return value expected', type: 'SyntaxError' },
+      { regex: /\bfree\s*\(\s*\)/, message: 'free() requires a pointer argument', type: 'SyntaxError' },
+      { regex: /\bcout\s*<</, message: 'cout is C++, not C. Use printf() instead', type: 'SyntaxError', suggestion: 'Use printf() for C output' },
+      { regex: /\bcin\s*>>/, message: 'cin is C++, not C. Use scanf() instead', type: 'SyntaxError', suggestion: 'Use scanf() for C input' },
+      { regex: /\busing\s+namespace/, message: '"using namespace" is C++, not C', type: 'SyntaxError' },
+      { regex: /\bnew\s+\w+/, message: '"new" is C++, not C. Use malloc() instead', type: 'SyntaxError' },
+      { regex: /\bstring\s+\w+/, message: 'C uses char arrays, not string type', type: 'SyntaxError', suggestion: 'Use char[] or char* instead' },
+      { regex: /\bclass\s+\w+/, message: '"class" is not a C keyword. Use struct', type: 'SyntaxError' },
+      { regex: /\bbool\b(?!.*#include\s*<stdbool\.h>)/, message: 'bool requires #include <stdbool.h> in C', type: 'Warning' },
     ],
     cpp: [
       { regex: /#include\s*$/, message: 'Header file expected after #include', type: 'PreprocessorError' },
       { regex: /\bprintf\s*\(\s*"[^"]*"[^,)]/, message: 'Format specifier missing or malformed', type: 'SyntaxError' },
-      { regex: /\bint\s+main\s*\(\s*\)\s*[^{]/, message: 'Opening brace expected for main function', type: 'SyntaxError' },
-      { regex: /\bmalloc\s*\([^)]*\)\s*;/, message: 'malloc return value should be assigned', type: 'Warning' },
-      { regex: /\bscanf\s*\(\s*"[^"]*",\s*\w+[^&]/, message: 'scanf requires address-of operator (&)', type: 'SyntaxError' },
+      { regex: /\bint\s+main\s*\(\s*\)\s*[^{;]/, message: 'Opening brace expected for main function', type: 'SyntaxError' },
+      { regex: /\bmalloc\s*\([^)]*\)\s*;/, message: 'In C++, prefer new/delete over malloc/free', type: 'Warning' },
+      { regex: /\bscanf\s*\(\s*"[^"]*",\s*[^&\s]/, message: 'scanf requires address-of operator (&)', type: 'SyntaxError' },
+      { regex: /\bcout\s*<<\s*$/, message: 'Output value expected after <<', type: 'SyntaxError' },
+      { regex: /\bcin\s*>>\s*$/, message: 'Variable expected after >>', type: 'SyntaxError' },
+      { regex: /\busing\s+namespace\s*$/, message: 'Namespace name expected', type: 'SyntaxError', suggestion: 'Add: using namespace std;' },
+      { regex: /\bvector\s*<\s*>/, message: 'Vector type parameter required', type: 'SyntaxError', suggestion: 'Specify type: vector<int>' },
+      { regex: /\bprint\s*\(/, message: 'C++ uses cout << or printf(), not print()', type: 'SyntaxError' },
+      { regex: /\bSystem\.out\.print/, message: 'System.out is Java, not C++. Use cout', type: 'SyntaxError' },
+    ],
+    csharp: [
+      { regex: /\bConsole\.Write(?!Line)\s*\(/, message: 'Did you mean Console.WriteLine()?', type: 'Warning' },
+      { regex: /\bstring\s+\w+\s*=\s*\d+\s*;/, message: 'Type mismatch: cannot assign int to string', type: 'TypeError' },
+      { regex: /\bint\s+\w+\s*=\s*"/, message: 'Type mismatch: cannot assign string to int', type: 'TypeError' },
+      { regex: /\busing\s*$/, message: 'Namespace expected after using', type: 'SyntaxError' },
+      { regex: /\bnamespace\s*$/, message: 'Namespace name expected', type: 'SyntaxError' },
+      { regex: /\bprint\s*\(/, message: 'C# uses Console.WriteLine(), not print()', type: 'SyntaxError' },
+      { regex: /\bcout\s*<</, message: 'cout is C++, not C#. Use Console.WriteLine()', type: 'SyntaxError' },
+    ],
+    go: [
+      { regex: /\bfunc\s*$/, message: 'Function name expected after func', type: 'SyntaxError' },
+      { regex: /\bvar\s+\w+\s*$/, message: 'Type or value expected in var declaration', type: 'SyntaxError' },
+      { regex: /;\s*$/, message: 'Go does not use semicolons', type: 'Warning', suggestion: 'Remove the semicolon' },
+      { regex: /\bclass\s+/, message: 'Go uses struct, not class', type: 'SyntaxError', suggestion: 'Use type Name struct {}' },
+      { regex: /\bwhile\s+/, message: 'Go has no while keyword. Use for loop', type: 'SyntaxError', suggestion: 'Use: for condition {}' },
+      { regex: /\bprint\s*\(/, message: 'Use fmt.Println() for output in Go', type: 'SyntaxError', suggestion: 'Use fmt.Println(...)' },
+      { regex: /\btry\s*\{/, message: 'Go has no try/catch. Use error handling with if err != nil', type: 'SyntaxError' },
+      { regex: /\bpackage\s*$/, message: 'Package name expected', type: 'SyntaxError' },
+    ],
+    rust: [
+      { regex: /\bfn\s*$/, message: 'Function name expected after fn', type: 'SyntaxError' },
+      { regex: /\blet\s+(\w+)\s*=.*;\s*\n.*\w+\s*=/, message: 'Variable may be immutable. Use "let mut" for mutable variables', type: 'Warning', suggestion: 'Add mut: let mut variable' },
+      { regex: /\bprint\s*\(/, message: 'Rust uses println!() macro, not print()', type: 'SyntaxError', suggestion: 'Use println!(...) or print!(...)' },
+      { regex: /\bclass\s+/, message: 'Rust uses struct, not class', type: 'SyntaxError', suggestion: 'Use struct Name {}' },
+      { regex: /\bnull\b/, message: 'Rust has no null. Use Option<T> with None', type: 'SyntaxError', suggestion: 'Use None instead of null' },
+      { regex: /\breturn\s+[^;]+$/, message: 'Missing semicolon after return statement', type: 'SyntaxError' },
+      { regex: /\bvoid\b/, message: 'Rust has no void. Use () for unit type', type: 'SyntaxError' },
+    ],
+    ruby: [
+      { regex: /\bdef\s*$/, message: 'Method name expected after def', type: 'SyntaxError' },
+      { regex: /\bprintf\s*\(/, message: 'Ruby uses puts or print, not printf', type: 'Warning' },
+      { regex: /;\s*$/, message: 'Semicolons are not typical in Ruby', type: 'Warning', suggestion: 'Remove the semicolon' },
+      { regex: /\bclass\s*$/, message: 'Class name expected after class', type: 'SyntaxError' },
+      { regex: /\{\s*$/, message: 'Ruby uses do...end for multi-line blocks', type: 'Warning' },
+      { regex: /\bint\s+\w+/, message: 'Ruby is dynamically typed, no type declarations needed', type: 'SyntaxError' },
+      { regex: /\bSystem\.out/, message: 'System.out is Java. Ruby uses puts/print', type: 'SyntaxError' },
+    ],
+    php: [
+      { regex: /\bfunction\s*$/, message: 'Function name expected', type: 'SyntaxError' },
+      { regex: /\becho\s*$/, message: 'Value expected after echo', type: 'SyntaxError' },
+      { regex: /[^$]\b\w+\s*=\s*[^=].*(?<!;)\s*$/, message: 'Variables in PHP must start with $', type: 'Warning', suggestion: 'Prefix variable with $' },
+      { regex: /\bcout\s*<</, message: 'cout is C++, not PHP. Use echo', type: 'SyntaxError' },
+      { regex: /\bSystem\.out/, message: 'System.out is Java. PHP uses echo/print', type: 'SyntaxError' },
+    ],
+    swift: [
+      { regex: /\bfunc\s*$/, message: 'Function name expected after func', type: 'SyntaxError' },
+      { regex: /\bvar\s+\w+\s*$/, message: 'Type annotation or initial value required', type: 'SyntaxError' },
+      { regex: /\blet\s+\w+\s*$/, message: 'Type annotation or initial value required', type: 'SyntaxError' },
+      { regex: /;\s*$/, message: 'Semicolons are optional in Swift', type: 'Warning' },
+      { regex: /\bSystem\.out/, message: 'Swift uses print(), not System.out', type: 'SyntaxError' },
+      { regex: /\bcout\s*<</, message: 'Swift uses print(), not cout', type: 'SyntaxError' },
+      { regex: /\bnull\b/, message: 'Swift uses nil, not null', type: 'SyntaxError', suggestion: 'Replace null with nil' },
+    ],
+    kotlin: [
+      { regex: /\bfun\s*$/, message: 'Function name expected after fun', type: 'SyntaxError' },
+      { regex: /;\s*$/, message: 'Semicolons are not needed in Kotlin', type: 'Warning', suggestion: 'Remove the semicolon' },
+      { regex: /\bnew\s+\w+/, message: 'Kotlin does not use "new" keyword', type: 'SyntaxError', suggestion: 'Remove "new": val obj = ClassName()' },
+      { regex: /\bSystem\.out\.print/, message: 'Kotlin uses println(), not System.out', type: 'Warning', suggestion: 'Use println(...)' },
+      { regex: /\bvoid\b/, message: 'Kotlin uses Unit, not void', type: 'SyntaxError' },
+      { regex: /\bnull\b(?!.*\?)/, message: 'Null values require nullable type (Type?)', type: 'Warning' },
     ],
     html: [
       { regex: /<\w+[^>]*[^/]>\s*$/, message: 'Closing tag may be missing', type: 'SyntaxError' },
       { regex: /<\/\w+[^>]*$/, message: 'Closing bracket > missing', type: 'SyntaxError' },
       { regex: /style\s*=\s*"[^"]*:[^"]*"[^;]/, message: 'CSS property may be missing semicolon', type: 'Warning' },
+      { regex: /<img(?![^>]*alt\s*=)/, message: 'img tag missing alt attribute', type: 'Warning', suggestion: 'Add alt="description" for accessibility' },
+      { regex: /<br\s*[^/]>/, message: 'Use self-closing <br /> tag', type: 'Warning' },
+    ],
+    css: [
+      { regex: /[^{]*:\s*$/, message: 'Value expected after CSS property', type: 'SyntaxError' },
+      { regex: /[^{]*:\s*[^;{}]+$/, message: 'Missing semicolon after CSS value', type: 'SyntaxError', suggestion: 'Add ; at the end' },
+      { regex: /[^}]*\{[^}]*\{/, message: 'Nested rules not supported in regular CSS', type: 'SyntaxError' },
     ],
     sql: [
-      { regex: /\bSELECT\s+\*\s+$/, message: 'FROM clause expected', type: 'SyntaxError' },
-      { regex: /\bFROM\s+$/, message: 'Table name expected after FROM', type: 'SyntaxError' },
-      { regex: /\bWHERE\s+$/, message: 'Condition expected after WHERE', type: 'SyntaxError' },
-      { regex: /\bINSERT\s+INTO\s+\w+\s*$/, message: 'VALUES clause expected', type: 'SyntaxError' },
+      { regex: /\bSELECT\s+\*\s+$/i, message: 'FROM clause expected after SELECT', type: 'SyntaxError' },
+      { regex: /\bFROM\s+$/i, message: 'Table name expected after FROM', type: 'SyntaxError' },
+      { regex: /\bWHERE\s+$/i, message: 'Condition expected after WHERE', type: 'SyntaxError' },
+      { regex: /\bINSERT\s+INTO\s+\w+\s*$/i, message: 'VALUES or columns expected', type: 'SyntaxError' },
+      { regex: /\bUPDATE\s+$/i, message: 'Table name expected after UPDATE', type: 'SyntaxError' },
+      { regex: /\bDELETE\s+$/i, message: 'FROM expected after DELETE', type: 'SyntaxError' },
+      { regex: /\bGROUP\s+$/i, message: 'BY expected after GROUP', type: 'SyntaxError' },
+      { regex: /\bORDER\s+$/i, message: 'BY expected after ORDER', type: 'SyntaxError' },
+    ],
+    r: [
+      { regex: /\bfunction\s*$/, message: 'Function body expected', type: 'SyntaxError' },
+      { regex: /\bif\s*$/, message: 'Condition expected after if', type: 'SyntaxError' },
+      { regex: /\bfor\s*$/, message: 'Loop variable expected after for', type: 'SyntaxError' },
+      { regex: /\bprint\s+[^(]/, message: 'Use print() with parentheses in R', type: 'Warning' },
+    ],
+    perl: [
+      { regex: /\bmy\s*$/, message: 'Variable name expected after my', type: 'SyntaxError' },
+      { regex: /\bsub\s*$/, message: 'Subroutine name expected after sub', type: 'SyntaxError' },
+    ],
+    scala: [
+      { regex: /\bdef\s*$/, message: 'Method name expected after def', type: 'SyntaxError' },
+      { regex: /\bval\s*$/, message: 'Variable name expected after val', type: 'SyntaxError' },
+      { regex: /\bvar\s*$/, message: 'Variable name expected after var', type: 'SyntaxError' },
+      { regex: /;\s*$/, message: 'Semicolons are not needed in Scala', type: 'Warning' },
     ],
   };
 
-  // Advanced live error detection
+  // Languages that DON'T use semicolons (skip semicolon warning)
+  const noSemicolonLanguages = new Set(['python', 'ruby', 'go', 'kotlin', 'swift', 'scala', 'r', 'perl', 'html', 'css', 'sql']);
+  // Languages that DO require semicolons
+  const semicolonLanguages = new Set(['javascript', 'typescript', 'java', 'c', 'cpp', 'csharp', 'php', 'rust']);
+
+  // Advanced live error detection with language-aware rules
   const detectErrors = useCallback((codeText: string) => {
     const startTime = performance.now();
     setIsDetecting(true);
@@ -146,14 +343,47 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     const detectedErrors: CodeError[] = [];
     const codeLines = codeText.split('\n');
     
-    // Determine language patterns to use
-    let patterns = errorPatterns.js;
-    const lang = language.toLowerCase();
-    if (lang.includes('python')) patterns = errorPatterns.python;
-    else if (lang.includes('java') && !lang.includes('javascript')) patterns = errorPatterns.java;
-    else if (lang.includes('c++') || lang.includes('cpp') || lang === 'c') patterns = errorPatterns.cpp;
-    else if (lang.includes('html') || lang.includes('css')) patterns = errorPatterns.html;
-    else if (lang.includes('sql')) patterns = errorPatterns.sql;
+    // Resolve effective language
+    let effectiveLang = language.toLowerCase();
+    if (language === 'Auto-Detect') {
+      effectiveLang = autoDetectLanguage(codeText);
+    }
+    // Normalize language name to pattern key
+    const langKey = (() => {
+      const l = effectiveLang;
+      if (l.includes('python')) return 'python';
+      if (l.includes('typescript')) return 'typescript';
+      if (l.includes('javascript') || l.includes('js') || l === 'node') return 'javascript';
+      if (l.includes('java') && !l.includes('javascript')) return 'java';
+      if (l.includes('c++') || l.includes('cpp')) return 'cpp';
+      if (l === 'c' || l === 'c language') return 'c';
+      if (l.includes('c#') || l.includes('csharp')) return 'csharp';
+      if (l.includes('go') || l === 'golang') return 'go';
+      if (l.includes('rust')) return 'rust';
+      if (l.includes('ruby')) return 'ruby';
+      if (l.includes('php')) return 'php';
+      if (l.includes('swift')) return 'swift';
+      if (l.includes('kotlin')) return 'kotlin';
+      if (l.includes('html')) return 'html';
+      if (l.includes('css') && !l.includes('scss')) return 'css';
+      if (l.includes('sql')) return 'sql';
+      if (l.includes('r') && l.length <= 2) return 'r';
+      if (l.includes('perl')) return 'perl';
+      if (l.includes('scala')) return 'scala';
+      return 'javascript';
+    })();
+
+    const patterns = errorPatterns[langKey] || errorPatterns.javascript;
+
+    // Track unique errors to prevent duplicates
+    const errorKeys = new Set<string>();
+    const addError = (err: CodeError) => {
+      const key = `${err.line}:${err.message}`;
+      if (!errorKeys.has(key)) {
+        errorKeys.add(key);
+        detectedErrors.push(err);
+      }
+    };
 
     let parenBalance = 0;
     let bracketBalance = 0;
@@ -166,97 +396,86 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       const lineNum = index + 1;
       const trimmedLine = line.trim();
       
-      if (trimmedLine.startsWith('//') || trimmedLine.startsWith('#') || 
-          trimmedLine.startsWith('/*') || trimmedLine.startsWith('*')) {
-        return;
+      // Skip comments based on language
+      if (langKey === 'python' || langKey === 'ruby' || langKey === 'perl' || langKey === 'r') {
+        if (trimmedLine.startsWith('#')) return;
+      } else if (langKey === 'html') {
+        if (trimmedLine.startsWith('<!--')) return;
+      } else if (langKey === 'css') {
+        if (trimmedLine.startsWith('/*')) return;
+      } else if (langKey === 'sql') {
+        if (trimmedLine.startsWith('--')) return;
+      } else {
+        if (trimmedLine.startsWith('//') || trimmedLine.startsWith('/*') || trimmedLine.startsWith('*')) return;
       }
 
-      for (let i = 0; i < line.length; i++) {
-        const char = line[i];
-        const prevChar = i > 0 ? line[i - 1] : '';
-        
-        if (prevChar !== '\\') {
-          if (char === '"' && !singleQuoteOpen && !templateLiteralOpen) doubleQuoteOpen = !doubleQuoteOpen;
-          if (char === "'" && !doubleQuoteOpen && !templateLiteralOpen) singleQuoteOpen = !singleQuoteOpen;
-          if (char === '`' && !doubleQuoteOpen && !singleQuoteOpen) templateLiteralOpen = !templateLiteralOpen;
-        }
-        
-        if (!singleQuoteOpen && !doubleQuoteOpen && !templateLiteralOpen) {
-          if (char === '(') parenBalance++;
-          if (char === ')') parenBalance--;
-          if (char === '[') bracketBalance++;
-          if (char === ']') bracketBalance--;
-          if (char === '{') braceBalance++;
-          if (char === '}') braceBalance--;
-        }
+      // Bracket/paren/brace balance (skip for HTML/CSS/SQL)
+      if (!['html', 'css', 'sql'].includes(langKey)) {
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          const prevChar = i > 0 ? line[i - 1] : '';
+          
+          if (prevChar !== '\\') {
+            if (char === '"' && !singleQuoteOpen && !templateLiteralOpen) doubleQuoteOpen = !doubleQuoteOpen;
+            if (char === "'" && !doubleQuoteOpen && !templateLiteralOpen) singleQuoteOpen = !singleQuoteOpen;
+            if (char === '`' && !doubleQuoteOpen && !singleQuoteOpen) templateLiteralOpen = !templateLiteralOpen;
+          }
+          
+          if (!singleQuoteOpen && !doubleQuoteOpen && !templateLiteralOpen) {
+            if (char === '(') parenBalance++;
+            if (char === ')') parenBalance--;
+            if (char === '[') bracketBalance++;
+            if (char === ']') bracketBalance--;
+            if (char === '{') braceBalance++;
+            if (char === '}') braceBalance--;
+          }
 
-        if (parenBalance < 0) {
-          detectedErrors.push({
-            line: lineNum, column: i + 1,
-            message: 'Unexpected closing parenthesis ")"',
-            severity: 'error', type: 'SyntaxError',
-            suggestion: 'Remove the extra ) or add matching ('
-          });
-          parenBalance = 0;
-        }
-        if (bracketBalance < 0) {
-          detectedErrors.push({
-            line: lineNum, column: i + 1,
-            message: 'Unexpected closing bracket "]"',
-            severity: 'error', type: 'SyntaxError',
-            suggestion: 'Remove the extra ] or add matching ['
-          });
-          bracketBalance = 0;
-        }
-        if (braceBalance < 0) {
-          detectedErrors.push({
-            line: lineNum, column: i + 1,
-            message: 'Unexpected closing brace "}"',
-            severity: 'error', type: 'SyntaxError',
-            suggestion: 'Remove the extra } or add matching {'
-          });
-          braceBalance = 0;
+          if (parenBalance < 0) {
+            addError({ line: lineNum, column: i + 1, message: 'Unexpected closing parenthesis ")"', severity: 'error', type: 'SyntaxError', suggestion: 'Remove the extra ) or add matching (' });
+            parenBalance = 0;
+          }
+          if (bracketBalance < 0) {
+            addError({ line: lineNum, column: i + 1, message: 'Unexpected closing bracket "]"', severity: 'error', type: 'SyntaxError', suggestion: 'Remove the extra ] or add matching [' });
+            bracketBalance = 0;
+          }
+          if (braceBalance < 0) {
+            addError({ line: lineNum, column: i + 1, message: 'Unexpected closing brace "}"', severity: 'error', type: 'SyntaxError', suggestion: 'Remove the extra } or add matching {' });
+            braceBalance = 0;
+          }
         }
       }
 
+      // Unclosed strings check
       if (singleQuoteOpen && line.includes("'")) {
         const quoteCount = (line.match(/'/g) || []).length;
         if (quoteCount % 2 !== 0) {
-          detectedErrors.push({
-            line: lineNum, column: line.lastIndexOf("'") + 1,
-            message: 'Unclosed string literal (single quote)',
-            severity: 'error', type: 'SyntaxError',
-            suggestion: "Add closing ' at the end of string"
-          });
+          addError({ line: lineNum, column: line.lastIndexOf("'") + 1, message: 'Unclosed string literal (single quote)', severity: 'error', type: 'SyntaxError', suggestion: "Add closing ' at the end of string" });
         }
       }
       
       if (doubleQuoteOpen && line.includes('"')) {
         const quoteCount = (line.match(/"/g) || []).length;
         if (quoteCount % 2 !== 0) {
-          detectedErrors.push({
-            line: lineNum, column: line.lastIndexOf('"') + 1,
-            message: 'Unclosed string literal (double quote)',
-            severity: 'error', type: 'SyntaxError',
-            suggestion: 'Add closing " at the end of string'
-          });
+          addError({ line: lineNum, column: line.lastIndexOf('"') + 1, message: 'Unclosed string literal (double quote)', severity: 'error', type: 'SyntaxError', suggestion: 'Add closing " at the end of string' });
         }
       }
 
+      // Apply language-specific patterns
       patterns.forEach(pattern => {
         if (pattern.regex.test(line)) {
           const match = line.match(pattern.regex);
-          detectedErrors.push({
+          addError({
             line: lineNum,
             column: match?.index ? match.index + 1 : 1,
             message: pattern.message,
             severity: pattern.type.includes('Warning') ? 'warning' : 'error',
             type: pattern.type,
-            suggestion: `Fix the ${pattern.type} on this line`
+            suggestion: pattern.suggestion || `Fix the ${pattern.type} on this line`
           });
         }
       });
 
+      // Typo detection (universal keywords)
       const typos: Record<string, string> = {
         'funtcion': 'function', 'funtion': 'function', 'fucntion': 'function',
         'retrun': 'return', 'reutrn': 'return', 'retrn': 'return',
@@ -298,7 +517,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
         const typoRegex = new RegExp(`\\b${typo}\\b`, 'gi');
         const match = line.match(typoRegex);
         if (match) {
-          detectedErrors.push({
+          addError({
             line: lineNum,
             column: line.search(typoRegex) + 1,
             message: `Typo: "${match[0]}" should be "${correct}"`,
@@ -311,18 +530,19 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
         }
       });
 
-      if (['JavaScript', 'TypeScript', 'Java', 'C', 'C++', 'C#', 'Auto-Detect'].includes(language)) {
+      // Semicolon check - only for languages that require them
+      if (semicolonLanguages.has(langKey)) {
         if (trimmedLine && 
             !trimmedLine.endsWith(';') && !trimmedLine.endsWith('{') && 
             !trimmedLine.endsWith('}') && !trimmedLine.endsWith(':') && 
             !trimmedLine.endsWith(',') && !trimmedLine.endsWith('(') &&
             !trimmedLine.startsWith('//') && !trimmedLine.startsWith('/*') &&
             !trimmedLine.startsWith('*') && !trimmedLine.startsWith('#') &&
-            !/^(if|else|for|while|do|switch|case|try|catch|finally|function|class|import|export|const|let|var|return|async|public|private|protected|static)\b/.test(trimmedLine) &&
+            !/^(if|else|for|while|do|switch|case|try|catch|finally|function|class|import|export|const|let|var|return|async|public|private|protected|static|namespace|using|package)\b/.test(trimmedLine) &&
             !/[{}()[\]]\s*$/.test(trimmedLine) &&
             trimmedLine.length > 3 &&
             /[a-zA-Z0-9"'`)\]]\s*$/.test(trimmedLine)) {
-          detectedErrors.push({
+          addError({
             line: lineNum,
             column: line.length,
             message: 'Missing semicolon',
@@ -334,29 +554,15 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       }
     });
 
+    // End-of-file bracket balance checks
     if (parenBalance > 0) {
-      detectedErrors.push({
-        line: codeLines.length, column: 1,
-        message: `${parenBalance} unclosed parenthesis "("`,
-        severity: 'error', type: 'SyntaxError',
-        suggestion: `Add ${parenBalance} closing ) at appropriate location`
-      });
+      addError({ line: codeLines.length, column: 1, message: `${parenBalance} unclosed parenthesis "("`, severity: 'error', type: 'SyntaxError', suggestion: `Add ${parenBalance} closing ) at appropriate location` });
     }
     if (bracketBalance > 0) {
-      detectedErrors.push({
-        line: codeLines.length, column: 1,
-        message: `${bracketBalance} unclosed bracket "["`,
-        severity: 'error', type: 'SyntaxError',
-        suggestion: `Add ${bracketBalance} closing ] at appropriate location`
-      });
+      addError({ line: codeLines.length, column: 1, message: `${bracketBalance} unclosed bracket "["`, severity: 'error', type: 'SyntaxError', suggestion: `Add ${bracketBalance} closing ] at appropriate location` });
     }
     if (braceBalance > 0) {
-      detectedErrors.push({
-        line: codeLines.length, column: 1,
-        message: `${braceBalance} unclosed brace "{"`,
-        severity: 'error', type: 'SyntaxError',
-        suggestion: `Add ${braceBalance} closing } at appropriate location`
-      });
+      addError({ line: codeLines.length, column: 1, message: `${braceBalance} unclosed brace "{"`, severity: 'error', type: 'SyntaxError', suggestion: `Add ${braceBalance} closing } at appropriate location` });
     }
 
     setErrors(detectedErrors);
@@ -390,7 +596,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     const endTime = performance.now();
     setDetectionTime(endTime - startTime);
     setIsDetecting(false);
-  }, [language]);
+  }, [language, autoDetectLanguage]);
 
   useEffect(() => {
     if (debounceRef.current) {
