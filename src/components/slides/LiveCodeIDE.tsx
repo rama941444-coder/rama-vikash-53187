@@ -250,7 +250,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     ],
     rust: [
       { regex: /\bfn\s*$/, message: 'Function name expected after fn', type: 'SyntaxError' },
-      { regex: /\blet\s+\w+\s*=.*;\s*\n.*\b\1\s*=/, message: 'Variable is immutable. Use "let mut" for mutable variables', type: 'SyntaxError', suggestion: 'Add mut: let mut variable' },
+      { regex: /\blet\s+(\w+)\s*=.*;\s*\n.*\w+\s*=/, message: 'Variable may be immutable. Use "let mut" for mutable variables', type: 'Warning', suggestion: 'Add mut: let mut variable' },
       { regex: /\bprint\s*\(/, message: 'Rust uses println!() macro, not print()', type: 'SyntaxError', suggestion: 'Use println!(...) or print!(...)' },
       { regex: /\bclass\s+/, message: 'Rust uses struct, not class', type: 'SyntaxError', suggestion: 'Use struct Name {}' },
       { regex: /\bnull\b/, message: 'Rust has no null. Use Option<T> with None', type: 'SyntaxError', suggestion: 'Use None instead of null' },
