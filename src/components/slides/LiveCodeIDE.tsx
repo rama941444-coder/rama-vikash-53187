@@ -65,12 +65,24 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { toast } = useToast();
 
+  const [treeSitterReady, setTreeSitterReady] = useState(false);
+  const treeSitterLangRef = useRef<string>('');
+
   // Sync with persisted code
   useEffect(() => {
     if (persistedCode && persistedCode !== code) {
       setCode(persistedCode);
     }
   }, [persistedCode]);
+
+  // Initialize Tree-sitter WASM
+  useEffect(() => {
+    treeSitterService.init().then(ok => {
+      setTreeSitterReady(ok);
+      if (ok) console.log('🌳 Tree-sitter WASM initialized');
+    });
+    return () => { /* keep singleton alive */ };
+  }, []);
 
   // Notify parent of code changes
   useEffect(() => {
