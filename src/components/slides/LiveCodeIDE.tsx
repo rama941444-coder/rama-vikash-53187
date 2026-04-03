@@ -244,13 +244,49 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     return `${file}:${error.line}:${error.column}: ${error.severity}: ${error.message}`;
   }, []);
 
-  // LOCAL error detection (works offline, instant)
-  const detectErrorsLocal = useCallback((codeText: string) => {
+  // LOCAL error detection - Tree-sitter (primary) + regex fallback (works offline, instant)
+  const detectErrorsLocal = useCallback(async (codeText: string) => {
     const startTime = performance.now();
     setIsDetecting(true);
     
     const detectedErrors: CodeError[] = [];
     const codeLines = codeText.split('\n');
+
+    // === TREE-SITTER INCREMENTAL PARSING (primary, ~0.5ms) ===
+    let treeSitterUsed = false;
+    if (treeSitterReady) {
+      const langNorm = language.toLowerCase().replace(/\s+/g, '');
+      const tsLang = langNorm === 'auto-detect' ? '' : langNorm;
+      
+      if (tsLang && treeSitterService.isLanguageSupported(tsLang)) {
+        // Load grammar if language changed
+        if (treeSitterLangRef.current !== tsLang) {
+          const loaded = await treeSitterService.loadLanguage(tsLang);
+          if (loaded) {
+            treeSitterLangRef.current = tsLang;
+          }
+        }
+        
+        if (treeSitterLangRef.current === tsLang) {
+          const tsErrors = treeSitterService.parse(codeText, tsLang);
+          treeSitterUsed = true;
+          
+          tsErrors.forEach(tsErr => {
+            detectedErrors.push({
+              line: tsErr.line,
+              column: tsErr.column,
+              message: tsErr.message,
+              severity: tsErr.severity,
+              type: tsErr.type,
+              wrongCode: tsErr.wrongCode,
+              suggestion: tsErr.suggestion,
+            });
+          });
+        }
+      }
+    }
+    
+    // === REGEX FALLBACK (for unsupported languages or when tree-sitter not loaded) ===
     
     // Determine language patterns to use
     let patterns = errorPatterns.js;
