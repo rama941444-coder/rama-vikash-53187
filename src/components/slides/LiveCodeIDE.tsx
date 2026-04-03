@@ -1294,7 +1294,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
                 🔴 {getCompilerName(language).toUpperCase()} COMPILER OUTPUT ({errors.length} issue{errors.length !== 1 ? 's' : ''})
               </span>
               <span className="text-xs text-red-300/70">
-                {aiErrors.length > 0 ? '🤖 AI-Powered' : '⚡ Local'} | {language} | {!navigator.onLine ? '📴 Offline Mode' : 'Live'}
+                {aiErrors.length > 0 ? '🤖 AI-Powered' : treeSitterReady && treeSitterLangRef.current ? '🌳 Tree-sitter' : '⚡ Local'} | {language} | {!navigator.onLine ? '📴 Offline Mode' : 'Live'}
               </span>
             </div>
             
