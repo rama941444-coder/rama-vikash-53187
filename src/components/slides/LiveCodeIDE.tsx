@@ -399,7 +399,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
         'prnitf': 'printf', 'prinft': 'printf',
         'scnaf': 'scanf', 'sacnf': 'scanf',
         'mian': 'main', 'mainn': 'main',
-        'viod': 'void', 'viod': 'void',
+        'viod': 'void',
         'sturct': 'struct', 'strcut': 'struct',
         'assing': 'assign', 'asign': 'assign',
       };
