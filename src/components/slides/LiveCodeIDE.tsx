@@ -1233,61 +1233,75 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
 
       {/* Console Output Panels */}
       <div className="space-y-4">
-        {/* Blue Error Console with Red/Green lines and Apply buttons */}
+        {/* Compiler-Style Error Console */}
         {errors.length > 0 && (
-          <div className="bg-[#1a1a2e] border-2 border-blue-500/50 rounded-xl overflow-hidden shadow-lg shadow-blue-500/10">
-            <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-blue-500/30 to-blue-600/20 border-b border-blue-500/50">
-              <span className="text-sm font-bold text-blue-400 flex items-center gap-2">
-                <AlertCircle className="w-5 h-5" />
-                🔵 LIVE ERROR DETECTION ({errors.length} issues)
+          <div className="bg-[#0d1117] border-2 border-red-500/50 rounded-xl overflow-hidden shadow-lg shadow-red-500/10">
+            <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-red-900/40 to-[#0d1117] border-b border-red-500/30">
+              <span className="text-sm font-bold text-red-400 flex items-center gap-2">
+                <Terminal className="w-5 h-5" />
+                🔴 {getCompilerName(language).toUpperCase()} COMPILER OUTPUT ({errors.length} issue{errors.length !== 1 ? 's' : ''})
               </span>
-              <span className="text-xs text-blue-300">Language: {language} | Detected every 0.005s</span>
+              <span className="text-xs text-red-300/70">
+                {aiErrors.length > 0 ? '🤖 AI-Powered' : '⚡ Local'} | {language} | {!navigator.onLine ? '📴 Offline Mode' : 'Live'}
+              </span>
             </div>
-            <div className="p-4 max-h-[300px] overflow-y-auto space-y-3">
+            
+            {/* Compiler output style - monospace terminal */}
+            <div className="p-3 max-h-[350px] overflow-y-auto font-mono text-xs bg-[#0d1117]">
+              {/* Compiler invocation line */}
+              <div className="text-gray-500 mb-2 pb-2 border-b border-gray-800">
+                $ {language.toLowerCase() === 'c' ? 'gcc -Wall -Wextra main.c -o main' :
+                   language.toLowerCase().includes('c++') || language.toLowerCase().includes('cpp') ? 'g++ -Wall -Wextra main.cpp -o main' :
+                   language.toLowerCase().includes('python') ? 'python3 -c "import py_compile; py_compile.compile(\'main.py\')"' :
+                   language.toLowerCase().includes('java') && !language.toLowerCase().includes('javascript') ? 'javac Main.java' :
+                   language.toLowerCase().includes('rust') ? 'rustc main.rs' :
+                   language.toLowerCase().includes('go') ? 'go build main.go' :
+                   `${getCompilerName(language)} source`}
+              </div>
+
               {errors.map((error, index) => (
-                <div key={index} className="rounded-lg border border-blue-500/20 overflow-hidden">
-                  {/* Error line in RED */}
-                  <div className="bg-red-500/10 p-3 border-l-4 border-red-500">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-mono bg-red-500/20 px-2 py-0.5 rounded text-red-400">
-                        Line {error.line}:{error.column}
-                      </span>
-                      <span className="text-xs px-2 py-0.5 rounded bg-red-500/20 text-red-400 font-semibold">
-                        {error.type}
-                      </span>
-                    </div>
-                    <p className="text-sm font-medium text-red-400 font-mono">
-                      ❌ {error.message}
-                    </p>
-                    {error.wrongCode && (
-                      <pre className="text-xs text-red-300 mt-1 font-mono bg-red-500/5 p-1 rounded">
-                        {error.wrongCode}
-                      </pre>
-                    )}
+                <div key={index} className="mb-3">
+                  {/* Compiler-style error line */}
+                  <div className={`${error.severity === 'warning' ? 'text-yellow-400' : 'text-red-400'} leading-relaxed`}>
+                    {formatCompilerError(error, language)}
                   </div>
                   
-                  {/* Corrected code in GREEN with Apply button */}
-                  {(error.suggestion || error.correctCode) && (
-                    <div className="bg-green-500/10 p-3 border-l-4 border-green-500 flex items-start justify-between">
-                      <div className="flex-1">
-                        <p className="text-sm text-green-400 font-mono flex items-center gap-1">
-                          <CheckCircle className="w-3 h-3" />
-                          ✅ {error.correctCode ? error.correctCode : error.suggestion}
-                        </p>
+                  {/* Source code context */}
+                  {error.wrongCode && (
+                    <div className="mt-1 ml-4">
+                      <span className="text-gray-500">{error.line} | </span>
+                      <span className="text-red-300">{error.wrongCode}</span>
+                      <div className="text-green-400">
+                        <span className="text-gray-500">{'  '} | </span>
+                        <span className="text-green-400">^ {error.correctCode ? `fix: ${error.correctCode}` : error.suggestion}</span>
                       </div>
+                    </div>
+                  )}
+                  
+                  {/* Fix button */}
+                  {(error.correctCode || error.suggestion) && (
+                    <div className="mt-1 ml-4 flex items-center gap-2">
                       <Button
-                        variant="default"
+                        variant="ghost"
                         size="sm"
                         onClick={() => applyErrorFix(error)}
-                        className="ml-3 h-7 px-3 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold flex items-center gap-1 shrink-0"
+                        className="h-6 px-2 text-green-400 hover:text-green-300 hover:bg-green-500/10 text-xs font-mono"
                       >
-                        <ArrowRight className="w-3 h-3" />
+                        <ArrowRight className="w-3 h-3 mr-1" />
                         Apply Fix
                       </Button>
                     </div>
                   )}
                 </div>
               ))}
+
+              {/* Summary line */}
+              <div className="mt-2 pt-2 border-t border-gray-800 text-gray-400">
+                {errorCount > 0 ? `${errorCount} error${errorCount !== 1 ? 's' : ''}` : ''}
+                {errorCount > 0 && warningCount > 0 ? ' and ' : ''}
+                {warningCount > 0 ? `${warningCount} warning${warningCount !== 1 ? 's' : ''}` : ''}
+                {' '}generated.
+              </div>
             </div>
           </div>
         )}
