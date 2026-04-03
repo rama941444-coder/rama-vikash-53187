@@ -286,7 +286,8 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       }
     }
     
-    // === REGEX FALLBACK (for unsupported languages or when tree-sitter not loaded) ===
+    // Only run regex fallback if Tree-sitter didn't handle it
+    if (!treeSitterUsed) {
     
     // Determine language patterns to use
     let patterns = errorPatterns.js;
