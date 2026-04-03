@@ -554,7 +554,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     const endTime = performance.now();
     setDetectionTime(endTime - startTime);
     setIsDetecting(false);
-  }, [language, getCompilerName]);
+  }, [language, getCompilerName, treeSitterReady]);
 
   // AI-powered deep error detection (runs with delay, replaces local errors when available)
   const detectErrorsAI = useCallback(async (codeText: string) => {
