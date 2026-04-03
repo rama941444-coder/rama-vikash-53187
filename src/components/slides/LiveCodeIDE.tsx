@@ -1078,7 +1078,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
             )}
             {detectionTime > 0 && !isDetecting && !isAiDetecting && (
               <span className="text-xs text-green-400">
-                ⚡ {detectionTime.toFixed(2)}ms {aiErrors.length > 0 ? '• AI ✓' : ''}
+                ⚡ {detectionTime.toFixed(2)}ms {treeSitterReady && treeSitterLangRef.current ? '🌳 Tree-sitter' : '⚙️ Regex'} {aiErrors.length > 0 ? '• AI ✓' : ''}
               </span>
             )}
           </div>
