@@ -1016,12 +1016,17 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
             </span>
             {isDetecting && (
               <span className="text-xs text-blue-400 animate-pulse flex items-center gap-1">
-                <Zap className="w-3 h-3" /> Detecting...
+                <Zap className="w-3 h-3" /> Local...
               </span>
             )}
-            {detectionTime > 0 && !isDetecting && (
+            {isAiDetecting && (
+              <span className="text-xs text-purple-400 animate-pulse flex items-center gap-1">
+                <Sparkles className="w-3 h-3" /> AI Analyzing...
+              </span>
+            )}
+            {detectionTime > 0 && !isDetecting && !isAiDetecting && (
               <span className="text-xs text-green-400">
-                ⚡ {detectionTime.toFixed(2)}ms
+                ⚡ {detectionTime.toFixed(2)}ms {aiErrors.length > 0 ? '• AI ✓' : ''}
               </span>
             )}
           </div>
