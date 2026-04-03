@@ -6,7 +6,7 @@
  * Supports incremental parsing - only re-parses changed portions.
  */
 
-import { Parser } from 'web-tree-sitter';
+import { Parser, Language } from 'web-tree-sitter';
 
 // CDN base for pre-built tree-sitter WASM grammars
 const GRAMMAR_CDN = 'https://cdn.jsdelivr.net/npm/tree-sitter-wasms@latest/out';
