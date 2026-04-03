@@ -4,6 +4,7 @@ import { Play, AlertCircle, CheckCircle, Copy, Trash2, Maximize2, Minimize2, Loa
 import { useToast } from '@/hooks/use-toast';
 import LanguageSelector from '@/components/LanguageSelector';
 import { supabase } from '@/integrations/supabase/client';
+import { treeSitterService, type TreeSitterError } from '@/lib/treeSitterService';
 
 interface LiveCodeIDEProps {
   onAnalysisComplete: (data: any) => void;
@@ -64,12 +65,24 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { toast } = useToast();
 
+  const [treeSitterReady, setTreeSitterReady] = useState(false);
+  const treeSitterLangRef = useRef<string>('');
+
   // Sync with persisted code
   useEffect(() => {
     if (persistedCode && persistedCode !== code) {
       setCode(persistedCode);
     }
   }, [persistedCode]);
+
+  // Initialize Tree-sitter WASM
+  useEffect(() => {
+    treeSitterService.init().then(ok => {
+      setTreeSitterReady(ok);
+      if (ok) console.log('🌳 Tree-sitter WASM initialized');
+    });
+    return () => { /* keep singleton alive */ };
+  }, []);
 
   // Notify parent of code changes
   useEffect(() => {
@@ -231,13 +244,50 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     return `${file}:${error.line}:${error.column}: ${error.severity}: ${error.message}`;
   }, []);
 
-  // LOCAL error detection (works offline, instant)
-  const detectErrorsLocal = useCallback((codeText: string) => {
+  // LOCAL error detection - Tree-sitter (primary) + regex fallback (works offline, instant)
+  const detectErrorsLocal = useCallback(async (codeText: string) => {
     const startTime = performance.now();
     setIsDetecting(true);
     
     const detectedErrors: CodeError[] = [];
     const codeLines = codeText.split('\n');
+
+    // === TREE-SITTER INCREMENTAL PARSING (primary, ~0.5ms) ===
+    let treeSitterUsed = false;
+    if (treeSitterReady) {
+      const langNorm = language.toLowerCase().replace(/\s+/g, '');
+      const tsLang = langNorm === 'auto-detect' ? '' : langNorm;
+      
+      if (tsLang && treeSitterService.isLanguageSupported(tsLang)) {
+        // Load grammar if language changed
+        if (treeSitterLangRef.current !== tsLang) {
+          const loaded = await treeSitterService.loadLanguage(tsLang);
+          if (loaded) {
+            treeSitterLangRef.current = tsLang;
+          }
+        }
+        
+        if (treeSitterLangRef.current === tsLang) {
+          const tsErrors = treeSitterService.parse(codeText, tsLang);
+          treeSitterUsed = true;
+          
+          tsErrors.forEach(tsErr => {
+            detectedErrors.push({
+              line: tsErr.line,
+              column: tsErr.column,
+              message: tsErr.message,
+              severity: tsErr.severity,
+              type: tsErr.type,
+              wrongCode: tsErr.wrongCode,
+              suggestion: tsErr.suggestion,
+            });
+          });
+        }
+      }
+    }
+    
+    // Only run regex fallback if Tree-sitter didn't handle it
+    if (!treeSitterUsed) {
     
     // Determine language patterns to use
     let patterns = errorPatterns.js;
@@ -469,6 +519,8 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       });
     }
 
+    } // end regex fallback
+
     // Build corrected code from typo fixes
     if (detectedErrors.length > 0) {
       let corrected = codeText;
@@ -502,7 +554,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     const endTime = performance.now();
     setDetectionTime(endTime - startTime);
     setIsDetecting(false);
-  }, [language, getCompilerName]);
+  }, [language, getCompilerName, treeSitterReady]);
 
   // AI-powered deep error detection (runs with delay, replaces local errors when available)
   const detectErrorsAI = useCallback(async (codeText: string) => {
@@ -1026,7 +1078,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
             )}
             {detectionTime > 0 && !isDetecting && !isAiDetecting && (
               <span className="text-xs text-green-400">
-                ⚡ {detectionTime.toFixed(2)}ms {aiErrors.length > 0 ? '• AI ✓' : ''}
+                ⚡ {detectionTime.toFixed(2)}ms {treeSitterReady && treeSitterLangRef.current ? '🌳 Tree-sitter' : '⚙️ Regex'} {aiErrors.length > 0 ? '• AI ✓' : ''}
               </span>
             )}
           </div>
@@ -1242,7 +1294,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
                 🔴 {getCompilerName(language).toUpperCase()} COMPILER OUTPUT ({errors.length} issue{errors.length !== 1 ? 's' : ''})
               </span>
               <span className="text-xs text-red-300/70">
-                {aiErrors.length > 0 ? '🤖 AI-Powered' : '⚡ Local'} | {language} | {!navigator.onLine ? '📴 Offline Mode' : 'Live'}
+                {aiErrors.length > 0 ? '🤖 AI-Powered' : treeSitterReady && treeSitterLangRef.current ? '🌳 Tree-sitter' : '⚡ Local'} | {language} | {!navigator.onLine ? '📴 Offline Mode' : 'Live'}
               </span>
             </div>
             
