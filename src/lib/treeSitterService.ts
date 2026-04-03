@@ -162,7 +162,7 @@ class TreeSitterService {
 
     try {
       const wasmUrl = `${GRAMMAR_CDN}/${grammarName}.wasm`;
-      const lang = await Parser.Language.load(wasmUrl);
+      const lang = await Language.load(wasmUrl);
       this.languageCache.set(grammarName, lang);
       this.parser.setLanguage(lang);
       return true;
