@@ -519,6 +519,8 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       });
     }
 
+    } // end regex fallback
+
     // Build corrected code from typo fixes
     if (detectedErrors.length > 0) {
       let corrected = codeText;
