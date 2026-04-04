@@ -35,60 +35,6 @@ serve(async (req) => {
     
     // Handle special modes
     // Mode: Execute code like online compiler
-    // Mode: Live error detection like real compilers (GCC, Python, javac, etc.)
-    if (requestBody.mode === 'live_error_detect') {
-      const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-      if (!LOVABLE_API_KEY) throw new Error('LOVABLE_API_KEY is not configured');
-      
-      const lang = requestBody.language || 'Auto-Detect';
-      const code = requestBody.code || '';
-      
-      const aiResp = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'google/gemini-2.5-flash-lite',
-          messages: [
-            { role: 'system', content: `You are an EXACT compiler/interpreter error reporter. Analyze the code and report ALL errors EXACTLY as the real compiler would.
-
-CRITICAL RULES:
-1. For C: Report errors EXACTLY like GCC 13.2: "main.c:LINE:COL: error: DESCRIPTION"
-2. For C++: Report like G++ 13.2: "main.cpp:LINE:COL: error: DESCRIPTION"  
-3. For Python: Report like Python 3.12: "File \"main.py\", line LINE\\n    CODE\\n    ^\\nSyntaxError: DESCRIPTION"
-4. For Java: Report like javac 21: "Main.java:LINE: error: DESCRIPTION"
-5. For JavaScript/Node: Report like Node 20: "main.js:LINE\\nCODE\\n^\\nSyntaxError: DESCRIPTION"
-6. For Rust: Report like rustc: "error[E0308]: DESCRIPTION --> main.rs:LINE:COL"
-7. For Go: Report like go build: "./main.go:LINE:COL: DESCRIPTION"
-8. For all other languages: Use their native compiler/interpreter error format
-9. Detect ALL: syntax errors, type errors, logical errors, missing semicolons, unclosed brackets, wrong keywords, undefined variables, unreachable code, missing imports, wrong function signatures
-10. For each error provide the EXACT corrected line of code
-11. MUST detect errors a human might miss: off-by-one, null dereference, uninitialized vars, memory leaks (C/C++), race conditions hints
-
-Return JSON: {"errors": [{"line": N, "column": N, "message": "compiler-style error message", "severity": "error"|"warning", "type": "ErrorType", "compilerOutput": "exact compiler output line", "wrongCode": "the bad code", "correctCode": "fixed code", "suggestion": "human readable fix"}], "correctedCode": "full corrected source code"}
-- If no errors: {"errors": [], "correctedCode": ""}
-- MAXIMUM 50 errors` },
-            { role: 'user', content: `Language: ${lang}\n\nCode:\n${code}` }
-          ],
-          response_format: { type: "json_object" },
-        }),
-      });
-      
-      if (!aiResp.ok) {
-        const status = aiResp.status;
-        if (status === 429) return new Response(JSON.stringify({ error: 'RATE_LIMIT_EXCEEDED' }), { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-        if (status === 402) return new Response(JSON.stringify({ error: 'PAYMENT_REQUIRED' }), { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-        return new Response(JSON.stringify({ errors: [], correctedCode: '' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      }
-      
-      const aiData = await aiResp.json();
-      try {
-        const parsed = JSON.parse(aiData.choices[0].message.content);
-        return new Response(JSON.stringify(parsed), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      } catch {
-        return new Response(JSON.stringify({ errors: [], correctedCode: '' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      }
-    }
-
     if (requestBody.mode === 'execute_code') {
       const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
       if (!LOVABLE_API_KEY) throw new Error('LOVABLE_API_KEY is not configured');
