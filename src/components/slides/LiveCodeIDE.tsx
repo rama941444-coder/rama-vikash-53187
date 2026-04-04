@@ -419,7 +419,9 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
             line: lineNum, column: i + 1,
             message: `unexpected closing parenthesis ")"`,
             severity: 'error', type: 'SyntaxError',
-            suggestion: 'Remove the extra ) or add matching ('
+            wrongCode: line,
+            correctCode: line.substring(0, i) + line.substring(i + 1),
+            suggestion: 'Remove the extra )'
           });
           parenBalance = 0;
         }
@@ -428,7 +430,9 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
             line: lineNum, column: i + 1,
             message: `unexpected closing bracket "]"`,
             severity: 'error', type: 'SyntaxError',
-            suggestion: 'Remove the extra ] or add matching ['
+            wrongCode: line,
+            correctCode: line.substring(0, i) + line.substring(i + 1),
+            suggestion: 'Remove the extra ]'
           });
           bracketBalance = 0;
         }
@@ -437,7 +441,9 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
             line: lineNum, column: i + 1,
             message: `unexpected closing brace "}"`,
             severity: 'error', type: 'SyntaxError',
-            suggestion: 'Remove the extra } or add matching {'
+            wrongCode: line,
+            correctCode: line.substring(0, i) + line.substring(i + 1),
+            suggestion: 'Remove the extra }'
           });
           braceBalance = 0;
         }
