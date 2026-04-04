@@ -566,6 +566,8 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
             message: 'expected \';\' at end of statement',
             severity: 'warning',
             type: 'Warning',
+            wrongCode: line,
+            correctCode: line.trimEnd() + ';',
             suggestion: 'Add ; at the end of the statement'
           });
         }
