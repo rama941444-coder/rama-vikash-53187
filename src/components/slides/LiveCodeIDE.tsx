@@ -144,6 +144,8 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       { regex: /\bint\s+main\s*\(\s*\)\s*[^{]/, message: 'Opening brace expected for main function', type: 'SyntaxError' },
       { regex: /\bmalloc\s*\([^)]*\)\s*;/, message: 'malloc return value should be assigned', type: 'Warning' },
       { regex: /\bscanf\s*\(\s*"[^"]*",\s*\w+[^&]/, message: 'scanf requires address-of operator (&)', type: 'SyntaxError' },
+      { regex: /\bcout\s*<<\s*$/, message: 'Expression expected after <<', type: 'SyntaxError' },
+      { regex: /\bcin\s*>>\s*$/, message: 'Variable expected after >>', type: 'SyntaxError' },
     ],
     html: [
       { regex: /<\w+[^>]*[^/]>\s*$/, message: 'Closing tag may be missing', type: 'SyntaxError' },
@@ -160,34 +162,93 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       { regex: /\blet\s+mut\s*$/, message: 'Variable name expected', type: 'SyntaxError' },
       { regex: /\bfn\s*$/, message: 'Function name expected', type: 'SyntaxError' },
       { regex: /\bprintln!\s*$/, message: 'Format string expected', type: 'SyntaxError' },
+      { regex: /\blet\s+\w+\s*=\s*$/, message: 'Expression expected after =', type: 'SyntaxError' },
+      { regex: /\bimpl\s*$/, message: 'Type name expected after impl', type: 'SyntaxError' },
     ],
     go: [
       { regex: /\bfunc\s*$/, message: 'Function name expected', type: 'SyntaxError' },
       { regex: /\bfmt\.Println\s*$/, message: 'Arguments expected', type: 'SyntaxError' },
       { regex: /\bpackage\s*$/, message: 'Package name expected', type: 'SyntaxError' },
+      { regex: /\bvar\s+\w+\s*$/, message: 'Type or value expected', type: 'SyntaxError' },
+      { regex: /:=\s*$/, message: 'Value expected after :=', type: 'SyntaxError' },
     ],
     ruby: [
       { regex: /\bdef\s*$/, message: 'Method name expected', type: 'SyntaxError' },
       { regex: /\bputs\s*$/, message: 'Argument expected', type: 'SyntaxError' },
+      { regex: /\bclass\s*$/, message: 'Class name expected', type: 'SyntaxError' },
+      { regex: /\brequire\s*$/, message: 'File path expected', type: 'SyntaxError' },
     ],
     php: [
       { regex: /\bfunction\s*$/, message: 'Function name expected', type: 'SyntaxError' },
       { regex: /\becho\s*$/, message: 'Expression expected after echo', type: 'SyntaxError' },
       { regex: /\$\s*=/, message: 'Variable name expected before =', type: 'SyntaxError' },
+      { regex: /<\?(?!php)/, message: 'Use <?php instead of short tags', type: 'Warning' },
     ],
     swift: [
       { regex: /\bfunc\s*$/, message: 'Function name expected', type: 'SyntaxError' },
       { regex: /\bvar\s*$/, message: 'Variable name expected', type: 'SyntaxError' },
       { regex: /\blet\s*$/, message: 'Constant name expected', type: 'SyntaxError' },
+      { regex: /\bguard\s*$/, message: 'Condition expected after guard', type: 'SyntaxError' },
     ],
     kotlin: [
       { regex: /\bfun\s*$/, message: 'Function name expected', type: 'SyntaxError' },
       { regex: /\bval\s*$/, message: 'Variable name expected', type: 'SyntaxError' },
       { regex: /\bvar\s*$/, message: 'Variable name expected', type: 'SyntaxError' },
+      { regex: /\bwhen\s*$/, message: 'Expression expected after when', type: 'SyntaxError' },
     ],
     csharp: [
       { regex: /\bConsole\.Write(?!Line)/, message: 'Did you mean Console.WriteLine()?', type: 'Warning' },
       { regex: /\bstatic\s+void\s+Main\s*\(\s*\)/, message: 'Main requires string[] args parameter', type: 'SyntaxError' },
+      { regex: /\bnamespace\s*$/, message: 'Namespace name expected', type: 'SyntaxError' },
+    ],
+    dart: [
+      { regex: /\bvoid\s+main\s*\(\s*\)\s*[^{]/, message: 'Opening brace expected', type: 'SyntaxError' },
+      { regex: /\bprint\s*$/, message: 'Arguments expected for print()', type: 'SyntaxError' },
+      { regex: /\bvar\s*$/, message: 'Variable name expected', type: 'SyntaxError' },
+    ],
+    scala: [
+      { regex: /\bdef\s*$/, message: 'Method name expected', type: 'SyntaxError' },
+      { regex: /\bval\s*$/, message: 'Value name expected', type: 'SyntaxError' },
+      { regex: /\bobject\s*$/, message: 'Object name expected', type: 'SyntaxError' },
+    ],
+    haskell: [
+      { regex: /\bmodule\s*$/, message: 'Module name expected', type: 'SyntaxError' },
+      { regex: /\bimport\s*$/, message: 'Module name expected after import', type: 'SyntaxError' },
+      { regex: /\bwhere\s*$/, message: 'Declarations expected after where', type: 'SyntaxError' },
+    ],
+    lua: [
+      { regex: /\bfunction\s*$/, message: 'Function name expected', type: 'SyntaxError' },
+      { regex: /\blocal\s*$/, message: 'Variable name expected', type: 'SyntaxError' },
+      { regex: /\bprint\s*$/, message: 'Arguments expected', type: 'SyntaxError' },
+    ],
+    perl: [
+      { regex: /\bsub\s*$/, message: 'Subroutine name expected', type: 'SyntaxError' },
+      { regex: /\bmy\s*$/, message: 'Variable name expected', type: 'SyntaxError' },
+      { regex: /\bprint\s*$/, message: 'Expression expected after print', type: 'SyntaxError' },
+    ],
+    elixir: [
+      { regex: /\bdef\s*$/, message: 'Function name expected', type: 'SyntaxError' },
+      { regex: /\bdefmodule\s*$/, message: 'Module name expected', type: 'SyntaxError' },
+    ],
+    julia: [
+      { regex: /\bfunction\s*$/, message: 'Function name expected', type: 'SyntaxError' },
+      { regex: /\bprintln\s*$/, message: 'Arguments expected', type: 'SyntaxError' },
+    ],
+    fortran: [
+      { regex: /\bprogram\s*$/, message: 'Program name expected', type: 'SyntaxError' },
+      { regex: /\bsubroutine\s*$/, message: 'Subroutine name expected', type: 'SyntaxError' },
+    ],
+    zig: [
+      { regex: /\bfn\s*$/, message: 'Function name expected', type: 'SyntaxError' },
+      { regex: /\bconst\s*$/, message: 'Variable name expected', type: 'SyntaxError' },
+    ],
+    nim: [
+      { regex: /\bproc\s*$/, message: 'Proc name expected', type: 'SyntaxError' },
+      { regex: /\bvar\s*$/, message: 'Variable name expected', type: 'SyntaxError' },
+    ],
+    solidity: [
+      { regex: /\bcontract\s*$/, message: 'Contract name expected', type: 'SyntaxError' },
+      { regex: /\bfunction\s*$/, message: 'Function name expected', type: 'SyntaxError' },
     ],
   };
 
