@@ -419,7 +419,9 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
             line: lineNum, column: i + 1,
             message: `unexpected closing parenthesis ")"`,
             severity: 'error', type: 'SyntaxError',
-            suggestion: 'Remove the extra ) or add matching ('
+            wrongCode: line,
+            correctCode: line.substring(0, i) + line.substring(i + 1),
+            suggestion: 'Remove the extra )'
           });
           parenBalance = 0;
         }
@@ -428,7 +430,9 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
             line: lineNum, column: i + 1,
             message: `unexpected closing bracket "]"`,
             severity: 'error', type: 'SyntaxError',
-            suggestion: 'Remove the extra ] or add matching ['
+            wrongCode: line,
+            correctCode: line.substring(0, i) + line.substring(i + 1),
+            suggestion: 'Remove the extra ]'
           });
           bracketBalance = 0;
         }
@@ -437,7 +441,9 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
             line: lineNum, column: i + 1,
             message: `unexpected closing brace "}"`,
             severity: 'error', type: 'SyntaxError',
-            suggestion: 'Remove the extra } or add matching {'
+            wrongCode: line,
+            correctCode: line.substring(0, i) + line.substring(i + 1),
+            suggestion: 'Remove the extra }'
           });
           braceBalance = 0;
         }
@@ -560,6 +566,8 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
             message: 'expected \';\' at end of statement',
             severity: 'warning',
             type: 'Warning',
+            wrongCode: line,
+            correctCode: line.trimEnd() + ';',
             suggestion: 'Add ; at the end of the statement'
           });
         }
@@ -567,27 +575,36 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     });
 
     if (parenBalance > 0) {
+      const lastLine = codeLines[codeLines.length - 1];
       detectedErrors.push({
-        line: codeLines.length, column: 1,
+        line: codeLines.length, column: (lastLine?.length || 0) + 1,
         message: `${parenBalance} unclosed parenthesis "("`,
         severity: 'error', type: 'SyntaxError',
-        suggestion: `Add ${parenBalance} closing ) at appropriate location`
+        wrongCode: lastLine,
+        correctCode: lastLine + ')'.repeat(parenBalance),
+        suggestion: `Add ${parenBalance} closing )`
       });
     }
     if (bracketBalance > 0) {
+      const lastLine = codeLines[codeLines.length - 1];
       detectedErrors.push({
-        line: codeLines.length, column: 1,
+        line: codeLines.length, column: (lastLine?.length || 0) + 1,
         message: `${bracketBalance} unclosed bracket "["`,
         severity: 'error', type: 'SyntaxError',
-        suggestion: `Add ${bracketBalance} closing ] at appropriate location`
+        wrongCode: lastLine,
+        correctCode: lastLine + ']'.repeat(bracketBalance),
+        suggestion: `Add ${bracketBalance} closing ]`
       });
     }
     if (braceBalance > 0) {
+      const lastLine = codeLines[codeLines.length - 1];
       detectedErrors.push({
-        line: codeLines.length, column: 1,
+        line: codeLines.length, column: (lastLine?.length || 0) + 1,
         message: `${braceBalance} unclosed brace "{"`,
         severity: 'error', type: 'SyntaxError',
-        suggestion: `Add ${braceBalance} closing } at appropriate location`
+        wrongCode: lastLine,
+        correctCode: lastLine + '\n' + '}'.repeat(braceBalance),
+        suggestion: `Add ${braceBalance} closing }`
       });
     }
 
@@ -866,18 +883,61 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
 
 
   const applyErrorFix = (error: CodeError) => {
+    const codeLines = code.split('\n');
+    const lineIndex = error.line - 1;
+
+    // Case 1: Direct wrongCode → correctCode replacement (typos, known fixes)
     if (error.wrongCode && error.correctCode) {
-      const codeLines = code.split('\n');
-      const lineIndex = error.line - 1;
       if (lineIndex >= 0 && lineIndex < codeLines.length) {
-        codeLines[lineIndex] = codeLines[lineIndex].replace(error.wrongCode, error.correctCode);
+        // If wrongCode is the full line, replace the entire line
+        if (error.wrongCode === codeLines[lineIndex]) {
+          codeLines[lineIndex] = error.correctCode;
+        } else {
+          // Replace the specific wrong part within the line
+          codeLines[lineIndex] = codeLines[lineIndex].replace(error.wrongCode, error.correctCode);
+        }
         setCode(codeLines.join('\n'));
         toast({
           title: "✅ Fix Applied",
-          description: `Replaced "${error.wrongCode}" with "${error.correctCode}" on line ${error.line}`,
+          description: `Fixed error on line ${error.line}: ${error.suggestion || error.message}`,
         });
+        return;
       }
-    } else if (correctedCode) {
+    }
+
+    // Case 2: Tree-sitter "expected" errors — insert the missing token
+    if (error.message.includes("expected '") && !error.correctCode) {
+      const match = error.message.match(/expected '([^']+)'/);
+      if (match && lineIndex >= 0 && lineIndex < codeLines.length) {
+        const missingToken = match[1];
+        const col = Math.min(error.column - 1, codeLines[lineIndex].length);
+        const line = codeLines[lineIndex];
+        codeLines[lineIndex] = line.substring(0, col) + missingToken + line.substring(col);
+        setCode(codeLines.join('\n'));
+        toast({
+          title: "✅ Fix Applied",
+          description: `Inserted missing '${missingToken}' on line ${error.line}`,
+        });
+        return;
+      }
+    }
+
+    // Case 3: Unclosed quote errors — add closing quote
+    if (error.message.includes('unclosed string literal')) {
+      if (lineIndex >= 0 && lineIndex < codeLines.length) {
+        const quoteChar = error.message.includes('single') ? "'" : '"';
+        codeLines[lineIndex] = codeLines[lineIndex] + quoteChar;
+        setCode(codeLines.join('\n'));
+        toast({
+          title: "✅ Fix Applied",
+          description: `Added closing ${quoteChar} on line ${error.line}`,
+        });
+        return;
+      }
+    }
+
+    // Case 4: Fall back to full corrected code from AI
+    if (correctedCode) {
       setCode(correctedCode);
       setCorrectedCode('');
       setErrors([]);
