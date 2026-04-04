@@ -575,27 +575,36 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     });
 
     if (parenBalance > 0) {
+      const lastLine = codeLines[codeLines.length - 1];
       detectedErrors.push({
-        line: codeLines.length, column: 1,
+        line: codeLines.length, column: (lastLine?.length || 0) + 1,
         message: `${parenBalance} unclosed parenthesis "("`,
         severity: 'error', type: 'SyntaxError',
-        suggestion: `Add ${parenBalance} closing ) at appropriate location`
+        wrongCode: lastLine,
+        correctCode: lastLine + ')'.repeat(parenBalance),
+        suggestion: `Add ${parenBalance} closing )`
       });
     }
     if (bracketBalance > 0) {
+      const lastLine = codeLines[codeLines.length - 1];
       detectedErrors.push({
-        line: codeLines.length, column: 1,
+        line: codeLines.length, column: (lastLine?.length || 0) + 1,
         message: `${bracketBalance} unclosed bracket "["`,
         severity: 'error', type: 'SyntaxError',
-        suggestion: `Add ${bracketBalance} closing ] at appropriate location`
+        wrongCode: lastLine,
+        correctCode: lastLine + ']'.repeat(bracketBalance),
+        suggestion: `Add ${bracketBalance} closing ]`
       });
     }
     if (braceBalance > 0) {
+      const lastLine = codeLines[codeLines.length - 1];
       detectedErrors.push({
-        line: codeLines.length, column: 1,
+        line: codeLines.length, column: (lastLine?.length || 0) + 1,
         message: `${braceBalance} unclosed brace "{"`,
         severity: 'error', type: 'SyntaxError',
-        suggestion: `Add ${braceBalance} closing } at appropriate location`
+        wrongCode: lastLine,
+        correctCode: lastLine + '\n' + '}'.repeat(braceBalance),
+        suggestion: `Add ${braceBalance} closing }`
       });
     }
 
