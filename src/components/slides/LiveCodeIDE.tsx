@@ -4,6 +4,7 @@ import { Play, AlertCircle, CheckCircle, Copy, Trash2, Maximize2, Minimize2, Loa
 import { useToast } from '@/hooks/use-toast';
 import LanguageSelector from '@/components/LanguageSelector';
 import { supabase } from '@/integrations/supabase/client';
+import { treeSitterService, type TreeSitterError } from '@/lib/treeSitterService';
 
 interface LiveCodeIDEProps {
   onAnalysisComplete: (data: any) => void;
@@ -61,8 +62,11 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lineNumbersRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { toast } = useToast();
+
+  const [treeSitterReady, setTreeSitterReady] = useState(false);
+  const treeSitterLangRef = useRef<string>('');
 
   // Sync with persisted code
   useEffect(() => {
@@ -70,6 +74,15 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       setCode(persistedCode);
     }
   }, [persistedCode]);
+
+  // Initialize Tree-sitter WASM
+  useEffect(() => {
+    treeSitterService.init().then(ok => {
+      setTreeSitterReady(ok);
+      if (ok) console.log('🌳 Tree-sitter WASM initialized');
+    });
+    return () => { /* keep singleton alive */ };
+  }, []);
 
   // Notify parent of code changes
   useEffect(() => {
@@ -82,8 +95,15 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
   const lineCount = lines.length;
   const maxLines = 500000;
 
-  // Comprehensive error patterns for multiple languages
-  const errorPatterns = {
+  // AI-powered deep error detection (compiler-style)
+  const aiDetectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [aiErrors, setAiErrors] = useState<CodeError[]>([]);
+  const [aiCorrectedCode, setAiCorrectedCode] = useState('');
+  const [isAiDetecting, setIsAiDetecting] = useState(false);
+  const lastAiCodeRef = useRef('');
+
+  // Comprehensive error patterns for multiple languages (offline fallback)
+  const errorPatterns: Record<string, Array<{regex: RegExp, message: string, type: string}>> = {
     js: [
       { regex: /\bconst\s+(\w+)\s*=\s*$/, message: 'Assignment value expected', type: 'SyntaxError' },
       { regex: /\bfunction\s*$/, message: 'Function name expected', type: 'SyntaxError' },
@@ -124,6 +144,8 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       { regex: /\bint\s+main\s*\(\s*\)\s*[^{]/, message: 'Opening brace expected for main function', type: 'SyntaxError' },
       { regex: /\bmalloc\s*\([^)]*\)\s*;/, message: 'malloc return value should be assigned', type: 'Warning' },
       { regex: /\bscanf\s*\(\s*"[^"]*",\s*\w+[^&]/, message: 'scanf requires address-of operator (&)', type: 'SyntaxError' },
+      { regex: /\bcout\s*<<\s*$/, message: 'Expression expected after <<', type: 'SyntaxError' },
+      { regex: /\bcin\s*>>\s*$/, message: 'Variable expected after >>', type: 'SyntaxError' },
     ],
     html: [
       { regex: /<\w+[^>]*[^/]>\s*$/, message: 'Closing tag may be missing', type: 'SyntaxError' },
@@ -136,15 +158,197 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       { regex: /\bWHERE\s+$/, message: 'Condition expected after WHERE', type: 'SyntaxError' },
       { regex: /\bINSERT\s+INTO\s+\w+\s*$/, message: 'VALUES clause expected', type: 'SyntaxError' },
     ],
+    rust: [
+      { regex: /\blet\s+mut\s*$/, message: 'Variable name expected', type: 'SyntaxError' },
+      { regex: /\bfn\s*$/, message: 'Function name expected', type: 'SyntaxError' },
+      { regex: /\bprintln!\s*$/, message: 'Format string expected', type: 'SyntaxError' },
+      { regex: /\blet\s+\w+\s*=\s*$/, message: 'Expression expected after =', type: 'SyntaxError' },
+      { regex: /\bimpl\s*$/, message: 'Type name expected after impl', type: 'SyntaxError' },
+    ],
+    go: [
+      { regex: /\bfunc\s*$/, message: 'Function name expected', type: 'SyntaxError' },
+      { regex: /\bfmt\.Println\s*$/, message: 'Arguments expected', type: 'SyntaxError' },
+      { regex: /\bpackage\s*$/, message: 'Package name expected', type: 'SyntaxError' },
+      { regex: /\bvar\s+\w+\s*$/, message: 'Type or value expected', type: 'SyntaxError' },
+      { regex: /:=\s*$/, message: 'Value expected after :=', type: 'SyntaxError' },
+    ],
+    ruby: [
+      { regex: /\bdef\s*$/, message: 'Method name expected', type: 'SyntaxError' },
+      { regex: /\bputs\s*$/, message: 'Argument expected', type: 'SyntaxError' },
+      { regex: /\bclass\s*$/, message: 'Class name expected', type: 'SyntaxError' },
+      { regex: /\brequire\s*$/, message: 'File path expected', type: 'SyntaxError' },
+    ],
+    php: [
+      { regex: /\bfunction\s*$/, message: 'Function name expected', type: 'SyntaxError' },
+      { regex: /\becho\s*$/, message: 'Expression expected after echo', type: 'SyntaxError' },
+      { regex: /\$\s*=/, message: 'Variable name expected before =', type: 'SyntaxError' },
+      { regex: /<\?(?!php)/, message: 'Use <?php instead of short tags', type: 'Warning' },
+    ],
+    swift: [
+      { regex: /\bfunc\s*$/, message: 'Function name expected', type: 'SyntaxError' },
+      { regex: /\bvar\s*$/, message: 'Variable name expected', type: 'SyntaxError' },
+      { regex: /\blet\s*$/, message: 'Constant name expected', type: 'SyntaxError' },
+      { regex: /\bguard\s*$/, message: 'Condition expected after guard', type: 'SyntaxError' },
+    ],
+    kotlin: [
+      { regex: /\bfun\s*$/, message: 'Function name expected', type: 'SyntaxError' },
+      { regex: /\bval\s*$/, message: 'Variable name expected', type: 'SyntaxError' },
+      { regex: /\bvar\s*$/, message: 'Variable name expected', type: 'SyntaxError' },
+      { regex: /\bwhen\s*$/, message: 'Expression expected after when', type: 'SyntaxError' },
+    ],
+    csharp: [
+      { regex: /\bConsole\.Write(?!Line)/, message: 'Did you mean Console.WriteLine()?', type: 'Warning' },
+      { regex: /\bstatic\s+void\s+Main\s*\(\s*\)/, message: 'Main requires string[] args parameter', type: 'SyntaxError' },
+      { regex: /\bnamespace\s*$/, message: 'Namespace name expected', type: 'SyntaxError' },
+    ],
+    dart: [
+      { regex: /\bvoid\s+main\s*\(\s*\)\s*[^{]/, message: 'Opening brace expected', type: 'SyntaxError' },
+      { regex: /\bprint\s*$/, message: 'Arguments expected for print()', type: 'SyntaxError' },
+      { regex: /\bvar\s*$/, message: 'Variable name expected', type: 'SyntaxError' },
+    ],
+    scala: [
+      { regex: /\bdef\s*$/, message: 'Method name expected', type: 'SyntaxError' },
+      { regex: /\bval\s*$/, message: 'Value name expected', type: 'SyntaxError' },
+      { regex: /\bobject\s*$/, message: 'Object name expected', type: 'SyntaxError' },
+    ],
+    haskell: [
+      { regex: /\bmodule\s*$/, message: 'Module name expected', type: 'SyntaxError' },
+      { regex: /\bimport\s*$/, message: 'Module name expected after import', type: 'SyntaxError' },
+      { regex: /\bwhere\s*$/, message: 'Declarations expected after where', type: 'SyntaxError' },
+    ],
+    lua: [
+      { regex: /\bfunction\s*$/, message: 'Function name expected', type: 'SyntaxError' },
+      { regex: /\blocal\s*$/, message: 'Variable name expected', type: 'SyntaxError' },
+      { regex: /\bprint\s*$/, message: 'Arguments expected', type: 'SyntaxError' },
+    ],
+    perl: [
+      { regex: /\bsub\s*$/, message: 'Subroutine name expected', type: 'SyntaxError' },
+      { regex: /\bmy\s*$/, message: 'Variable name expected', type: 'SyntaxError' },
+      { regex: /\bprint\s*$/, message: 'Expression expected after print', type: 'SyntaxError' },
+    ],
+    elixir: [
+      { regex: /\bdef\s*$/, message: 'Function name expected', type: 'SyntaxError' },
+      { regex: /\bdefmodule\s*$/, message: 'Module name expected', type: 'SyntaxError' },
+    ],
+    julia: [
+      { regex: /\bfunction\s*$/, message: 'Function name expected', type: 'SyntaxError' },
+      { regex: /\bprintln\s*$/, message: 'Arguments expected', type: 'SyntaxError' },
+    ],
+    fortran: [
+      { regex: /\bprogram\s*$/, message: 'Program name expected', type: 'SyntaxError' },
+      { regex: /\bsubroutine\s*$/, message: 'Subroutine name expected', type: 'SyntaxError' },
+    ],
+    zig: [
+      { regex: /\bfn\s*$/, message: 'Function name expected', type: 'SyntaxError' },
+      { regex: /\bconst\s*$/, message: 'Variable name expected', type: 'SyntaxError' },
+    ],
+    nim: [
+      { regex: /\bproc\s*$/, message: 'Proc name expected', type: 'SyntaxError' },
+      { regex: /\bvar\s*$/, message: 'Variable name expected', type: 'SyntaxError' },
+    ],
+    solidity: [
+      { regex: /\bcontract\s*$/, message: 'Contract name expected', type: 'SyntaxError' },
+      { regex: /\bfunction\s*$/, message: 'Function name expected', type: 'SyntaxError' },
+    ],
   };
 
-  // Advanced live error detection
-  const detectErrors = useCallback((codeText: string) => {
+  // Get compiler command string for display
+  const getCompilerName = useCallback((lang: string): string => {
+    const l = lang.toLowerCase();
+    if (l === 'c') return 'gcc';
+    if (l.includes('c++') || l.includes('cpp')) return 'g++';
+    if (l.includes('python')) return 'python3';
+    if (l.includes('java') && !l.includes('javascript')) return 'javac';
+    if (l.includes('javascript') || l.includes('node')) return 'node';
+    if (l.includes('typescript')) return 'tsc';
+    if (l.includes('rust')) return 'rustc';
+    if (l.includes('go')) return 'go build';
+    if (l.includes('ruby')) return 'ruby';
+    if (l.includes('php')) return 'php';
+    if (l.includes('swift')) return 'swiftc';
+    if (l.includes('kotlin')) return 'kotlinc';
+    if (l.includes('c#') || l.includes('csharp')) return 'dotnet build';
+    if (l.includes('r')) return 'Rscript';
+    if (l.includes('perl')) return 'perl';
+    if (l.includes('scala')) return 'scalac';
+    if (l.includes('haskell')) return 'ghc';
+    if (l.includes('lua')) return 'lua';
+    if (l.includes('dart')) return 'dart analyze';
+    return lang.toLowerCase();
+  }, []);
+
+  // Format error in compiler style
+  const formatCompilerError = useCallback((error: CodeError, lang: string): string => {
+    const l = lang.toLowerCase();
+    const file = l === 'c' ? 'main.c' : l.includes('c++') || l.includes('cpp') ? 'main.cpp' : 
+                 l.includes('python') ? 'main.py' : l.includes('java') && !l.includes('javascript') ? 'Main.java' :
+                 l.includes('javascript') || l.includes('node') ? 'main.js' : l.includes('typescript') ? 'main.ts' :
+                 l.includes('rust') ? 'main.rs' : l.includes('go') ? 'main.go' : l.includes('ruby') ? 'main.rb' :
+                 l.includes('php') ? 'main.php' : l.includes('swift') ? 'main.swift' : l.includes('kotlin') ? 'main.kt' :
+                 l.includes('c#') || l.includes('csharp') ? 'Program.cs' : 'source';
+
+    if (l === 'c' || l.includes('c++') || l.includes('cpp')) {
+      return `${file}:${error.line}:${error.column}: ${error.severity}: ${error.message}`;
+    }
+    if (l.includes('python')) {
+      return `File "${file}", line ${error.line}\n    ${error.wrongCode || ''}\n    ^\n${error.type}: ${error.message}`;
+    }
+    if (l.includes('java') && !l.includes('javascript')) {
+      return `${file}:${error.line}: error: ${error.message}`;
+    }
+    if (l.includes('rust')) {
+      return `error[E0308]: ${error.message}\n --> ${file}:${error.line}:${error.column}`;
+    }
+    if (l.includes('go')) {
+      return `./${file}:${error.line}:${error.column}: ${error.message}`;
+    }
+    return `${file}:${error.line}:${error.column}: ${error.severity}: ${error.message}`;
+  }, []);
+
+  // LOCAL error detection - Tree-sitter (primary) + regex fallback (works offline, instant)
+  const detectErrorsLocal = useCallback(async (codeText: string) => {
     const startTime = performance.now();
     setIsDetecting(true);
     
     const detectedErrors: CodeError[] = [];
     const codeLines = codeText.split('\n');
+
+    // === TREE-SITTER INCREMENTAL PARSING (primary, ~0.5ms) ===
+    let treeSitterUsed = false;
+    if (treeSitterReady) {
+      const langNorm = language.toLowerCase().replace(/\s+/g, '');
+      const tsLang = langNorm === 'auto-detect' ? '' : langNorm;
+      
+      if (tsLang && treeSitterService.isLanguageSupported(tsLang)) {
+        // Load grammar if language changed
+        if (treeSitterLangRef.current !== tsLang) {
+          const loaded = await treeSitterService.loadLanguage(tsLang);
+          if (loaded) {
+            treeSitterLangRef.current = tsLang;
+          }
+        }
+        
+        if (treeSitterLangRef.current === tsLang) {
+          const tsErrors = treeSitterService.parse(codeText, tsLang);
+          treeSitterUsed = true;
+          
+          tsErrors.forEach(tsErr => {
+            detectedErrors.push({
+              line: tsErr.line,
+              column: tsErr.column,
+              message: tsErr.message,
+              severity: tsErr.severity,
+              type: tsErr.type,
+              wrongCode: tsErr.wrongCode,
+              suggestion: tsErr.suggestion,
+            });
+          });
+        }
+      }
+    }
+    
+    // Only run regex fallback if Tree-sitter didn't handle it
+    if (!treeSitterUsed) {
     
     // Determine language patterns to use
     let patterns = errorPatterns.js;
@@ -154,6 +358,24 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     else if (lang.includes('c++') || lang.includes('cpp') || lang === 'c') patterns = errorPatterns.cpp;
     else if (lang.includes('html') || lang.includes('css')) patterns = errorPatterns.html;
     else if (lang.includes('sql')) patterns = errorPatterns.sql;
+    else if (lang.includes('rust')) patterns = errorPatterns.rust;
+    else if (lang.includes('go')) patterns = errorPatterns.go;
+    else if (lang.includes('ruby')) patterns = errorPatterns.ruby;
+    else if (lang.includes('php')) patterns = errorPatterns.php;
+    else if (lang.includes('swift')) patterns = errorPatterns.swift;
+    else if (lang.includes('kotlin')) patterns = errorPatterns.kotlin;
+    else if (lang.includes('c#') || lang.includes('csharp')) patterns = errorPatterns.csharp;
+    else if (lang.includes('dart')) patterns = errorPatterns.dart;
+    else if (lang.includes('scala')) patterns = errorPatterns.scala;
+    else if (lang.includes('haskell')) patterns = errorPatterns.haskell;
+    else if (lang.includes('lua')) patterns = errorPatterns.lua;
+    else if (lang.includes('perl')) patterns = errorPatterns.perl;
+    else if (lang.includes('elixir')) patterns = errorPatterns.elixir;
+    else if (lang.includes('julia')) patterns = errorPatterns.julia;
+    else if (lang.includes('fortran')) patterns = errorPatterns.fortran;
+    else if (lang.includes('zig')) patterns = errorPatterns.zig;
+    else if (lang.includes('nim')) patterns = errorPatterns.nim;
+    else if (lang.includes('solidity')) patterns = errorPatterns.solidity;
 
     let parenBalance = 0;
     let bracketBalance = 0;
@@ -161,6 +383,8 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     let singleQuoteOpen = false;
     let doubleQuoteOpen = false;
     let templateLiteralOpen = false;
+
+    const compiler = getCompilerName(language);
 
     codeLines.forEach((line, index) => {
       const lineNum = index + 1;
@@ -193,27 +417,33 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
         if (parenBalance < 0) {
           detectedErrors.push({
             line: lineNum, column: i + 1,
-            message: 'Unexpected closing parenthesis ")"',
+            message: `unexpected closing parenthesis ")"`,
             severity: 'error', type: 'SyntaxError',
-            suggestion: 'Remove the extra ) or add matching ('
+            wrongCode: line,
+            correctCode: line.substring(0, i) + line.substring(i + 1),
+            suggestion: 'Remove the extra )'
           });
           parenBalance = 0;
         }
         if (bracketBalance < 0) {
           detectedErrors.push({
             line: lineNum, column: i + 1,
-            message: 'Unexpected closing bracket "]"',
+            message: `unexpected closing bracket "]"`,
             severity: 'error', type: 'SyntaxError',
-            suggestion: 'Remove the extra ] or add matching ['
+            wrongCode: line,
+            correctCode: line.substring(0, i) + line.substring(i + 1),
+            suggestion: 'Remove the extra ]'
           });
           bracketBalance = 0;
         }
         if (braceBalance < 0) {
           detectedErrors.push({
             line: lineNum, column: i + 1,
-            message: 'Unexpected closing brace "}"',
+            message: `unexpected closing brace "}"`,
             severity: 'error', type: 'SyntaxError',
-            suggestion: 'Remove the extra } or add matching {'
+            wrongCode: line,
+            correctCode: line.substring(0, i) + line.substring(i + 1),
+            suggestion: 'Remove the extra }'
           });
           braceBalance = 0;
         }
@@ -224,7 +454,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
         if (quoteCount % 2 !== 0) {
           detectedErrors.push({
             line: lineNum, column: line.lastIndexOf("'") + 1,
-            message: 'Unclosed string literal (single quote)',
+            message: 'unclosed string literal (single quote)',
             severity: 'error', type: 'SyntaxError',
             suggestion: "Add closing ' at the end of string"
           });
@@ -236,7 +466,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
         if (quoteCount % 2 !== 0) {
           detectedErrors.push({
             line: lineNum, column: line.lastIndexOf('"') + 1,
-            message: 'Unclosed string literal (double quote)',
+            message: 'unclosed string literal (double quote)',
             severity: 'error', type: 'SyntaxError',
             suggestion: 'Add closing " at the end of string'
           });
@@ -292,6 +522,14 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
         'syncrohnized': 'synchronized',
         'voaltile': 'volatile',
         'trasient': 'transient',
+        'incldue': 'include', 'inlcude': 'include',
+        'stdoi': 'stdio', 'stidio': 'stdio',
+        'prnitf': 'printf', 'prinft': 'printf',
+        'scnaf': 'scanf', 'sacnf': 'scanf',
+        'mian': 'main', 'mainn': 'main',
+        'viod': 'void',
+        'sturct': 'struct', 'strcut': 'struct',
+        'assing': 'assign', 'asign': 'assign',
       };
 
       Object.entries(typos).forEach(([typo, correct]) => {
@@ -301,7 +539,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
           detectedErrors.push({
             line: lineNum,
             column: line.search(typoRegex) + 1,
-            message: `Typo: "${match[0]}" should be "${correct}"`,
+            message: `'${match[0]}' should be '${correct}'`,
             severity: 'error',
             type: 'SpellingError',
             wrongCode: match[0],
@@ -325,9 +563,11 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
           detectedErrors.push({
             line: lineNum,
             column: line.length,
-            message: 'Missing semicolon',
+            message: 'expected \';\' at end of statement',
             severity: 'warning',
             type: 'Warning',
+            wrongCode: line,
+            correctCode: line.trimEnd() + ';',
             suggestion: 'Add ; at the end of the statement'
           });
         }
@@ -335,35 +575,44 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     });
 
     if (parenBalance > 0) {
+      const lastLine = codeLines[codeLines.length - 1];
       detectedErrors.push({
-        line: codeLines.length, column: 1,
+        line: codeLines.length, column: (lastLine?.length || 0) + 1,
         message: `${parenBalance} unclosed parenthesis "("`,
         severity: 'error', type: 'SyntaxError',
-        suggestion: `Add ${parenBalance} closing ) at appropriate location`
+        wrongCode: lastLine,
+        correctCode: lastLine + ')'.repeat(parenBalance),
+        suggestion: `Add ${parenBalance} closing )`
       });
     }
     if (bracketBalance > 0) {
+      const lastLine = codeLines[codeLines.length - 1];
       detectedErrors.push({
-        line: codeLines.length, column: 1,
+        line: codeLines.length, column: (lastLine?.length || 0) + 1,
         message: `${bracketBalance} unclosed bracket "["`,
         severity: 'error', type: 'SyntaxError',
-        suggestion: `Add ${bracketBalance} closing ] at appropriate location`
+        wrongCode: lastLine,
+        correctCode: lastLine + ']'.repeat(bracketBalance),
+        suggestion: `Add ${bracketBalance} closing ]`
       });
     }
     if (braceBalance > 0) {
+      const lastLine = codeLines[codeLines.length - 1];
       detectedErrors.push({
-        line: codeLines.length, column: 1,
+        line: codeLines.length, column: (lastLine?.length || 0) + 1,
         message: `${braceBalance} unclosed brace "{"`,
         severity: 'error', type: 'SyntaxError',
-        suggestion: `Add ${braceBalance} closing } at appropriate location`
+        wrongCode: lastLine,
+        correctCode: lastLine + '\n' + '}'.repeat(braceBalance),
+        suggestion: `Add ${braceBalance} closing }`
       });
     }
 
-    setErrors(detectedErrors);
+    } // end regex fallback
 
+    // Build corrected code from typo fixes
     if (detectedErrors.length > 0) {
       let corrected = codeText;
-      
       Object.entries({
         'funtcion': 'function', 'funtion': 'function', 'fucntion': 'function',
         'retrun': 'return', 'reutrn': 'return', 'retrn': 'return',
@@ -378,40 +627,97 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
         'treu': 'true', 'ture': 'true',
         'flase': 'false', 'fasle': 'false',
         'elese': 'else', 'esle': 'else',
+        'incldue': 'include', 'inlcude': 'include',
+        'prnitf': 'printf', 'prinft': 'printf',
+        'mian': 'main', 'mainn': 'main',
+        'viod': 'void',
       }).forEach(([typo, correct]) => {
         corrected = corrected.replace(new RegExp(`\\b${typo}\\b`, 'gi'), correct);
       });
-
       setCorrectedCode(corrected);
     } else {
       setCorrectedCode('');
     }
 
+    setErrors(detectedErrors);
     const endTime = performance.now();
     setDetectionTime(endTime - startTime);
     setIsDetecting(false);
+  }, [language, getCompilerName, treeSitterReady]);
+
+  // AI-powered deep error detection (runs with delay, replaces local errors when available)
+  const detectErrorsAI = useCallback(async (codeText: string) => {
+    if (!codeText.trim() || codeText.length < 5) return;
+    // Skip if code hasn't changed since last AI check
+    if (codeText === lastAiCodeRef.current) return;
+    lastAiCodeRef.current = codeText;
+
+    setIsAiDetecting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('analyze-code', {
+        body: { code: codeText, language, mode: 'live_error_detect' }
+      });
+
+      if (error) throw error;
+
+      if (data?.errors && Array.isArray(data.errors)) {
+        const mappedErrors: CodeError[] = data.errors.map((e: any) => ({
+          line: e.line || 1,
+          column: e.column || 1,
+          message: e.compilerOutput || e.message || 'Unknown error',
+          severity: e.severity === 'warning' ? 'warning' as const : 'error' as const,
+          type: e.type || 'Error',
+          wrongCode: e.wrongCode,
+          correctCode: e.correctCode,
+          suggestion: e.suggestion,
+        }));
+
+        // Merge AI errors with local errors (AI takes priority, add unique local errors)
+        setAiErrors(mappedErrors);
+        if (data.correctedCode) {
+          setAiCorrectedCode(data.correctedCode);
+        }
+
+        // Replace local errors with AI-detected ones (more accurate)
+        setErrors(mappedErrors);
+        if (data.correctedCode) {
+          setCorrectedCode(data.correctedCode);
+        }
+      }
+    } catch {
+      // AI failed - keep local errors (offline fallback)
+      console.log('AI error detection unavailable, using local detection');
+    } finally {
+      setIsAiDetecting(false);
+    }
   }, [language]);
 
+  // Instant local detection (5ms debounce)
   useEffect(() => {
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-    }
-
+    if (debounceRef.current) clearTimeout(debounceRef.current);
     if (code.trim()) {
       debounceRef.current = setTimeout(() => {
-        detectErrors(code);
+        detectErrorsLocal(code);
       }, 5);
     } else {
       setErrors([]);
       setCorrectedCode('');
+      setAiErrors([]);
+      setAiCorrectedCode('');
     }
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [code, language, detectErrorsLocal]);
 
-    return () => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-      }
-    };
-  }, [code, language, detectErrors]);
+  // AI deep detection (1.5s debounce - like typing pause)
+  useEffect(() => {
+    if (aiDetectRef.current) clearTimeout(aiDetectRef.current);
+    if (code.trim() && code.length >= 10 && navigator.onLine) {
+      aiDetectRef.current = setTimeout(() => {
+        detectErrorsAI(code);
+      }, 1500);
+    }
+    return () => { if (aiDetectRef.current) clearTimeout(aiDetectRef.current); };
+  }, [code, language, detectErrorsAI]);
 
   const handleScroll = useCallback(() => {
     if (textareaRef.current && lineNumbersRef.current) {
@@ -577,18 +883,61 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
 
 
   const applyErrorFix = (error: CodeError) => {
+    const codeLines = code.split('\n');
+    const lineIndex = error.line - 1;
+
+    // Case 1: Direct wrongCode → correctCode replacement (typos, known fixes)
     if (error.wrongCode && error.correctCode) {
-      const codeLines = code.split('\n');
-      const lineIndex = error.line - 1;
       if (lineIndex >= 0 && lineIndex < codeLines.length) {
-        codeLines[lineIndex] = codeLines[lineIndex].replace(error.wrongCode, error.correctCode);
+        // If wrongCode is the full line, replace the entire line
+        if (error.wrongCode === codeLines[lineIndex]) {
+          codeLines[lineIndex] = error.correctCode;
+        } else {
+          // Replace the specific wrong part within the line
+          codeLines[lineIndex] = codeLines[lineIndex].replace(error.wrongCode, error.correctCode);
+        }
         setCode(codeLines.join('\n'));
         toast({
           title: "✅ Fix Applied",
-          description: `Replaced "${error.wrongCode}" with "${error.correctCode}" on line ${error.line}`,
+          description: `Fixed error on line ${error.line}: ${error.suggestion || error.message}`,
         });
+        return;
       }
-    } else if (correctedCode) {
+    }
+
+    // Case 2: Tree-sitter "expected" errors — insert the missing token
+    if (error.message.includes("expected '") && !error.correctCode) {
+      const match = error.message.match(/expected '([^']+)'/);
+      if (match && lineIndex >= 0 && lineIndex < codeLines.length) {
+        const missingToken = match[1];
+        const col = Math.min(error.column - 1, codeLines[lineIndex].length);
+        const line = codeLines[lineIndex];
+        codeLines[lineIndex] = line.substring(0, col) + missingToken + line.substring(col);
+        setCode(codeLines.join('\n'));
+        toast({
+          title: "✅ Fix Applied",
+          description: `Inserted missing '${missingToken}' on line ${error.line}`,
+        });
+        return;
+      }
+    }
+
+    // Case 3: Unclosed quote errors — add closing quote
+    if (error.message.includes('unclosed string literal')) {
+      if (lineIndex >= 0 && lineIndex < codeLines.length) {
+        const quoteChar = error.message.includes('single') ? "'" : '"';
+        codeLines[lineIndex] = codeLines[lineIndex] + quoteChar;
+        setCode(codeLines.join('\n'));
+        toast({
+          title: "✅ Fix Applied",
+          description: `Added closing ${quoteChar} on line ${error.line}`,
+        });
+        return;
+      }
+    }
+
+    // Case 4: Fall back to full corrected code from AI
+    if (correctedCode) {
       setCode(correctedCode);
       setCorrectedCode('');
       setErrors([]);
@@ -851,12 +1200,17 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
             </span>
             {isDetecting && (
               <span className="text-xs text-blue-400 animate-pulse flex items-center gap-1">
-                <Zap className="w-3 h-3" /> Detecting...
+                <Zap className="w-3 h-3" /> Local...
               </span>
             )}
-            {detectionTime > 0 && !isDetecting && (
+            {isAiDetecting && (
+              <span className="text-xs text-purple-400 animate-pulse flex items-center gap-1">
+                <Sparkles className="w-3 h-3" /> AI Analyzing...
+              </span>
+            )}
+            {detectionTime > 0 && !isDetecting && !isAiDetecting && (
               <span className="text-xs text-green-400">
-                ⚡ {detectionTime.toFixed(2)}ms
+                ⚡ {detectionTime.toFixed(2)}ms {treeSitterReady && treeSitterLangRef.current ? '🌳 Tree-sitter' : '⚙️ Regex'} {aiErrors.length > 0 ? '• AI ✓' : ''}
               </span>
             )}
           </div>
@@ -1063,61 +1417,75 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
 
       {/* Console Output Panels */}
       <div className="space-y-4">
-        {/* Blue Error Console with Red/Green lines and Apply buttons */}
+        {/* Compiler-Style Error Console */}
         {errors.length > 0 && (
-          <div className="bg-[#1a1a2e] border-2 border-blue-500/50 rounded-xl overflow-hidden shadow-lg shadow-blue-500/10">
-            <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-blue-500/30 to-blue-600/20 border-b border-blue-500/50">
-              <span className="text-sm font-bold text-blue-400 flex items-center gap-2">
-                <AlertCircle className="w-5 h-5" />
-                🔵 LIVE ERROR DETECTION ({errors.length} issues)
+          <div className="bg-[#0d1117] border-2 border-red-500/50 rounded-xl overflow-hidden shadow-lg shadow-red-500/10">
+            <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-red-900/40 to-[#0d1117] border-b border-red-500/30">
+              <span className="text-sm font-bold text-red-400 flex items-center gap-2">
+                <Terminal className="w-5 h-5" />
+                🔴 {getCompilerName(language).toUpperCase()} COMPILER OUTPUT ({errors.length} issue{errors.length !== 1 ? 's' : ''})
               </span>
-              <span className="text-xs text-blue-300">Language: {language} | Detected every 0.005s</span>
+              <span className="text-xs text-red-300/70">
+                {aiErrors.length > 0 ? '🤖 AI-Powered' : treeSitterReady && treeSitterLangRef.current ? '🌳 Tree-sitter' : '⚡ Local'} | {language} | {!navigator.onLine ? '📴 Offline Mode' : 'Live'}
+              </span>
             </div>
-            <div className="p-4 max-h-[300px] overflow-y-auto space-y-3">
+            
+            {/* Compiler output style - monospace terminal */}
+            <div className="p-3 max-h-[350px] overflow-y-auto font-mono text-xs bg-[#0d1117]">
+              {/* Compiler invocation line */}
+              <div className="text-gray-500 mb-2 pb-2 border-b border-gray-800">
+                $ {language.toLowerCase() === 'c' ? 'gcc -Wall -Wextra main.c -o main' :
+                   language.toLowerCase().includes('c++') || language.toLowerCase().includes('cpp') ? 'g++ -Wall -Wextra main.cpp -o main' :
+                   language.toLowerCase().includes('python') ? 'python3 -c "import py_compile; py_compile.compile(\'main.py\')"' :
+                   language.toLowerCase().includes('java') && !language.toLowerCase().includes('javascript') ? 'javac Main.java' :
+                   language.toLowerCase().includes('rust') ? 'rustc main.rs' :
+                   language.toLowerCase().includes('go') ? 'go build main.go' :
+                   `${getCompilerName(language)} source`}
+              </div>
+
               {errors.map((error, index) => (
-                <div key={index} className="rounded-lg border border-blue-500/20 overflow-hidden">
-                  {/* Error line in RED */}
-                  <div className="bg-red-500/10 p-3 border-l-4 border-red-500">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-mono bg-red-500/20 px-2 py-0.5 rounded text-red-400">
-                        Line {error.line}:{error.column}
-                      </span>
-                      <span className="text-xs px-2 py-0.5 rounded bg-red-500/20 text-red-400 font-semibold">
-                        {error.type}
-                      </span>
-                    </div>
-                    <p className="text-sm font-medium text-red-400 font-mono">
-                      ❌ {error.message}
-                    </p>
-                    {error.wrongCode && (
-                      <pre className="text-xs text-red-300 mt-1 font-mono bg-red-500/5 p-1 rounded">
-                        {error.wrongCode}
-                      </pre>
-                    )}
+                <div key={index} className="mb-3">
+                  {/* Compiler-style error line */}
+                  <div className={`${error.severity === 'warning' ? 'text-yellow-400' : 'text-red-400'} leading-relaxed`}>
+                    {formatCompilerError(error, language)}
                   </div>
                   
-                  {/* Corrected code in GREEN with Apply button */}
-                  {(error.suggestion || error.correctCode) && (
-                    <div className="bg-green-500/10 p-3 border-l-4 border-green-500 flex items-start justify-between">
-                      <div className="flex-1">
-                        <p className="text-sm text-green-400 font-mono flex items-center gap-1">
-                          <CheckCircle className="w-3 h-3" />
-                          ✅ {error.correctCode ? error.correctCode : error.suggestion}
-                        </p>
+                  {/* Source code context */}
+                  {error.wrongCode && (
+                    <div className="mt-1 ml-4">
+                      <span className="text-gray-500">{error.line} | </span>
+                      <span className="text-red-300">{error.wrongCode}</span>
+                      <div className="text-green-400">
+                        <span className="text-gray-500">{'  '} | </span>
+                        <span className="text-green-400">^ {error.correctCode ? `fix: ${error.correctCode}` : error.suggestion}</span>
                       </div>
+                    </div>
+                  )}
+                  
+                  {/* Fix button */}
+                  {(error.correctCode || error.suggestion) && (
+                    <div className="mt-1 ml-4 flex items-center gap-2">
                       <Button
-                        variant="default"
+                        variant="ghost"
                         size="sm"
                         onClick={() => applyErrorFix(error)}
-                        className="ml-3 h-7 px-3 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold flex items-center gap-1 shrink-0"
+                        className="h-6 px-2 text-green-400 hover:text-green-300 hover:bg-green-500/10 text-xs font-mono"
                       >
-                        <ArrowRight className="w-3 h-3" />
+                        <ArrowRight className="w-3 h-3 mr-1" />
                         Apply Fix
                       </Button>
                     </div>
                   )}
                 </div>
               ))}
+
+              {/* Summary line */}
+              <div className="mt-2 pt-2 border-t border-gray-800 text-gray-400">
+                {errorCount > 0 ? `${errorCount} error${errorCount !== 1 ? 's' : ''}` : ''}
+                {errorCount > 0 && warningCount > 0 ? ' and ' : ''}
+                {warningCount > 0 ? `${warningCount} warning${warningCount !== 1 ? 's' : ''}` : ''}
+                {' '}generated.
+              </div>
             </div>
           </div>
         )}

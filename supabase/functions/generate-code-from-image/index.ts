@@ -22,20 +22,23 @@ serve(async (req) => {
       throw new Error("No code provided");
     }
 
-    // Use Gemini image generation to create a visual of the code
-    const prompt = `Generate an image that shows the EXACT visual output of running this code. If the code draws shapes, trees, charts, UI elements - show what the rendered output looks like, NOT a screenshot of the code itself.
+    // Use Gemini image generation to create the EXACT visual output of the code
+    const prompt = `Generate an image that shows the EXACT visual output of running this code. 
+    
+CRITICAL: Show what the code RENDERS/PRODUCES, NOT a screenshot of the code text itself.
 
-If the code is HTML/CSS/JS: Show the rendered webpage exactly as a browser would display it.
-If the code draws on canvas: Show the exact canvas output.
-If the code creates SVG: Show the rendered SVG.
-If the code is a console program: Show a terminal window with the exact output text.
+If the code is HTML/CSS/JS: Show the rendered webpage exactly as a browser would display it - every element, color, layout, font.
+If the code draws on canvas: Show the exact canvas output with every shape, color, gradient, curve.
+If the code creates SVG: Show the rendered SVG with exact colors and shapes.
+If the code is a console program: Show a dark terminal window with the exact console output text.
+If the code creates a chart/graph: Show the exact chart with data points, labels, colors.
 
 The code (${language || 'auto-detect'}):
 \`\`\`
-${code.substring(0, 5000)}
+${code.substring(0, 8000)}
 \`\`\`
 
-Generate the EXACT visual that this code produces when executed. High quality, accurate representation.`;
+Generate a HIGH QUALITY, PIXEL-PERFECT representation of what this code produces when executed. The image must match the code's output exactly.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -44,7 +47,7 @@ Generate the EXACT visual that this code produces when executed. High quality, a
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-image",
+        model: "google/gemini-3-pro-image-preview",
         messages: [
           { role: "user", content: prompt }
         ],
