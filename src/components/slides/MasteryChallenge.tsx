@@ -578,7 +578,7 @@ const detectLanguageMismatch = (code: string, selectedLang: string): string | nu
 // =================== MAIN COMPONENT ===================
 const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryChallengeProps) => {
   const { toast } = useToast();
-  const [page, setPage] = useState<'dashboard'|'practice'|'leaderboard'|'profile'>('dashboard');
+  const [page, setPage] = useState<'dashboard'|'practice'|'leaderboard'|'dailychallenge'|'student'>('dashboard');
   const [company, setCompany] = useState('Google');
   const [compSearch, setCompSearch] = useState('Google');
   const [showCompDrop, setShowCompDrop] = useState(false);
@@ -617,6 +617,8 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
   const [userId, setUserId] = useState<string | null>(null);
   const [progressLoaded, setProgressLoaded] = useState(false);
   const [leaderboardUsers, setLeaderboardUsers] = useState<{name:string;email:string;score:number;solved:number;streak:number}[]>([]);
+  const [userProfile, setUserProfile] = useState<{name:string;email:string;avatar:string;phone:string;country:string;city:string;joinedAt:string}|null>(null);
+  const [userLoginCount, setUserLoginCount] = useState(1);
 
   const codeRef = useRef<HTMLTextAreaElement>(null);
   const lineNumRef = useRef<HTMLDivElement>(null);
@@ -639,6 +641,28 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setUserId(user.id);
+        
+        // Load profile
+        const { data: profileData } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+        if (profileData) {
+          setUserProfile({
+            name: profileData.full_name || user.email?.split('@')[0] || 'Student',
+            email: profileData.email || user.email || '',
+            avatar: profileData.avatar_url || '',
+            phone: profileData.phone || '',
+            country: profileData.country || '',
+            city: profileData.city || '',
+            joinedAt: profileData.created_at || new Date().toISOString(),
+          });
+        } else {
+          setUserProfile({
+            name: user.email?.split('@')[0] || 'Student',
+            email: user.email || '',
+            avatar: '', phone: '', country: '', city: '',
+            joinedAt: user.created_at || new Date().toISOString(),
+          });
+        }
+        
         const { data: progressData, error } = await supabase
           .from('student_progress')
           .select('*')
@@ -1062,17 +1086,14 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
             {blueDiamonds > 0 && <span style={{color:'#3b82f6',fontSize:14}}>{'💎'.repeat(blueDiamonds)}</span>}
           </div>
           <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
-            {(['dashboard','practice','leaderboard'] as const).map(p=>(
-              <button key={p} onClick={()=>setPage(p)} style={{padding:'6px 14px',borderRadius:8,fontSize:13,fontWeight:600,cursor:'pointer',
-                border:`1px solid ${page===p?'rgba(16,185,129,.3)':S.border}`,
-                background:page===p?'rgba(16,185,129,.1)':'transparent',
-                color:page===p?S.green:S.muted}}>{p.charAt(0).toUpperCase()+p.slice(1)}</button>
+            {(['dashboard','practice','leaderboard','dailychallenge','student'] as const).map(p=>(
+              <button key={p} onClick={()=>setPage(p)} style={{padding:'6px 14px',borderRadius:8,fontSize:13,fontWeight:p==='dailychallenge'?700:600,cursor:'pointer',
+                border:p==='dailychallenge'?'none':`1px solid ${page===p?'rgba(16,185,129,.3)':S.border}`,
+                background:p==='dailychallenge'?(page===p?S.green:'rgba(16,185,129,.6)'):(page===p?'rgba(16,185,129,.1)':'transparent'),
+                color:p==='dailychallenge'?(page===p?'#000':'#000'):(page===p?S.green:S.muted)}}>
+                {p==='dailychallenge'?'🔥 Daily Challenge':p==='student'?'👤 Student':p.charAt(0).toUpperCase()+p.slice(1)}
+              </button>
             ))}
-            <button onClick={()=>setPage('practice')} style={{padding:'6px 14px',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer',border:'none',background:S.green,color:'#000'}}>🔥 Daily Challenge</button>
-            <div onClick={()=>setPage('profile')} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 12px 5px 5px',background:S.surface,border:`1px solid ${S.border}`,borderRadius:30,cursor:'pointer'}}>
-              <div style={{width:28,height:28,borderRadius:'50%',background:`linear-gradient(135deg,${S.accent},${S.green})`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700}}>S</div>
-              <span style={{fontSize:13,fontWeight:600}}>Student</span>
-            </div>
           </div>
         </header>
 
@@ -1196,14 +1217,31 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
               </div>
             </div>
 
-            {/* Company Info Orange Box */}
+            {/* Company Info Orange Box with YouTube & Interview Links */}
             <div style={{background:'linear-gradient(135deg,rgba(249,115,22,.1),rgba(249,115,22,.03))',border:'2px solid #f97316',borderRadius:14,padding:18,marginBottom:20}}>
               <div style={{fontSize:15,fontWeight:800,marginBottom:10,color:'#f97316'}}>🏢 {company} — Interview Guide</div>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:14}}>
                 <div><div style={{fontSize:11,color:'#f97316',fontWeight:700,marginBottom:4}}>Interview Style</div><div style={{fontSize:12,color:S.muted2,lineHeight:1.5}}>{companyInfo.style}</div></div>
                 <div><div style={{fontSize:11,color:'#f97316',fontWeight:700,marginBottom:4}}>Round Structure</div><div style={{fontSize:12,color:S.muted2,lineHeight:1.5}}>{companyInfo.rounds}</div></div>
                 <div><div style={{fontSize:11,color:'#f97316',fontWeight:700,marginBottom:4}}>Levels</div><div style={{fontSize:12,color:S.muted2,lineHeight:1.5}}>{companyInfo.levels}</div></div>
                 <div><div style={{fontSize:11,color:'#f97316',fontWeight:700,marginBottom:4}}>Tips</div><div style={{fontSize:12,color:S.muted2,lineHeight:1.5}}>{companyInfo.tips}</div></div>
+              </div>
+              <div style={{borderTop:'1px solid rgba(249,115,22,.2)',paddingTop:12}}>
+                <div style={{fontSize:12,fontWeight:700,color:'#f97316',marginBottom:8}}>🎥 Interview Preparation Resources & YouTube Links</div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
+                  {[
+                    {label:`${company} Interview Process`,url:`https://www.youtube.com/results?search_query=${encodeURIComponent(company+' software engineer interview process 2025')}`,icon:'🎬'},
+                    {label:`${company} Coding Round Tips`,url:`https://www.youtube.com/results?search_query=${encodeURIComponent(company+' coding interview tips DSA')}`,icon:'💻'},
+                    {label:`${company} System Design`,url:`https://www.youtube.com/results?search_query=${encodeURIComponent(company+' system design interview')}`,icon:'🏗️'},
+                    {label:`${company} Behavioral Round`,url:`https://www.youtube.com/results?search_query=${encodeURIComponent(company+' behavioral interview STAR method')}`,icon:'🗣️'},
+                    {label:`${company} Salary & Levels`,url:`https://www.levels.fyi/companies/${company.toLowerCase().replace(/\s+/g,'-')}/salaries`,icon:'💰'},
+                    {label:`${company} Glassdoor Reviews`,url:`https://www.glassdoor.com/Reviews/${company.replace(/\s+/g,'-')}-Reviews`,icon:'⭐'},
+                  ].map((link,i)=>(
+                    <a key={i} href={link.url} target="_blank" rel="noopener noreferrer" style={{display:'flex',alignItems:'center',gap:6,padding:'8px 12px',borderRadius:8,fontSize:11,fontWeight:600,color:'#f97316',background:'rgba(249,115,22,.08)',border:'1px solid rgba(249,115,22,.2)',textDecoration:'none',cursor:'pointer'}}>
+                      {link.icon} {link.label} ↗
+                    </a>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -1561,17 +1599,49 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
           </div>
         )}
 
-        {/* =================== PROFILE =================== */}
-        {page==='profile'&&(
+        {/* =================== DAILY CHALLENGE =================== */}
+        {page==='dailychallenge'&&(
+          <div style={{padding:'24px 28px 48px'}}>
+            <div style={{fontSize:13,fontWeight:600,color:S.green,textTransform:'uppercase',letterSpacing:2,fontFamily:"'Space Mono',monospace",marginBottom:6}}>Daily Challenge</div>
+            <div style={{fontSize:22,fontWeight:800,marginBottom:18}}>🏆 Today's Challenge — {new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</div>
+            <div style={{display:'flex',gap:6,fontFamily:"'Space Mono',monospace",marginBottom:20}}>
+              {[{v:timer.h,l:'HRS'},{v:timer.m,l:'MIN'},{v:timer.s,l:'SEC'}].map((t,i)=>(
+                <div key={i} style={{background:S.surface,borderRadius:8,padding:'10px 18px',textAlign:'center',border:`1px solid ${S.border}`}}>
+                  <div style={{fontSize:24,fontWeight:700,color:S.green}}>{t.v}</div>
+                  <div style={{fontSize:9,color:S.muted,textTransform:'uppercase'}}>{t.l}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{background:`linear-gradient(135deg,rgba(124,58,237,.12),rgba(16,185,129,.08))`,border:`1px solid ${S.accent}`,borderRadius:14,padding:'22px 26px',marginBottom:20}}>
+              <div style={{fontSize:16,fontWeight:800,marginBottom:8}}>Challenge: Solve 3 problems from {company}</div>
+              <div style={{fontSize:13,color:S.muted2,lineHeight:1.7,marginBottom:14}}>Complete 3 coding problems at any difficulty level. Solve them before midnight to maintain your streak!</div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12}}>
+                {[0,1,2].map(i=>(
+                  <div key={i} style={{background:S.surface,borderRadius:10,padding:16,textAlign:'center',border:`1px solid ${i<Math.min(totalSolved,3)?S.green:S.border}`}}>
+                    <div style={{fontSize:24,marginBottom:6}}>{i<Math.min(totalSolved,3)?'✅':'⬜'}</div>
+                    <div style={{fontSize:12,fontWeight:600}}>Problem {i+1}</div>
+                    <div style={{fontSize:10,color:S.muted}}>{i<Math.min(totalSolved,3)?'Completed':'Pending'}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <button onClick={()=>setPage('practice')} style={{padding:'12px 28px',borderRadius:10,fontSize:14,fontWeight:700,cursor:'pointer',border:'none',background:S.green,color:'#000'}}>🚀 Start Solving</button>
+          </div>
+        )}
+
+        {/* =================== STUDENT =================== */}
+        {page==='student'&&(
           <div style={{padding:'24px 28px 48px'}}>
             <div style={{fontSize:13,fontWeight:600,color:S.green,textTransform:'uppercase',letterSpacing:2,fontFamily:"'Space Mono',monospace",marginBottom:6}}>Your Account</div>
             <div style={{fontSize:22,fontWeight:800,marginBottom:18}}>Student Profile</div>
             <div style={{display:'grid',gridTemplateColumns:'320px 1fr',gap:20}}>
               <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:14,padding:28,textAlign:'center'}}>
-                <div style={{width:80,height:80,borderRadius:'50%',background:`linear-gradient(135deg,${S.accent},${S.green})`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:30,fontWeight:700,margin:'0 auto 14px'}}>S</div>
-                <div style={{fontSize:22,fontWeight:800,marginBottom:4}}>Student</div>
-                <div style={{fontSize:13,color:S.muted,fontFamily:"'Space Mono',monospace",marginBottom:4}}>student@email.com</div>
-                <div style={{fontSize:12,color:S.muted,marginBottom:10}}>Joined: {new Date().toLocaleDateString()}</div>
+                <div style={{width:80,height:80,borderRadius:'50%',background:`linear-gradient(135deg,${S.accent},${S.green})`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:30,fontWeight:700,margin:'0 auto 14px'}}>{(userProfile?.name||'S')[0].toUpperCase()}</div>
+                <div style={{fontSize:22,fontWeight:800,marginBottom:4}}>{userProfile?.name||'Student'}</div>
+                <div style={{fontSize:13,color:S.muted,fontFamily:"'Space Mono',monospace",marginBottom:4}}>{userProfile?.email||''}</div>
+                {userProfile?.phone&&<div style={{fontSize:12,color:S.muted,marginBottom:2}}>📱 {userProfile.phone}</div>}
+                {userProfile?.country&&<div style={{fontSize:12,color:S.muted,marginBottom:2}}>🌍 {userProfile.city?`${userProfile.city}, `:''}{ userProfile.country}</div>}
+                <div style={{fontSize:12,color:S.muted,marginBottom:10}}>Joined: {userProfile?new Date(userProfile.joinedAt).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):new Date().toLocaleDateString()}</div>
                 {blueDiamonds > 0 && <div style={{fontSize:14,marginBottom:12}}>{'💎'.repeat(blueDiamonds)} Blue Diamond{blueDiamonds>1?'s':''}</div>}
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
                   {[{v:totalSolved,l:'Solved'},{v:streak,l:'Streak'},{v:score,l:'Score'},{v:rank,l:'Rank'}].map((s,i)=>(
@@ -1592,6 +1662,26 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
                         <div style={{fontSize:11,color:S.muted,textTransform:'uppercase'}}>{s.l}</div>
                       </div>
                     ))}
+                  </div>
+                </div>
+                {/* Languages used */}
+                <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:14,padding:20}}>
+                  <div style={{fontSize:14,fontWeight:700,marginBottom:14}}>🔤 Languages Used</div>
+                  <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                    {[...new Set(solved.map(s=>s.lang))].map((l,i)=>(
+                      <span key={i} style={{padding:'5px 12px',borderRadius:100,fontSize:11,fontWeight:600,background:S.greenLight,color:S.green,border:`1px solid rgba(16,185,129,.3)`}}>{l}</span>
+                    ))}
+                    {solved.length===0&&<div style={{fontSize:13,color:S.muted}}>No languages used yet</div>}
+                  </div>
+                </div>
+                {/* Companies practiced */}
+                <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:14,padding:20}}>
+                  <div style={{fontSize:14,fontWeight:700,marginBottom:14}}>🏢 Companies Practiced</div>
+                  <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                    {[...new Set(solved.map(s=>s.company))].map((c,i)=>(
+                      <span key={i} style={{padding:'5px 12px',borderRadius:100,fontSize:11,fontWeight:600,background:'rgba(249,115,22,.1)',color:'#f97316',border:'1px solid rgba(249,115,22,.3)'}}>{c}</span>
+                    ))}
+                    {solved.length===0&&<div style={{fontSize:13,color:S.muted}}>No companies practiced yet</div>}
                   </div>
                 </div>
                 <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:14,padding:20}}>
