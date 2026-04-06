@@ -641,6 +641,28 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setUserId(user.id);
+        
+        // Load profile
+        const { data: profileData } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+        if (profileData) {
+          setUserProfile({
+            name: profileData.full_name || user.email?.split('@')[0] || 'Student',
+            email: profileData.email || user.email || '',
+            avatar: profileData.avatar_url || '',
+            phone: profileData.phone || '',
+            country: profileData.country || '',
+            city: profileData.city || '',
+            joinedAt: profileData.created_at || new Date().toISOString(),
+          });
+        } else {
+          setUserProfile({
+            name: user.email?.split('@')[0] || 'Student',
+            email: user.email || '',
+            avatar: '', phone: '', country: '', city: '',
+            joinedAt: user.created_at || new Date().toISOString(),
+          });
+        }
+        
         const { data: progressData, error } = await supabase
           .from('student_progress')
           .select('*')
