@@ -1582,17 +1582,49 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
           </div>
         )}
 
-        {/* =================== PROFILE =================== */}
-        {page==='profile'&&(
+        {/* =================== DAILY CHALLENGE =================== */}
+        {page==='dailychallenge'&&(
+          <div style={{padding:'24px 28px 48px'}}>
+            <div style={{fontSize:13,fontWeight:600,color:S.green,textTransform:'uppercase',letterSpacing:2,fontFamily:"'Space Mono',monospace",marginBottom:6}}>Daily Challenge</div>
+            <div style={{fontSize:22,fontWeight:800,marginBottom:18}}>🏆 Today's Challenge — {new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</div>
+            <div style={{display:'flex',gap:6,fontFamily:"'Space Mono',monospace",marginBottom:20}}>
+              {[{v:timer.h,l:'HRS'},{v:timer.m,l:'MIN'},{v:timer.s,l:'SEC'}].map((t,i)=>(
+                <div key={i} style={{background:S.surface,borderRadius:8,padding:'10px 18px',textAlign:'center',border:`1px solid ${S.border}`}}>
+                  <div style={{fontSize:24,fontWeight:700,color:S.green}}>{t.v}</div>
+                  <div style={{fontSize:9,color:S.muted,textTransform:'uppercase'}}>{t.l}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{background:`linear-gradient(135deg,rgba(124,58,237,.12),rgba(16,185,129,.08))`,border:`1px solid ${S.accent}`,borderRadius:14,padding:'22px 26px',marginBottom:20}}>
+              <div style={{fontSize:16,fontWeight:800,marginBottom:8}}>Challenge: Solve 3 problems from {company}</div>
+              <div style={{fontSize:13,color:S.muted2,lineHeight:1.7,marginBottom:14}}>Complete 3 coding problems at any difficulty level. Solve them before midnight to maintain your streak!</div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12}}>
+                {[0,1,2].map(i=>(
+                  <div key={i} style={{background:S.surface,borderRadius:10,padding:16,textAlign:'center',border:`1px solid ${i<Math.min(totalSolved,3)?S.green:S.border}`}}>
+                    <div style={{fontSize:24,marginBottom:6}}>{i<Math.min(totalSolved,3)?'✅':'⬜'}</div>
+                    <div style={{fontSize:12,fontWeight:600}}>Problem {i+1}</div>
+                    <div style={{fontSize:10,color:S.muted}}>{i<Math.min(totalSolved,3)?'Completed':'Pending'}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <button onClick={()=>setPage('practice')} style={{padding:'12px 28px',borderRadius:10,fontSize:14,fontWeight:700,cursor:'pointer',border:'none',background:S.green,color:'#000'}}>🚀 Start Solving</button>
+          </div>
+        )}
+
+        {/* =================== STUDENT =================== */}
+        {page==='student'&&(
           <div style={{padding:'24px 28px 48px'}}>
             <div style={{fontSize:13,fontWeight:600,color:S.green,textTransform:'uppercase',letterSpacing:2,fontFamily:"'Space Mono',monospace",marginBottom:6}}>Your Account</div>
             <div style={{fontSize:22,fontWeight:800,marginBottom:18}}>Student Profile</div>
             <div style={{display:'grid',gridTemplateColumns:'320px 1fr',gap:20}}>
               <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:14,padding:28,textAlign:'center'}}>
-                <div style={{width:80,height:80,borderRadius:'50%',background:`linear-gradient(135deg,${S.accent},${S.green})`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:30,fontWeight:700,margin:'0 auto 14px'}}>S</div>
-                <div style={{fontSize:22,fontWeight:800,marginBottom:4}}>Student</div>
-                <div style={{fontSize:13,color:S.muted,fontFamily:"'Space Mono',monospace",marginBottom:4}}>student@email.com</div>
-                <div style={{fontSize:12,color:S.muted,marginBottom:10}}>Joined: {new Date().toLocaleDateString()}</div>
+                <div style={{width:80,height:80,borderRadius:'50%',background:`linear-gradient(135deg,${S.accent},${S.green})`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:30,fontWeight:700,margin:'0 auto 14px'}}>{(userProfile?.name||'S')[0].toUpperCase()}</div>
+                <div style={{fontSize:22,fontWeight:800,marginBottom:4}}>{userProfile?.name||'Student'}</div>
+                <div style={{fontSize:13,color:S.muted,fontFamily:"'Space Mono',monospace",marginBottom:4}}>{userProfile?.email||''}</div>
+                {userProfile?.phone&&<div style={{fontSize:12,color:S.muted,marginBottom:2}}>📱 {userProfile.phone}</div>}
+                {userProfile?.country&&<div style={{fontSize:12,color:S.muted,marginBottom:2}}>🌍 {userProfile.city?`${userProfile.city}, `:''}{ userProfile.country}</div>}
+                <div style={{fontSize:12,color:S.muted,marginBottom:10}}>Joined: {userProfile?new Date(userProfile.joinedAt).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):new Date().toLocaleDateString()}</div>
                 {blueDiamonds > 0 && <div style={{fontSize:14,marginBottom:12}}>{'💎'.repeat(blueDiamonds)} Blue Diamond{blueDiamonds>1?'s':''}</div>}
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
                   {[{v:totalSolved,l:'Solved'},{v:streak,l:'Streak'},{v:score,l:'Score'},{v:rank,l:'Rank'}].map((s,i)=>(
@@ -1613,6 +1645,26 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
                         <div style={{fontSize:11,color:S.muted,textTransform:'uppercase'}}>{s.l}</div>
                       </div>
                     ))}
+                  </div>
+                </div>
+                {/* Languages used */}
+                <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:14,padding:20}}>
+                  <div style={{fontSize:14,fontWeight:700,marginBottom:14}}>🔤 Languages Used</div>
+                  <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                    {[...new Set(solved.map(s=>s.lang))].map((l,i)=>(
+                      <span key={i} style={{padding:'5px 12px',borderRadius:100,fontSize:11,fontWeight:600,background:S.greenLight,color:S.green,border:`1px solid rgba(16,185,129,.3)`}}>{l}</span>
+                    ))}
+                    {solved.length===0&&<div style={{fontSize:13,color:S.muted}}>No languages used yet</div>}
+                  </div>
+                </div>
+                {/* Companies practiced */}
+                <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:14,padding:20}}>
+                  <div style={{fontSize:14,fontWeight:700,marginBottom:14}}>🏢 Companies Practiced</div>
+                  <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                    {[...new Set(solved.map(s=>s.company))].map((c,i)=>(
+                      <span key={i} style={{padding:'5px 12px',borderRadius:100,fontSize:11,fontWeight:600,background:'rgba(249,115,22,.1)',color:'#f97316',border:'1px solid rgba(249,115,22,.3)'}}>{c}</span>
+                    ))}
+                    {solved.length===0&&<div style={{fontSize:13,color:S.muted}}>No companies practiced yet</div>}
                   </div>
                 </div>
                 <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:14,padding:20}}>
