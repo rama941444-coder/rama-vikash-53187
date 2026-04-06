@@ -1086,17 +1086,14 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
             {blueDiamonds > 0 && <span style={{color:'#3b82f6',fontSize:14}}>{'💎'.repeat(blueDiamonds)}</span>}
           </div>
           <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
-            {(['dashboard','practice','leaderboard'] as const).map(p=>(
-              <button key={p} onClick={()=>setPage(p)} style={{padding:'6px 14px',borderRadius:8,fontSize:13,fontWeight:600,cursor:'pointer',
-                border:`1px solid ${page===p?'rgba(16,185,129,.3)':S.border}`,
-                background:page===p?'rgba(16,185,129,.1)':'transparent',
-                color:page===p?S.green:S.muted}}>{p.charAt(0).toUpperCase()+p.slice(1)}</button>
+            {(['dashboard','practice','leaderboard','dailychallenge','student'] as const).map(p=>(
+              <button key={p} onClick={()=>setPage(p)} style={{padding:'6px 14px',borderRadius:8,fontSize:13,fontWeight:p==='dailychallenge'?700:600,cursor:'pointer',
+                border:p==='dailychallenge'?'none':`1px solid ${page===p?'rgba(16,185,129,.3)':S.border}`,
+                background:p==='dailychallenge'?(page===p?S.green:'rgba(16,185,129,.6)'):(page===p?'rgba(16,185,129,.1)':'transparent'),
+                color:p==='dailychallenge'?(page===p?'#000':'#000'):(page===p?S.green:S.muted)}}>
+                {p==='dailychallenge'?'🔥 Daily Challenge':p==='student'?'👤 Student':p.charAt(0).toUpperCase()+p.slice(1)}
+              </button>
             ))}
-            <button onClick={()=>setPage('practice')} style={{padding:'6px 14px',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer',border:'none',background:S.green,color:'#000'}}>🔥 Daily Challenge</button>
-            <div onClick={()=>setPage('profile')} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 12px 5px 5px',background:S.surface,border:`1px solid ${S.border}`,borderRadius:30,cursor:'pointer'}}>
-              <div style={{width:28,height:28,borderRadius:'50%',background:`linear-gradient(135deg,${S.accent},${S.green})`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700}}>S</div>
-              <span style={{fontSize:13,fontWeight:600}}>Student</span>
-            </div>
           </div>
         </header>
 
