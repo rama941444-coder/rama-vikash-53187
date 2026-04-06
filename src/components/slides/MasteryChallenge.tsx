@@ -578,7 +578,7 @@ const detectLanguageMismatch = (code: string, selectedLang: string): string | nu
 // =================== MAIN COMPONENT ===================
 const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryChallengeProps) => {
   const { toast } = useToast();
-  const [page, setPage] = useState<'dashboard'|'practice'|'leaderboard'|'profile'>('dashboard');
+  const [page, setPage] = useState<'dashboard'|'practice'|'leaderboard'|'dailychallenge'|'student'>('dashboard');
   const [company, setCompany] = useState('Google');
   const [compSearch, setCompSearch] = useState('Google');
   const [showCompDrop, setShowCompDrop] = useState(false);
