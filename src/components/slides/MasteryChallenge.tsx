@@ -945,6 +945,15 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
     setStdinInput('');
   };
 
+  const handleStdinSubmit = () => {
+    if(!stdinInput.trim()) return;
+    const val = stdinInput.trim();
+    setWaitingForInput(false);
+    setOutput(prev=>[...prev,{text:val,type:'stdin-echo'}]);
+    // Re-run with stdin input
+    runCode();
+  };
+
   const submitCode = async () => {
     if(!code.trim()||isBoilerplate(code)){ toast({title:'⚠️ Write solution first!'}); return; }
     runCode();
