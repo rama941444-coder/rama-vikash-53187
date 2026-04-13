@@ -1052,17 +1052,27 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
     return `# Solution for ${activeQ.t} in ${lang}\n# Implement the algorithm described above`;
   };
 
-  const aiAction = (type:'hint'|'explain'|'optimize'|'review') => {
+  const aiAction = async (type:'hint'|'explain'|'optimize'|'review') => {
     setAiLoading(true); setAiResp('');
-    setTimeout(()=>{
+    try {
+      const { data, error } = await supabase.functions.invoke('mastery-execute', {
+        body: { mode: 'ai_assist', action: type, code, language: lang, question: activeQ?.t || '' }
+      });
+      if (error) throw error;
+      if (data?.error === 'RATE_LIMIT') { setAiResp('⚠️ Rate limited. Please try again shortly.'); }
+      else { setAiResp(data?.response || 'No response from AI.'); }
+    } catch (err) {
+      console.error('AI assist error:', err);
+      // Fallback to basic hints
       const fb: Record<string,string> = {
-        hint:`💡 Hint for "${activeQ?.t}":\nConsider using a HashMap/dictionary for O(1) lookups. Think about what complement you need for each element.\nKey insight: Store previously seen values and check complement.`,
-        explain:`📖 Explanation:\nApproach: ${activeQ?.topic}\nTime: ${activeQ?.time} | Space: ${activeQ?.space}\nThe algorithm iterates through the data while maintaining auxiliary storage for efficient lookups.`,
-        optimize:`⚡ Optimization:\nCurrent: ${activeQ?.time} time, ${activeQ?.space} space\nThis is already optimal. Micro-optimizations:\n• Early termination\n• Use primitive arrays\n• Minimize allocations`,
-        review:`🔍 Code Review:\n✅ Logic appears sound\n⚠️ Add edge case handling\n⚠️ Add bounds checking\n💡 Extract helper functions`,
+        hint:`💡 Hint for "${activeQ?.t}":\nConsider the optimal data structure. Think about what would give you O(1) lookups.`,
+        explain:`📖 Approach: ${activeQ?.topic}\nTime: ${activeQ?.time} | Space: ${activeQ?.space}`,
+        optimize:`⚡ Current: ${activeQ?.time} time, ${activeQ?.space} space\nConsider if there's a more efficient approach.`,
+        review:`🔍 Code Review:\nCheck edge cases and bounds. Verify your logic handles empty inputs.`,
       };
-      setAiResp(fb[type]); setAiLoading(false);
-    },1200);
+      setAiResp(fb[type]);
+    }
+    setAiLoading(false);
   };
 
   const syncScroll = () => { if(lineNumRef.current&&codeRef.current) lineNumRef.current.scrollTop=codeRef.current.scrollTop; };
