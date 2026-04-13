@@ -956,33 +956,76 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
 
   const submitCode = async () => {
     if(!code.trim()||isBoilerplate(code)){ toast({title:'⚠️ Write solution first!'}); return; }
-    runCode();
-    setTimeout(async ()=>{
-      if(activeQ && !solved.find(p=>p.t===activeQ.t)){
-        const pts = activeQ.d==='Easy'?10:activeQ.d==='Medium'?25:activeQ.d==='Hard'?50:100;
-        const newSolved = {...activeQ,company,level,lang,time:new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})};
-        setSolved(prev=>[...prev,newSolved]);
-        toast({title:`🎉 Solved! +${pts} points`});
-        
-        // Save to database
-        if (userId) {
-          try {
-            await supabase.from('student_progress').upsert({
-              user_id: userId,
-              company: company,
-              level: level,
-              question_title: activeQ.t,
-              question_difficulty: activeQ.d,
-              language: lang,
-              points: pts,
-              solved_at: new Date().toISOString(),
-            }, { onConflict: 'user_id,question_title' });
-          } catch (err) {
-            console.error('Failed to save progress:', err);
-          }
+    setIsRunning(true);
+    
+    // Run and verify test cases via AI
+    try {
+      const { data: tcData, error } = await supabase.functions.invoke('mastery-execute', {
+        body: {
+          mode: 'verify_testcases',
+          code, language: lang,
+          question: activeQ?.t || 'Unknown',
+          testCases: (activeQ?.tc || []).slice(0, 3).map(tc => ({ input: tc.i, expectedOutput: tc.o }))
         }
-      } else toast({title:'✅ Already submitted!'});
-    },2000);
+      });
+
+      if (error) throw error;
+
+      if (tcData?.error === 'RATE_LIMIT') { toast({title:'⚠️ Rate limited. Try again shortly.'}); setIsRunning(false); return; }
+
+      // Update output and test results
+      const config = getLangConfig(lang);
+      const outLines: {text:string;type:string}[] = [
+        {text:`$ ${config.cmd} solution${config.ext}`, type:'info'},
+        {text:`[Running with ${config.version}]`, type:'info'},
+      ];
+
+      if (tcData?.hasCompilationError) {
+        outLines.push({text: tcData.compilationError || 'Compilation Error', type:'stderr'});
+        outLines.push({text:`❌ ${tcData.overallVerdict || 'Compilation Error'}`, type:'stderr'});
+        setOutput(outLines);
+        setTcResults((activeQ?.tc||[]).slice(0,3).map(()=>({pass:false,got:'Compilation Error'})));
+        setAnalysisVis(true);
+        toast({title:'❌ Code has errors. Fix and try again.'});
+        setIsRunning(false); return;
+      }
+
+      if (tcData?.results) {
+        const firstResult = tcData.results[0];
+        outLines.push({text: firstResult?.actualOutput || '(no output)', type: firstResult?.passed ? 'stdout' : 'stderr'});
+        outLines.push({text: tcData.allPassed ? '=== All Test Cases Passed! ===' : `=== ${tcData.overallVerdict || 'Wrong Answer'} ===`, type: tcData.allPassed ? 'stdout' : 'stderr'});
+        outLines.push({text:`[${tcData.totalPassed}/${tcData.totalTests} test cases passed]`, type:'info'});
+        setOutput(outLines);
+        setTcResults(tcData.results.map((r: any) => ({ pass: r.passed, got: r.passed ? r.expectedOutput : (r.actualOutput || r.error || 'Wrong Answer') })));
+        setAnalysisVis(true);
+
+        // Only save progress if ALL test cases pass
+        if (tcData.allPassed && activeQ && !solved.find(p=>p.t===activeQ.t)) {
+          const pts = activeQ.d==='Easy'?10:activeQ.d==='Medium'?25:activeQ.d==='Hard'?50:100;
+          const newSolved = {...activeQ,company,level,lang,time:new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})};
+          setSolved(prev=>[...prev,newSolved]);
+          toast({title:`🎉 Accepted! +${pts} points`});
+          
+          if (userId) {
+            try {
+              await supabase.from('student_progress').upsert({
+                user_id: userId, company, level, question_title: activeQ.t,
+                question_difficulty: activeQ.d, language: lang, points: pts,
+                solved_at: new Date().toISOString(),
+              }, { onConflict: 'user_id,question_title' });
+            } catch (err) { console.error('Failed to save progress:', err); }
+          }
+        } else if (!tcData.allPassed) {
+          toast({title:`❌ ${tcData.overallVerdict || 'Wrong Answer'} — ${tcData.totalPassed}/${tcData.totalTests} passed`});
+        } else {
+          toast({title:'✅ Already submitted!'});
+        }
+      }
+    } catch (err) {
+      console.error('Submit error:', err);
+      toast({title:'⚠️ Execution failed. Try again.'});
+    }
+    setIsRunning(false);
   };
 
   const saveFile = () => {
