@@ -832,7 +832,7 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
     return stripped.length < 3 || code.includes('Write your solution here');
   };
 
-  const runCode = () => {
+  const runCode = async () => {
     if(!code.trim()) { toast({title:'⚠️ Write code first!'}); return; }
     if(isRunning) return;
     setIsRunning(true); setOutput([]); setTcResults([]); setAnalysisVis(false); setWaitingForInput(false);
@@ -847,23 +847,9 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
       setIsRunning(false); return;
     }
 
-    // Syntax check
-    const syntaxErr = detectSyntaxErrors(code, lang);
-    if(syntaxErr){
-      setOutput([{text:syntaxErr,type:'stderr'}]);
-      if(activeQ) setTcResults((activeQ.tc||[]).slice(0,3).map(()=>({pass:false,got:'Compilation Error'})));
-      setIsRunning(false); return;
-    }
-
-    // Boilerplate check
-    if(isBoilerplate(code)){
-      setOutput([{text:'(no output — write your solution first)',type:'empty'}]);
-      setIsRunning(false); return;
-    }
-
     // Check for stdin
     const needsStdin = detectStdinNeeded(code, lang);
-    if(needsStdin){
+    if(needsStdin && !stdinInput){
       const prompts: string[] = [];
       if(lang.includes('Python')){
         const matches = code.matchAll(/input\s*\(\s*["']([^"']*)["']\s*\)/g);
@@ -875,89 +861,88 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
       return;
     }
 
-    // Simulate compilation + execution
-    setTimeout(() => {
-      if(config.compiled){
-        setOutput(prev => [...prev, {text:`$ ${config.compileCmd} solution${config.ext} -o solution`,type:'info'}, {text:`✅ Compilation successful (${config.version})`,type:'info'}]);
+    // Show compilation step
+    setOutput([{text:`$ ${config.compiled ? config.compileCmd + ' solution' + config.ext : config.cmd + ' solution' + config.ext}`, type:'info'},
+      {text:`[Compiling with ${config.version}...]`, type:'info'}]);
+
+    try {
+      // Call AI execution engine
+      const { data, error } = await supabase.functions.invoke('mastery-execute', {
+        body: { mode: 'execute', code, language: lang, userInput: stdinInput || '' }
+      });
+
+      if (error) throw error;
+
+      if (data?.error === 'RATE_LIMIT') {
+        setOutput([{text:'⚠️ Rate limit exceeded. Please wait a moment and try again.', type:'stderr'}]);
+        setIsRunning(false); return;
+      }
+      if (data?.error === 'PAYMENT_REQUIRED') {
+        setOutput([{text:'⚠️ AI credits exhausted. Please add credits in Settings.', type:'stderr'}]);
+        setIsRunning(false); return;
       }
 
-      setTimeout(() => {
-        processCodeExecution(config);
-      }, config.compiled ? 500 : 300);
-    }, 200);
-  };
+      const outLines: {text:string;type:string}[] = [];
+      outLines.push({text:`$ ${config.cmd} solution${config.ext}`, type:'info'});
+      outLines.push({text:`[Running with ${config.version}]`, type:'info'});
 
-  const handleStdinSubmit = () => {
-    if(!stdinInput.trim()) return;
-    const val = stdinInput.trim();
-    setStdinInput(''); setWaitingForInput(false);
-    setOutput(prev=>[...prev,{text:val,type:'stdin-echo'}]);
+      if (data?.hasError) {
+        outLines.push({text: data.errorMessage || data.output || 'Error', type:'stderr'});
+        outLines.push({text:`[Process exited with code ${data.exitCode || 1}]`, type:'info'});
+        setOutput(outLines);
+        if(activeQ) setTcResults((activeQ.tc||[]).slice(0,3).map(()=>({pass:false,got: data.errorType === 'syntax' ? 'Compilation Error' : 'Runtime Error'})));
+        setAnalysisVis(true);
+      } else {
+        outLines.push({text: data?.output || '(no output)', type: data?.output ? 'stdout' : 'empty'});
+        outLines.push({text:'=== Code Execution Successful ===', type:'stdout'});
+        outLines.push({text:`[Process exited with code 0] time:${data?.executionTime || '~'}ms memory:${data?.memoryUsed || '~'}MB`, type:'info'});
+        setOutput(outLines);
 
-    setTimeout(()=>{
-      if(activeQ){
-        const codeLen = code.replace(/\/\/.*|#.*/g,'').replace(/\s/g,'').length;
-        const hasLogic = codeLen > 50;
-        const expectedOutput = activeQ.tc[0]?.o || 'No output';
-        setOutput(prev => [...prev, {text: hasLogic ? expectedOutput : 'None', type:'stdout'},
-          {text:'=== Code Execution Successful ===',type:'stdout'},
-          {text:`[Process exited with code 0] time:${Math.floor(Math.random()*40+15)}ms memory:${(Math.random()*8+3).toFixed(1)}MB`,type:'info'}]);
+        // Now verify test cases if there's an active question
+        if (activeQ && activeQ.tc && activeQ.tc.length > 0) {
+          const tcData = await supabase.functions.invoke('mastery-execute', {
+            body: {
+              mode: 'verify_testcases',
+              code, language: lang,
+              question: activeQ.t,
+              testCases: activeQ.tc.slice(0, 3).map(tc => ({ input: tc.i, expectedOutput: tc.o }))
+            }
+          });
+
+          if (tcData.data && !tcData.error && tcData.data.results) {
+            const results = tcData.data.results.map((r: any) => ({
+              pass: r.passed,
+              got: r.passed ? r.expectedOutput : (r.error || r.actualOutput || 'Wrong Answer')
+            }));
+            setTcResults(results);
+          } else {
+            // Fallback: compare first test case output
+            const firstExpected = activeQ.tc[0]?.o?.trim();
+            const actualOut = (data?.output || '').trim();
+            const pass = actualOut === firstExpected || actualOut.includes(firstExpected);
+            setTcResults(activeQ.tc.slice(0,3).map((tc, i) => ({
+              pass: i === 0 ? pass : false,
+              got: i === 0 ? actualOut : 'Not verified'
+            })));
+          }
+        }
+        setAnalysisVis(true);
       }
-      setIsRunning(false);
-    },600);
-  };
-
-  const processCodeExecution = (config: LangConfig) => {
-    if(!activeQ){ setIsRunning(false); return; }
-
-    const codeStripped = code.replace(/\/\/.*|#.*|\/\*[\s\S]*?\*\//g,'').replace(/\s/g,'');
-    const hasRealLogic = codeStripped.length > 60;
-
-    const correctKeywords: Record<string, string[]> = {
-      'Two Sum': ['seen','comp','target','enumerate','HashMap','map','dict'],
-      'Reverse': ['reverse','swap','left','right','l','r'],
-      'Valid Parentheses': ['stack','push','pop','pairs'],
-      'Fibonacci': ['fib','a,b','a+b','dp'],
-      'Binary Search': ['lo','hi','mid','left','right'],
-      'Maximum Subarray': ['cur','max','kadane','best'],
-      'Contains Duplicate': ['set','seen','Set','HashSet'],
-      'Palindrome': ['reverse','left','right'],
-      'LRU Cache': ['OrderedDict','LinkedHashMap','cache'],
-      'Group Anagrams': ['sorted','anagram','defaultdict'],
-      'Number of Islands': ['dfs','bfs','visited','grid'],
-      '3Sum': ['sort','two pointer','l<r'],
-      'Longest Substring': ['sliding','window','seen'],
-      'Trapping Rain': ['trap','left','right','lmax'],
-      'Word Break': ['wordBreak','memo','dp'],
-    };
-
-    let isCorrect = hasRealLogic;
-    if(activeQ.t && hasRealLogic){
-      const keywords = Object.entries(correctKeywords).find(([k])=>activeQ.t.includes(k));
-      if(keywords) isCorrect = keywords[1].some(kw => code.toLowerCase().includes(kw.toLowerCase()));
+    } catch (err) {
+      console.error('Execution error:', err);
+      setOutput([
+        {text:`$ ${config.cmd} solution${config.ext}`, type:'info'},
+        {text:'⚠️ Execution service temporarily unavailable. Using local analysis...', type:'stderr'},
+      ]);
+      // Fallback to local syntax check
+      const syntaxErr = detectSyntaxErrors(code, lang);
+      if (syntaxErr) {
+        setOutput(prev => [...prev, {text: syntaxErr, type:'stderr'}]);
+        if(activeQ) setTcResults((activeQ.tc||[]).slice(0,3).map(()=>({pass:false,got:'Compilation Error'})));
+      }
     }
-
-    const tcs = (activeQ.tc||[]).slice(0,3);
-    const results: {pass:boolean;got:string}[] = [];
-    tcs.forEach((tc,i)=>{
-      if(isCorrect) results.push({pass:true,got:tc.o});
-      else if(hasRealLogic){ results.push(i===0?{pass:true,got:tc.o}:{pass:false,got:'Wrong Answer'}); }
-      else results.push({pass:false,got:'No output'});
-    });
-
-    const firstTC = tcs[0];
-    const outLines: {text:string;type:string}[] = [];
-    outLines.push({text:`$ ${config.cmd} solution${config.ext}`,type:'info'});
-    outLines.push({text:`[Running with ${config.version}]`,type:'info'});
-
-    if(firstTC){
-      outLines.push({text: isCorrect||hasRealLogic ? firstTC.o : '(no output)', type: isCorrect||hasRealLogic ? 'stdout' : 'empty'});
-    }
-    if(isCorrect) outLines.push({text:'=== Code Execution Successful ===',type:'stdout'});
-    const runtime = Math.floor(Math.random()*45+10);
-    const memory = (Math.random()*8+3).toFixed(1);
-    outLines.push({text:`[Process exited with code ${isCorrect?0:1}] time:${runtime}ms memory:${memory}MB`,type:'info'});
-
-    setOutput(outLines); setTcResults(results); setAnalysisVis(true); setIsRunning(false);
+    setIsRunning(false);
+    setStdinInput('');
   };
 
   const submitCode = async () => {
