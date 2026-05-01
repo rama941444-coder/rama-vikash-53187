@@ -118,7 +118,7 @@ JUDGING PROTOCOL:
         - Rust: Debug format {:?} — "[0, 1]". Display format for primitives.
         - Ruby: .inspect — [0, 1], "hello", :symbol, nil, {:a=>1}.
         - PHP: print_r/var_export style; for arrays "Array ( [0] => 0 [1] => 1 )". If expected is JSON, use json_encode.
-        - C#: List/array ToString gives "System.Collections.Generic.List`1[System.Int32]" — instead use string.Join(", ", ...) wrapped in [] to match expected.
+        - C#: List/array ToString gives the runtime type name; instead use string.Join(", ", ...) wrapped in [] to match expected.
         - WHEN IN DOUBT: format the return value to match the SHAPE of expectedOutput. If expectedOutput is "[0, 1]" use Python-style; if "[0,1]" use JSON-style; if "0 1" use space-joined. Reformatting the actual output to match a clearly-equivalent shape is REQUIRED so that semantically-correct answers are not marked Wrong Answer over trivial spacing — but ONLY when the underlying values match exactly.
    b. PER-LANGUAGE STDIN PARSING (must match the real runtime exactly):
       - Python: input() returns one line WITHOUT trailing newline; sys.stdin.read() returns the whole buffer; int(input().split()) is split on whitespace.
