@@ -913,7 +913,12 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
           if (tcData.data && !tcData.error && tcData.data.results) {
             const results = tcData.data.results.map((r: any) => ({
               pass: r.passed,
-              got: r.passed ? r.expectedOutput : (r.error || r.actualOutput || 'Wrong Answer')
+              got: r.passed ? r.expectedOutput : (r.error || r.actualOutput || 'Wrong Answer'),
+              input: r.input ?? '',
+              expected: r.expectedOutput ?? '',
+              actual: r.actualOutput ?? '',
+              error: r.error ?? '',
+              execMs: r.executionTime ?? '',
             }));
             setTcResults(results);
           } else {
@@ -997,7 +1002,15 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
         outLines.push({text: tcData.allPassed ? '=== All Test Cases Passed! ===' : `=== ${tcData.overallVerdict || 'Wrong Answer'} ===`, type: tcData.allPassed ? 'stdout' : 'stderr'});
         outLines.push({text:`[${tcData.totalPassed}/${tcData.totalTests} test cases passed]`, type:'info'});
         setOutput(outLines);
-        setTcResults(tcData.results.map((r: any) => ({ pass: r.passed, got: r.passed ? r.expectedOutput : (r.actualOutput || r.error || 'Wrong Answer') })));
+        setTcResults(tcData.results.map((r: any) => ({
+          pass: r.passed,
+          got: r.passed ? r.expectedOutput : (r.actualOutput || r.error || 'Wrong Answer'),
+          input: r.input ?? '',
+          expected: r.expectedOutput ?? '',
+          actual: r.actualOutput ?? '',
+          error: r.error ?? '',
+          execMs: r.executionTime ?? '',
+        })));
         setAnalysisVis(true);
 
         // Only save progress if ALL test cases pass
