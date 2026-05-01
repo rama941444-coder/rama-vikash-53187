@@ -17,6 +17,7 @@ serve(async (req) => {
       const body: any = {
         model: 'google/gemini-3-flash-preview',
         messages,
+        temperature: 0,
       };
       if (jsonMode) body.response_format = { type: "json_object" };
 
@@ -46,27 +47,32 @@ serve(async (req) => {
     // ========== MODE: execute ==========
     if (mode === 'execute') {
       const result = await aiCall([
-        { role: 'system', content: `You are an EXACT code execution engine. Execute the given code EXACTLY as a real compiler/interpreter would.
+        { role: 'system', content: `You are a DETERMINISTIC code execution engine. Behave EXACTLY like the real official compiler/interpreter for the selected language. Do NOT guess, do NOT improvise, do NOT add explanations.
 
-CRITICAL RULES:
-1. Execute step by step, tracking ALL variables, function calls, control flow
-2. If code reads input (scanf, cin, input(), Scanner, readline), use provided stdin
-3. Return EXACT output a real compiler produces - nothing more, nothing less
-4. For compilation errors, return the EXACT error message
-5. For runtime errors (segfault, division by zero, stack overflow), show the runtime error
-6. Handle ALL programming languages accurately
-7. DO NOT add explanations or formatting - ONLY raw program output
-8. For SQL: Format as ASCII tables. For R: R console style.
+EXECUTION PROTOCOL (follow strictly):
+1. PARSE the code with the language's real grammar. Detect syntax errors EXACTLY where the real compiler would (e.g. Python: missing ':' after if/for/while/def -> "SyntaxError: expected ':'"; C/C++: missing ';' -> "expected ';' before ..."; Java: must have public class matching filename or it errors).
+2. If syntax/compilation fails, output the EXACT compiler diagnostic message (file/line where applicable) and STOP. Set hasError=true, errorType="syntax" or "compilation", exitCode=1.
+3. Otherwise EXECUTE step-by-step. Maintain a real variable/heap/stack model. Honor language semantics:
+   - Python: indentation, dynamic typing, exceptions (NameError, TypeError, IndexError, ZeroDivisionError, etc.)
+   - C/C++: undefined behavior is OK to surface as runtime crash; printf/cout flushing; integer overflow wraps for signed (UB) but show typical gcc behavior.
+   - Java: must have a main method; throws like ArrayIndexOutOfBoundsException, NullPointerException with stack trace style.
+   - JavaScript/TypeScript: Node.js semantics, console.log adds newline.
+   - Go, Rust, Kotlin, Swift, C#, PHP, Ruby, Perl, R, SQL, Bash, etc.: use that language's real runtime behavior.
+4. STDIN: If the program reads input (input(), scanf, cin>>, Scanner.next, readline, gets, fgets, std::io::stdin, bufio.NewReader, etc.), consume from the provided stdin EXACTLY (split by whitespace/newline as the language's read primitive does). If stdin is empty but required, raise the language's normal EOF error (Python: EOFError; C: returns EOF; Java: NoSuchElementException).
+5. OUTPUT: Capture EXACTLY what would be written to stdout. Preserve whitespace, newlines, ordering. Do NOT add prompts, banners, ANSI codes, or trailing commentary. If the program prints nothing, output is "".
+6. Runtime errors: print the partial stdout produced before the crash, then the EXACT runtime error message, then set hasError=true, errorType="runtime", exitCode=1 (or signal-specific code).
+7. SQL: render result sets as the standard psql/mysql ASCII table. R: R console style with [1] prefixes.
+8. NEVER fabricate output. NEVER summarize. NEVER add "// output:" or markdown fences.
 
-Return JSON:
+Return STRICT JSON:
 {
-  "output": "exact program output string",
+  "output": "exact stdout bytes as a string",
   "hasError": boolean,
   "errorType": "none"|"syntax"|"runtime"|"compilation"|"logical",
-  "errorMessage": "exact compiler/interpreter error if any",
-  "exitCode": 0 or 1,
-  "executionTime": "estimated ms",
-  "memoryUsed": "estimated MB"
+  "errorMessage": "exact compiler/runtime diagnostic, empty string if none",
+  "exitCode": 0|1|integer,
+  "executionTime": "estimated ms as string",
+  "memoryUsed": "estimated MB as string"
 }` },
         { role: 'user', content: `Language: ${language}\nStdin Input: ${userInput || '(none)'}\n\nCode:\n\`\`\`\n${code}\n\`\`\`` }
       ]);
@@ -86,36 +92,38 @@ Return JSON:
     // ========== MODE: verify_testcases ==========
     if (mode === 'verify_testcases') {
       const result = await aiCall([
-        { role: 'system', content: `You are a precise code judge system like CodeTantra/LeetCode/HackerRank. Execute the given code against EACH test case and verify outputs.
+        { role: 'system', content: `You are an Online Judge engine (CodeTantra / LeetCode / HackerRank style). You MUST behave like the real backend, not a tutor.
 
-CRITICAL RULES:
-1. For EACH test case, execute the code with the given input
-2. Compare the actual output with the expected output (trim whitespace, ignore trailing newlines)
-3. A test case PASSES only if actual output EXACTLY matches expected output
-4. If the code has compilation/syntax errors, ALL test cases FAIL with the error message
-5. If the code has a runtime error on a specific input, that test case fails
-6. Track execution time and memory for each test case
-7. Be STRICT about output matching - even extra spaces or wrong case means failure
-8. If the code is incomplete/boilerplate (contains "Write your solution here" or similar), all test cases fail with "Incomplete Solution"
+JUDGING PROTOCOL:
+1. First COMPILE the code with the real language grammar. If compilation/syntax fails -> ALL test cases get passed=false with the EXACT compiler error in the "error" field; hasCompilationError=true; overallVerdict="Compilation Error".
+2. If the submission is just boilerplate / contains "Write your solution here", "TODO", "pass" only, empty function body, or otherwise does not implement logic -> ALL test cases fail with error="Incomplete Solution"; overallVerdict="Incomplete Solution".
+3. Otherwise, for EACH test case independently:
+   a. Reset state. Feed the test case "input" as STDIN (the program reads it via input()/scanf/cin/Scanner/etc.) — OR if the question expects a function call, call the function with parsed args and capture its return value formatted as the expected output.
+   b. Execute step-by-step honoring real language semantics (exceptions, types, overflow, indexing, etc.).
+   c. Capture actualOutput EXACTLY (stdout bytes, or stringified return value).
+   d. Compare to expectedOutput using this rule: trim leading/trailing whitespace on both sides AND collapse trailing newlines, but PRESERVE internal spacing and case. passed = (normalized actual === normalized expected).
+   e. If a runtime exception is thrown on this input -> passed=false; error = exact runtime error; actualOutput = whatever was printed before the crash.
+4. NEVER mark a test as passed unless you genuinely simulated the code and the outputs match. NEVER fabricate output. If the logic is clearly wrong (e.g. returns []), report the wrong actualOutput, not the expected one.
+5. overallVerdict precedence: "Compilation Error" > "Runtime Error" (if any tc errored) > "Wrong Answer" (if any tc failed) > "Accepted" (all passed).
 
-Return JSON:
+Return STRICT JSON ONLY:
 {
   "results": [
     {
       "testCaseIndex": 0,
-      "input": "the input",
+      "input": "the input as given",
       "expectedOutput": "expected",
-      "actualOutput": "what code actually produces",
+      "actualOutput": "exact output your simulation produced",
       "passed": boolean,
-      "executionTime": "ms",
-      "error": "error message if any"
+      "executionTime": "ms as string",
+      "error": "error message or empty string"
     }
   ],
   "allPassed": boolean,
   "totalPassed": number,
   "totalTests": number,
   "hasCompilationError": boolean,
-  "compilationError": "error if any",
+  "compilationError": "exact compiler error or empty string",
   "overallVerdict": "Accepted"|"Wrong Answer"|"Compilation Error"|"Runtime Error"|"Time Limit Exceeded"|"Incomplete Solution"
 }` },
         { role: 'user', content: `Language: ${language}\nQuestion: ${question || 'Unknown'}\n\nCode:\n\`\`\`\n${code}\n\`\`\`\n\nTest Cases:\n${JSON.stringify(testCases)}` }
