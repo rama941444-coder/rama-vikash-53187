@@ -98,11 +98,32 @@ JUDGING PROTOCOL:
 1. First COMPILE the code with the real language grammar. If compilation/syntax fails -> ALL test cases get passed=false with the EXACT compiler error in the "error" field; hasCompilationError=true; overallVerdict="Compilation Error".
 2. If the submission is just boilerplate / contains "Write your solution here", "TODO", "pass" only, empty function body, or otherwise does not implement logic -> ALL test cases fail with error="Incomplete Solution"; overallVerdict="Incomplete Solution".
 3. Otherwise, for EACH test case independently:
-   a. Reset state. Feed the test case "input" as STDIN (the program reads it via input()/scanf/cin/Scanner/etc.) — OR if the question expects a function call, call the function with parsed args and capture its return value formatted as the expected output.
-   b. Execute step-by-step honoring real language semantics (exceptions, types, overflow, indexing, etc.).
-   c. Capture actualOutput EXACTLY (stdout bytes, or stringified return value).
-   d. Compare to expectedOutput using this rule: trim leading/trailing whitespace on both sides AND collapse trailing newlines, but PRESERVE internal spacing and case. passed = (normalized actual === normalized expected).
-   e. If a runtime exception is thrown on this input -> passed=false; error = exact runtime error; actualOutput = whatever was printed before the crash.
+   a. Reset state. Decide EXECUTION MODE:
+      - STDIN MODE: if the code contains stdin reads (Python input()/sys.stdin; C scanf/getchar/gets/fgets; C++ cin>>/getline; Java Scanner/BufferedReader; JS process.stdin/readline; Go bufio/fmt.Scan; Rust std::io::stdin; Ruby gets/STDIN; PHP fgets/STDIN; Bash read; etc.) -> feed the test case "input" as the stdin stream.
+      - FUNCTION-CALL MODE: otherwise, if the code defines a function whose name matches the problem (e.g. twoSum, isPalindrome, reverseList, etc.) and there is no main/driver -> parse the test case "input" as the function arguments (JSON-like literals: arrays, ints, strings, nested), call that function with those args, and treat the returned value as the actualOutput (stringified to match the expectedOutput format: Python repr for lists/tuples, JSON.stringify for JS, toString() for Java, etc.).
+      - HYBRID: if both a main and a target function exist, prefer running main with stdin.
+   b. PER-LANGUAGE STDIN PARSING (must match the real runtime exactly):
+      - Python: input() returns one line WITHOUT trailing newline; sys.stdin.read() returns the whole buffer; int(input().split()) is split on whitespace.
+      - C scanf("%d",&x): skips leading whitespace then reads token; %s reads until whitespace; %c reads one byte; fgets reads up to newline INCLUDING the \\n.
+      - C++ cin>>x: skips whitespace then reads token; getline(cin,s) reads to newline EXCLUDING the \\n; mixing >> and getline leaves a stray \\n in the buffer (real bug — preserve it).
+      - Java Scanner.nextInt() / next(): whitespace-delimited tokens; nextLine() reads to end-of-line; the well-known nextInt()+nextLine() leftover-newline bug must be preserved.
+      - JavaScript (Node): readline 'line' event fires per \\n-terminated line; process.stdin chunks are raw bytes.
+      - Go: fmt.Scan whitespace-delimited; bufio.Scanner default splits by lines.
+      - Rust: stdin().read_line(&mut s) keeps trailing \\n — typical .trim() removes it.
+      - Ruby: gets returns line WITH \\n; chomp removes it.
+      - PHP: fgets(STDIN) keeps \\n; trim() to strip.
+      - Bash: read VAR strips trailing newline; IFS controls splitting.
+      Treat the test "input" string verbatim as the stdin buffer; do NOT inject extra prompts or trim it before feeding.
+   c. Execute step-by-step honoring real language semantics (exceptions, types, integer overflow, 0-based vs 1-based indexing, mutability, reference vs value, etc.).
+   d. Capture actualOutput EXACTLY (stdout bytes for stdin mode; stringified return value for function-call mode).
+   e. STRICT OUTPUT MATCHER (apply per language):
+      - Step 1: take expectedOutput and actualOutput as strings.
+      - Step 2: normalize line endings: replace \\r\\n with \\n on BOTH sides.
+      - Step 3: strip a single trailing \\n from BOTH sides if present (most print/println add one), then strip ALL trailing whitespace-only lines.
+      - Step 4: do NOT collapse internal whitespace; do NOT change case; do NOT reorder lines.
+      - Step 5: passed = (normalized actual === normalized expected) byte-for-byte.
+      - Edge cases: numeric outputs must match formatting exactly (e.g. "1.0" != "1", "1.50" != "1.5"). Lists in function-call mode: Python "[0, 1]" with spaces, JS "[0,1]" without — match the language's default toString.
+   f. If a runtime exception is thrown on this input -> passed=false; error = exact runtime error including type and message (e.g. "IndexError: list index out of range", "java.lang.NullPointerException", "thread 'main' panicked at ..."); actualOutput = whatever was printed before the crash.
 4. NEVER mark a test as passed unless you genuinely simulated the code and the outputs match. NEVER fabricate output. If the logic is clearly wrong (e.g. returns []), report the wrong actualOutput, not the expected one.
 5. overallVerdict precedence: "Compilation Error" > "Runtime Error" (if any tc errored) > "Wrong Answer" (if any tc failed) > "Accepted" (all passed).
 
