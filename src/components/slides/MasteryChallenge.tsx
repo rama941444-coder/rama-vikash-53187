@@ -1450,11 +1450,11 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
                   {activeQ&&(
                     <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:8}}>
                       {(activeQ.tc||[]).slice(0,3).map((tc,i)=>(
-                        <div key={i} style={{background:'#111',borderRadius:9,padding:10,
+                        <div key={i} onClick={()=>setReplayOpen(replayOpen===i?null:i)} style={{background:'#111',borderRadius:9,padding:10,cursor:'pointer',
                           border:`1px solid ${tcResults[i]?.pass===true?'rgba(16,185,129,.5)':tcResults[i]?.pass===false?'rgba(239,68,68,.5)':'#222'}`,
                           opacity:tcResults.length===0?.7:1}}>
                           <div style={{fontSize:10,color:S.muted,fontFamily:"'Space Mono',monospace",marginBottom:5}}>
-                            TC {i+1} <span style={{float:'right',fontSize:14}}>{tcResults[i]?.pass===true?'✅':tcResults[i]?.pass===false?'❌':'⬜'}</span>
+                            TC {i+1} {tcResults[i]&&<span style={{fontSize:9,color:S.muted2}}>· tap to replay</span>} <span style={{float:'right',fontSize:14}}>{tcResults[i]?.pass===true?'✅':tcResults[i]?.pass===false?'❌':'⬜'}</span>
                           </div>
                           <div style={{fontSize:11,fontFamily:"'JetBrains Mono',monospace",color:S.muted2,marginBottom:3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{tc.i.substring(0,28)}{tc.i.length>28?'…':''}</div>
                           <div style={{fontSize:11,fontFamily:"'JetBrains Mono',monospace",color:S.green}}>Exp: {tc.o}</div>
@@ -1463,6 +1463,55 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
                       ))}
                     </div>
                   )}
+
+                  {/* Replay Panel */}
+                  {replayOpen!==null && tcResults[replayOpen] && (()=>{
+                    const r = tcResults[replayOpen]!;
+                    const norm = (s:string)=> (s||'').replace(/\r\n/g,'\n').replace(/\n+$/,'').replace(/[ \t]+$/gm,'');
+                    const expN = norm(r.expected||'');
+                    const actN = norm(r.actual||'');
+                    const expLines = expN.split('\n');
+                    const actLines = actN.split('\n');
+                    const maxL = Math.max(expLines.length, actLines.length, 1);
+                    return (
+                      <div style={{background:'#0a0a0a',borderRadius:10,padding:14,border:`1px solid ${r.pass?'rgba(16,185,129,.4)':'rgba(239,68,68,.4)'}`,marginTop:12}}>
+                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+                          <div style={{fontSize:12,fontWeight:700,color:r.pass?S.green:'#ef4444',fontFamily:"'Space Mono',monospace"}}>
+                            🔁 REPLAY · TC {replayOpen+1} · {r.pass?'PASSED':'FAILED'} {r.execMs?`· ${r.execMs}`:''}
+                          </div>
+                          <button onClick={()=>setReplayOpen(null)} style={{background:'transparent',border:`1px solid ${S.border}`,color:S.muted,fontSize:10,padding:'3px 8px',borderRadius:5,cursor:'pointer'}}>✕ close</button>
+                        </div>
+                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
+                          <div>
+                            <div style={{fontSize:9,color:S.muted,textTransform:'uppercase',marginBottom:4,fontFamily:"'Space Mono',monospace"}}>STDIN fed</div>
+                            <pre style={{background:'#111',border:'1px solid #222',borderRadius:6,padding:8,fontSize:11,fontFamily:"'JetBrains Mono',monospace",color:'#d4d4d4',margin:0,whiteSpace:'pre-wrap',wordBreak:'break-word',maxHeight:120,overflow:'auto'}}>{r.input||'(none)'}</pre>
+                          </div>
+                          <div>
+                            <div style={{fontSize:9,color:S.muted,textTransform:'uppercase',marginBottom:4,fontFamily:"'Space Mono',monospace"}}>Captured stdout</div>
+                            <pre style={{background:'#111',border:'1px solid #222',borderRadius:6,padding:8,fontSize:11,fontFamily:"'JetBrains Mono',monospace",color:r.pass?S.green:'#fca5a5',margin:0,whiteSpace:'pre-wrap',wordBreak:'break-word',maxHeight:120,overflow:'auto'}}>{r.actual||'(empty)'}</pre>
+                          </div>
+                        </div>
+                        <div style={{fontSize:9,color:S.muted,textTransform:'uppercase',marginBottom:4,fontFamily:"'Space Mono',monospace"}}>Normalized diff (expected ↔ actual)</div>
+                        <div style={{background:'#111',border:'1px solid #222',borderRadius:6,padding:8,fontSize:11,fontFamily:"'JetBrains Mono',monospace",maxHeight:160,overflow:'auto'}}>
+                          {Array.from({length:maxL}).map((_,li)=>{
+                            const e = expLines[li] ?? '';
+                            const a = actLines[li] ?? '';
+                            const same = e===a;
+                            return (
+                              <div key={li} style={{display:'grid',gridTemplateColumns:'28px 1fr 1fr',gap:6,padding:'2px 0',borderBottom:'1px dashed #1a1a1a'}}>
+                                <span style={{color:S.muted,fontSize:9}}>{li+1}</span>
+                                <span style={{color:same?'#4ade80':'#f87171',whiteSpace:'pre-wrap',wordBreak:'break-all'}}>{same?'  ':'- '}{e||'∅'}</span>
+                                <span style={{color:same?'#4ade80':'#fbbf24',whiteSpace:'pre-wrap',wordBreak:'break-all'}}>{same?'  ':'+ '}{a||'∅'}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {r.error && (
+                          <div style={{marginTop:8,padding:8,background:'rgba(239,68,68,.08)',border:'1px solid rgba(239,68,68,.3)',borderRadius:6,fontSize:11,fontFamily:"'JetBrains Mono',monospace",color:'#fca5a5',whiteSpace:'pre-wrap'}}>⚠ {r.error}</div>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {/* Analysis */}
                   {analysisVis&&activeQ&&(
