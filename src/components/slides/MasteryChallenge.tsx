@@ -1294,7 +1294,7 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
               <div style={{borderTop:'1px solid rgba(249,115,22,.2)',paddingTop:12}}>
                 <div style={{fontSize:12,fontWeight:700,color:'#f97316',marginBottom:8}}>🎥 Interview Preparation Resources & YouTube Links</div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
-                  {[
+                   {[
                     {label:`${company} Interview Process`,url:`https://www.youtube.com/results?search_query=${encodeURIComponent(company+' software engineer interview process 2025')}`,icon:'🎬'},
                     {label:`${company} Coding Round Tips`,url:`https://www.youtube.com/results?search_query=${encodeURIComponent(company+' coding interview tips DSA')}`,icon:'💻'},
                     {label:`${company} System Design`,url:`https://www.youtube.com/results?search_query=${encodeURIComponent(company+' system design interview')}`,icon:'🏗️'},
@@ -1302,7 +1302,20 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
                     {label:`${company} Salary & Levels`,url:`https://www.levels.fyi/companies/${company.toLowerCase().replace(/\s+/g,'-')}/salaries`,icon:'💰'},
                     {label:`${company} Glassdoor Reviews`,url:`https://www.glassdoor.com/Reviews/${company.replace(/\s+/g,'-')}-Reviews`,icon:'⭐'},
                   ].map((link,i)=>(
-                    <a key={i} href={link.url} target="_blank" rel="noopener noreferrer" style={{display:'flex',alignItems:'center',gap:6,padding:'8px 12px',borderRadius:8,fontSize:11,fontWeight:600,color:'#f97316',background:'rgba(249,115,22,.08)',border:'1px solid rgba(249,115,22,.2)',textDecoration:'none',cursor:'pointer'}}>
+                    <a
+                      key={i}
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e)=>{
+                        e.stopPropagation();
+                        // Hard-fallback in case a parent intercepts navigation (e.g. slide container)
+                        const w = window.open(link.url, '_blank', 'noopener,noreferrer');
+                        if (w) { e.preventDefault(); }
+                      }}
+                      onMouseDown={(e)=>e.stopPropagation()}
+                      style={{display:'flex',alignItems:'center',gap:6,padding:'8px 12px',borderRadius:8,fontSize:11,fontWeight:600,color:'#f97316',background:'rgba(249,115,22,.08)',border:'1px solid rgba(249,115,22,.2)',textDecoration:'none',cursor:'pointer',pointerEvents:'auto',position:'relative',zIndex:5}}
+                    >
                       {link.icon} {link.label} ↗
                     </a>
                   ))}
