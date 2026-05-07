@@ -636,6 +636,28 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
     tick(); const iv=setInterval(tick,1000); return()=>clearInterval(iv);
   },[]);
 
+  // Restore shared replay from URL hash (#replay=<base64-json>)
+  useEffect(()=>{
+    try {
+      const m = window.location.hash.match(/replay=([^&]+)/);
+      if (!m) return;
+      const json = decodeURIComponent(escape(atob(m[1])));
+      const data = JSON.parse(json);
+      if (!data?.results || !Array.isArray(data.results)) return;
+      setPage('practice');
+      setTcResults(data.results.map((r:any)=>({
+        pass: !!r.pass,
+        got: r.pass ? (r.expected||'') : (r.actual||r.error||'Wrong Answer'),
+        input: r.stdin||'', expected: r.expected||'', actual: r.actual||'',
+        error: r.error||'', execMs: r.execMs||'', mode: r.mode||'', detectionReason: r.detectionReason||''
+      })));
+      setReplayOpen(0);
+      setAnalysisVis(true);
+      toast({title:'🔁 Replay restored from share link',description:data.question||''});
+    } catch (e) { console.warn('replay hash parse failed', e); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[]);
+
   // Load user and progress from database
   useEffect(() => {
     const loadUserProgress = async () => {
@@ -1294,7 +1316,7 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
               <div style={{borderTop:'1px solid rgba(249,115,22,.2)',paddingTop:12}}>
                 <div style={{fontSize:12,fontWeight:700,color:'#f97316',marginBottom:8}}>🎥 Interview Preparation Resources & YouTube Links</div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
-                  {[
+                   {[
                     {label:`${company} Interview Process`,url:`https://www.youtube.com/results?search_query=${encodeURIComponent(company+' software engineer interview process 2025')}`,icon:'🎬'},
                     {label:`${company} Coding Round Tips`,url:`https://www.youtube.com/results?search_query=${encodeURIComponent(company+' coding interview tips DSA')}`,icon:'💻'},
                     {label:`${company} System Design`,url:`https://www.youtube.com/results?search_query=${encodeURIComponent(company+' system design interview')}`,icon:'🏗️'},
@@ -1302,7 +1324,20 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
                     {label:`${company} Salary & Levels`,url:`https://www.levels.fyi/companies/${company.toLowerCase().replace(/\s+/g,'-')}/salaries`,icon:'💰'},
                     {label:`${company} Glassdoor Reviews`,url:`https://www.glassdoor.com/Reviews/${company.replace(/\s+/g,'-')}-Reviews`,icon:'⭐'},
                   ].map((link,i)=>(
-                    <a key={i} href={link.url} target="_blank" rel="noopener noreferrer" style={{display:'flex',alignItems:'center',gap:6,padding:'8px 12px',borderRadius:8,fontSize:11,fontWeight:600,color:'#f97316',background:'rgba(249,115,22,.08)',border:'1px solid rgba(249,115,22,.2)',textDecoration:'none',cursor:'pointer'}}>
+                    <a
+                      key={i}
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e)=>{
+                        e.stopPropagation();
+                        // Hard-fallback in case a parent intercepts navigation (e.g. slide container)
+                        const w = window.open(link.url, '_blank', 'noopener,noreferrer');
+                        if (w) { e.preventDefault(); }
+                      }}
+                      onMouseDown={(e)=>e.stopPropagation()}
+                      style={{display:'flex',alignItems:'center',gap:6,padding:'8px 12px',borderRadius:8,fontSize:11,fontWeight:600,color:'#f97316',background:'rgba(249,115,22,.08)',border:'1px solid rgba(249,115,22,.2)',textDecoration:'none',cursor:'pointer',pointerEvents:'auto',position:'relative',zIndex:5}}
+                    >
                       {link.icon} {link.label} ↗
                     </a>
                   ))}
@@ -1480,6 +1515,75 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
                         style={{marginLeft:'auto',background:'#111',border:`1px solid ${S.border}`,color:S.muted,fontSize:10,padding:'4px 9px',borderRadius:6,cursor:'pointer',fontFamily:"'Space Mono',monospace"}}
                       >📥 Export Replay JSON</button>
                     )}
+                    {tcResults.length>0 && (
+                      <button
+                        onClick={async ()=>{
+                          const payload = {
+                            v:1,
+                            question: activeQ?.t || 'Unknown',
+                            language: lang, company, level,
+                            results: tcResults.map((r,i)=>({
+                              testCaseIndex:i, pass:r.pass, mode:r.mode||'', detectionReason:r.detectionReason||'',
+                              stdin:r.input||'', expected:r.expected||'', actual:r.actual||'', error:r.error||'', execMs:r.execMs||''
+                            }))
+                          };
+                          // Compress via base64 of JSON, put in URL hash so server never sees it
+                          const json = JSON.stringify(payload);
+                          const b64 = btoa(unescape(encodeURIComponent(json)));
+                          const shareUrl = `${window.location.origin}${window.location.pathname}#replay=${b64}`;
+                          try {
+                            await navigator.clipboard.writeText(shareUrl);
+                            toast({title:'🔗 Share link copied to clipboard',description:`${shareUrl.length} chars · paste anywhere to reopen this replay`});
+                          } catch {
+                            window.prompt('Copy this share link:', shareUrl);
+                          }
+                        }}
+                        style={{background:'#111',border:`1px solid ${S.border}`,color:S.muted,fontSize:10,padding:'4px 9px',borderRadius:6,cursor:'pointer',fontFamily:"'Space Mono',monospace"}}
+                      >🔗 Share Replay</button>
+                    )}
+                    <button
+                      onClick={()=>{
+                        const schema = {
+                          $schema:'http://json-schema.org/draft-07/schema#',
+                          title:'Slide6 Replay Export',
+                          type:'object',
+                          required:['exportedAt','question','language','results'],
+                          properties:{
+                            exportedAt:{type:'string',format:'date-time'},
+                            question:{type:'string'},
+                            language:{type:'string'},
+                            company:{type:'string'},
+                            level:{type:'string'},
+                            results:{type:'array',items:{
+                              type:'object',
+                              required:['testCaseIndex','pass','stdin','expected','actual','diff'],
+                              properties:{
+                                testCaseIndex:{type:'integer'},
+                                pass:{type:'boolean'},
+                                mode:{type:'string',enum:['STDIN','FUNCTION-CALL','']},
+                                detectionReason:{type:'string',description:'Why this execution branch was chosen'},
+                                stdin:{type:'string'},
+                                expected:{type:'string'},
+                                actual:{type:'string'},
+                                error:{type:'string'},
+                                execMs:{type:'string'},
+                                diff:{type:'array',items:{type:'object',properties:{
+                                  line:{type:'integer'}, expected:{type:'string'}, actual:{type:'string'}, equal:{type:'boolean'}
+                                }}}
+                              }
+                            }}
+                          }
+                        };
+                        const blob = new Blob([JSON.stringify(schema,null,2)],{type:'application/schema+json'});
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url; a.download = 'slide6-replay-schema.json';
+                        document.body.appendChild(a); a.click(); a.remove();
+                        URL.revokeObjectURL(url);
+                        toast({title:'📘 Replay JSON Schema downloaded'});
+                      }}
+                      style={{background:'#111',border:`1px solid ${S.border}`,color:S.muted,fontSize:10,padding:'4px 9px',borderRadius:6,cursor:'pointer',fontFamily:"'Space Mono',monospace"}}
+                    >📘 Schema</button>
                   </div>
                   {activeQ&&(
                     <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:8}}>
