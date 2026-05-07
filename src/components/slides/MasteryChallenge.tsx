@@ -1450,6 +1450,36 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
                     <span style={{fontSize:10,color:S.muted,fontFamily:"'Space Mono',monospace"}}>
                       {tcResults.length>0?`· ${tcResults.filter(r=>r.pass).length}/${tcResults.length} Passed`:'· Click Run & Analyze'}
                     </span>
+                    {tcResults.length>0 && (
+                      <button
+                        onClick={()=>{
+                          const payload = {
+                            exportedAt: new Date().toISOString(),
+                            question: activeQ?.t || 'Unknown',
+                            language: lang,
+                            company, level,
+                            results: tcResults.map((r,i)=>{
+                              const norm = (s:string)=>(s||'').replace(/\r\n/g,'\n').replace(/\n+$/,'').replace(/[ \t]+$/gm,'');
+                              const expN = norm(r.expected||''); const actN = norm(r.actual||'');
+                              const expL = expN.split('\n'); const actL = actN.split('\n');
+                              const diff = Array.from({length:Math.max(expL.length,actL.length,1)}).map((_,li)=>({
+                                line: li+1, expected: expL[li]??'', actual: actL[li]??'', equal: (expL[li]??'')===(actL[li]??'')
+                              }));
+                              return { testCaseIndex:i, pass:r.pass, mode:r.mode||'', detectionReason:r.detectionReason||'',
+                                stdin:r.input||'', expected:r.expected||'', actual:r.actual||'', error:r.error||'', execMs:r.execMs||'', diff };
+                            })
+                          };
+                          const blob = new Blob([JSON.stringify(payload,null,2)], {type:'application/json'});
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url; a.download = `replay-${(activeQ?.t||'run').replace(/\s+/g,'-')}-${Date.now()}.json`;
+                          document.body.appendChild(a); a.click(); a.remove();
+                          URL.revokeObjectURL(url);
+                          toast({title:'📥 Replay exported as JSON'});
+                        }}
+                        style={{marginLeft:'auto',background:'#111',border:`1px solid ${S.border}`,color:S.muted,fontSize:10,padding:'4px 9px',borderRadius:6,cursor:'pointer',fontFamily:"'Space Mono',monospace"}}
+                      >📥 Export Replay JSON</button>
+                    )}
                   </div>
                   {activeQ&&(
                     <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:8}}>
@@ -1485,6 +1515,12 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
                           </div>
                           <button onClick={()=>setReplayOpen(null)} style={{background:'transparent',border:`1px solid ${S.border}`,color:S.muted,fontSize:10,padding:'3px 8px',borderRadius:5,cursor:'pointer'}}>✕ close</button>
                         </div>
+                        {(r.mode||r.detectionReason) && (
+                          <div style={{marginBottom:10,padding:'6px 9px',background:'#0f1722',border:'1px solid #1e293b',borderRadius:6,fontSize:11,fontFamily:"'JetBrains Mono',monospace",color:'#93c5fd',display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
+                            <span style={{padding:'2px 6px',background:r.mode==='STDIN'?'#1e3a8a':'#581c87',color:'#fff',borderRadius:4,fontSize:10,fontWeight:700}}>{r.mode||'?'}</span>
+                            <span style={{color:'#cbd5e1'}}>{r.detectionReason||'(no reason provided)'}</span>
+                          </div>
+                        )}
                         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
                           <div>
                             <div style={{fontSize:9,color:S.muted,textTransform:'uppercase',marginBottom:4,fontFamily:"'Space Mono',monospace"}}>STDIN fed</div>
