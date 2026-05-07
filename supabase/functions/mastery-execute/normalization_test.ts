@@ -71,6 +71,54 @@ const golden = [
   },
 ];
 
+// Extended driver-detection golden cases
+const driverCases = [
+  {
+    name: "Scala object main driver",
+    language: "scala",
+    code: `object Main { def main(args: Array[String]): Unit = { val ln = scala.io.StdIn.readLine(); println(ln.split(" ").map(_.toInt).sum) } }`,
+    tc: [{ input: "2 3", expectedOutput: "5" }],
+    expectPass: true,
+    expectMode: "STDIN",
+  },
+  {
+    name: "PHP CLI top-level fgets(STDIN)",
+    language: "php",
+    code: `<?php\n$line = trim(fgets(STDIN));\n$parts = explode(" ", $line);\necho ((int)$parts[0] + (int)$parts[1]);\n`,
+    tc: [{ input: "2 3", expectedOutput: "5" }],
+    expectPass: true,
+    expectMode: "STDIN",
+  },
+  {
+    name: "Dart void main with stdin",
+    language: "dart",
+    code: `import 'dart:io';\nvoid main(){ var p = stdin.readLineSync()!.split(' ').map(int.parse).toList(); print(p[0]+p[1]); }`,
+    tc: [{ input: "2 3", expectedOutput: "5" }],
+    expectPass: true,
+    expectMode: "STDIN",
+  },
+  {
+    name: "Helper-only function (no driver) → FUNCTION-CALL",
+    language: "scala",
+    code: `def add(a: Int, b: Int): Int = a + b`,
+    tc: [{ input: "2, 3", expectedOutput: "5" }],
+    expectPass: true,
+    expectMode: "FUNCTION-CALL",
+  },
+];
+
+for (const g of driverCases) {
+  Deno.test(`driver: ${g.name}`, async () => {
+    const data = await verify(g.language, g.code, g.tc, g.name);
+    const r = data?.results?.[0];
+    assertEquals(!!r, true, `no result returned: ${JSON.stringify(data).slice(0,300)}`);
+    assertEquals(r.passed, g.expectPass, `expected passed=${g.expectPass}, got=${r.passed}; actual=${r.actualOutput}; err=${r.error}`);
+    if (g.expectMode) {
+      assertEquals(r.mode, g.expectMode, `expected mode=${g.expectMode}, got=${r.mode} (${r.detectionReason})`);
+    }
+  });
+}
+
 for (const g of golden) {
   Deno.test(`golden: ${g.name}`, async () => {
     const data = await verify(g.language, g.code, g.tc, g.name);
