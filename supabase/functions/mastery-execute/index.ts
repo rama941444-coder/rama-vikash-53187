@@ -128,6 +128,15 @@ JUDGING PROTOCOL:
               Kotlin: \`fun main(\` (with or without args).
               Swift: top-level code in main.swift, or \`@main\` struct/class with \`static func main()\`.
               PHP: top-level code outside function/class.
+              Scala: \`object X { def main(args: Array[String]): Unit = ... }\` OR \`object X extends App { ... }\` (App trait body is the driver).
+              Perl: top-level statements (anything not inside \`sub\`).
+              Lua: top-level statements; \`if arg then ...\` CLI guard.
+              Dart: \`void main()\` or \`void main(List<String> args)\` or \`Future<void> main() async\`.
+              Elixir: \`Mix.install\` + top-level / \`defmodule X do def main do ...\` invoked via \`X.main\`.
+              Julia: top-level; \`if abspath(PROGRAM_FILE) == @__FILE__\` guard.
+              Haskell: \`main :: IO ()\` with \`main = ...\`.
+              R: top-level; \`if (!interactive()) { ... }\` CLI guard.
+              PHP CLI: shebang \`#!/usr/bin/env php\` with top-level code, OR top-level code reading STDIN/argv outside any function/class.
           - If the read primitive exists ONLY inside a function that is never called from a driver, this is NOT stdin mode — fall through to FUNCTION-CALL mode.
         Otherwise use FUNCTION-CALL MODE:
           - Identify the target function: it is the function whose name closely matches the problem title (camelCase/snake_case variants like twoSum/two_sum; reverseList/reverse_list; isPalindrome/is_palindrome; maxSubArray/max_sub_array). If multiple candidates exist, prefer the one declared at module scope with parameters matching the test case input shape. For class-based problems (LeetCode style), call e.g. Solution().twoSum(...) / new Solution().twoSum(...).
