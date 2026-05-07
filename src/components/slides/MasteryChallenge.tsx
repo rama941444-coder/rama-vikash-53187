@@ -593,7 +593,7 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
   const [solved, setSolved] = useState<(QItem&{company:string;level:string;lang:string;time:string})[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [showSolution, setShowSolution] = useState(false);
-  const [tcResults, setTcResults] = useState<{pass:boolean;got:string;input?:string;expected?:string;actual?:string;error?:string;execMs?:string}[]>([]);
+  const [tcResults, setTcResults] = useState<{pass:boolean;got:string;input?:string;expected?:string;actual?:string;error?:string;execMs?:string;mode?:string;detectionReason?:string}[]>([]);
   const [replayOpen, setReplayOpen] = useState<number|null>(null);
   const [analysisVis, setAnalysisVis] = useState(false);
   const [timer, setTimer] = useState({h:'00',m:'00',s:'00'});
@@ -919,6 +919,8 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
               actual: r.actualOutput ?? '',
               error: r.error ?? '',
               execMs: r.executionTime ?? '',
+              mode: r.mode ?? '',
+              detectionReason: r.detectionReason ?? '',
             }));
             setTcResults(results);
           } else {
@@ -1010,6 +1012,8 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
           actual: r.actualOutput ?? '',
           error: r.error ?? '',
           execMs: r.executionTime ?? '',
+          mode: r.mode ?? '',
+          detectionReason: r.detectionReason ?? '',
         })));
         setAnalysisVis(true);
 
