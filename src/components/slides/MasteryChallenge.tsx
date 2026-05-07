@@ -636,6 +636,28 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
     tick(); const iv=setInterval(tick,1000); return()=>clearInterval(iv);
   },[]);
 
+  // Restore shared replay from URL hash (#replay=<base64-json>)
+  useEffect(()=>{
+    try {
+      const m = window.location.hash.match(/replay=([^&]+)/);
+      if (!m) return;
+      const json = decodeURIComponent(escape(atob(m[1])));
+      const data = JSON.parse(json);
+      if (!data?.results || !Array.isArray(data.results)) return;
+      setPage('practice');
+      setTcResults(data.results.map((r:any)=>({
+        pass: !!r.pass,
+        got: r.pass ? (r.expected||'') : (r.actual||r.error||'Wrong Answer'),
+        input: r.stdin||'', expected: r.expected||'', actual: r.actual||'',
+        error: r.error||'', execMs: r.execMs||'', mode: r.mode||'', detectionReason: r.detectionReason||''
+      })));
+      setReplayOpen(0);
+      setAnalysisVis(true);
+      toast({title:'🔁 Replay restored from share link',description:data.question||''});
+    } catch (e) { console.warn('replay hash parse failed', e); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[]);
+
   // Load user and progress from database
   useEffect(() => {
     const loadUserProgress = async () => {
