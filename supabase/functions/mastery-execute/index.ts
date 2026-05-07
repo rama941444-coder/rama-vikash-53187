@@ -101,13 +101,42 @@ JUDGING PROTOCOL:
    a. Reset state. Decide EXECUTION MODE:
       EXECUTION MODE DETECTION (be strict — only use STDIN mode when the code TRULY reads input):
         STDIN MODE requires ALL of:
-          - The code contains an actual stdin read call that is reachable (not inside a commented block, not inside an unused function): Python input()/sys.stdin.read()/sys.stdin.readline()/raw_input(); C scanf/fscanf(stdin)/getchar/gets/fgets(...,stdin)/read(0,...); C++ std::cin>>/getline(cin,...)/scanf; Java new Scanner(System.in) followed by .next/.nextInt/.nextLine, BufferedReader(InputStreamReader(System.in)).readLine, or System.in.read; JavaScript/Node process.stdin / readline.createInterface({input:process.stdin}) / require('fs').readFileSync(0); Go bufio.NewReader(os.Stdin)/fmt.Scan/Scanln/Scanf; Rust std::io::stdin().read_line / .lock().lines(); Ruby gets/STDIN.read/$stdin; PHP fgets(STDIN)/file_get_contents("php://stdin"); Bash read; Kotlin readLine()/Scanner; Swift readLine(); C# Console.ReadLine/Console.In.
-          - AND the code has a driver (Python: top-level statements that call the read or an if __name__=='__main__' block; C/C++: int main; Java: public static void main; Go: func main; Rust: fn main; JS: top-level code; etc.).
+          - A REACHABLE stdin read call (not inside a commented block, not inside a never-called helper). Per-language patterns:
+              Python: input(), sys.stdin.read/readline/readlines, raw_input, fileinput.input
+              C: scanf, fscanf(stdin,...), getchar, gets, fgets(...,stdin), read(0,...), getline(&,&,stdin)
+              C++: std::cin>>, getline(cin,...), scanf
+              Java: new Scanner(System.in) followed by .next*/.hasNext*; new BufferedReader(new InputStreamReader(System.in)).readLine; System.in.read; Console.readLine
+              JavaScript/Node: process.stdin.on('data'), readline.createInterface({input:process.stdin}), require('fs').readFileSync(0|'/dev/stdin'), prompt() in V8 shell
+              Go: bufio.NewReader(os.Stdin), bufio.NewScanner(os.Stdin), fmt.Scan/Scanln/Scanf/Fscan(os.Stdin,...)
+              Rust: std::io::stdin().read_line, .lock().lines(), .read_to_string
+              Ruby: gets, STDIN.read/gets, $stdin.read, ARGF.read
+              PHP: fgets(STDIN), file_get_contents("php://stdin"), readline()
+              Bash/Shell: read VAR, while IFS= read
+              Kotlin: readLine(), Scanner(System.\`in\`)
+              Swift: readLine()
+              C#: Console.ReadLine, Console.In.ReadToEnd
+          - AND a REAL DRIVER that actually executes the read. Per-language driver detection (REQUIRED):
+              Python: top-level statements that reach the read OR an \`if __name__ == '__main__':\` block that does. A bare \`def\` with input() inside that nobody calls is NOT a driver.
+              C / C++: \`int main(\` or \`int main (\` (with arg list) — body must reach the read call.
+              Java: a method whose signature matches \`public static void main(String[\\s\\S]*?)\` (handles String[] args, String args[], String... args). Class can be any name.
+              Go: \`func main()\` in package main.
+              Rust: \`fn main()\`.
+              JavaScript/Node: top-level code that runs (anything outside function definitions); or a \`module.exports\`-style file that is invoked; or \`require('readline')\` setup at top level. CommonJS/ESM wrappers (\`(function(require,module,exports){...})\`) DO count as top-level driver if the wrapped body reaches the read.
+              Ruby: top-level code reaching gets, or \`if __FILE__ == $0\`.
+              Bash: top-level commands.
+              C#: \`static void Main(\`, \`static int Main(\`, \`static async Task Main(\` — any access modifier.
+              Kotlin: \`fun main(\` (with or without args).
+              Swift: top-level code in main.swift, or \`@main\` struct/class with \`static func main()\`.
+              PHP: top-level code outside function/class.
+          - If the read primitive exists ONLY inside a function that is never called from a driver, this is NOT stdin mode — fall through to FUNCTION-CALL mode.
         Otherwise use FUNCTION-CALL MODE:
           - Identify the target function: it is the function whose name closely matches the problem title (camelCase/snake_case variants like twoSum/two_sum; reverseList/reverse_list; isPalindrome/is_palindrome; maxSubArray/max_sub_array). If multiple candidates exist, prefer the one declared at module scope with parameters matching the test case input shape. For class-based problems (LeetCode style), call e.g. Solution().twoSum(...) / new Solution().twoSum(...).
           - Parse the test case "input" as the function ARGUMENT LIST. Inputs are usually written as comma-separated literal values, e.g. "[2,7,11,15], 9" -> args = ([2,7,11,15], 9). If the input is a single JSON value, pass it as the single argument. Use the language's literal grammar (Python list/tuple/dict, JS array/object) to parse.
           - Capture the function's RETURN VALUE and stringify per the language's default repr — see RETURN VALUE FORMATTING RULES below.
         HYBRID GUARD: if BOTH a main/driver AND a candidate target function exist, prefer the main+stdin path ONLY when the test case input is plain-text (no Python/JS literal syntax). If the input contains [, {, or commas at the top level, switch to FUNCTION-CALL mode and pass the parsed literal to the target function. NEVER pass literal-syntax test inputs as raw bytes to a stdin reader expecting whitespace-separated tokens.
+
+      DEBUG TRACE (REQUIRED per test case):
+        For every test case, populate "mode" with exactly "STDIN" or "FUNCTION-CALL" and "detectionReason" with a one-sentence justification that names the matched pattern (e.g. "Python input() at line 4 reached from top-level driver", "no reachable stdin read; called twoSum(nums, target) directly", "main+input present but tc input is JSON literal — switched to FUNCTION-CALL"). Never leave these fields empty.
 
       RETURN VALUE FORMATTING RULES (must match the language's native repr exactly so that comparisons against expectedOutput are predictable):
         - Python: use repr() for lists/tuples/dicts/sets — e.g. [0, 1] (with space after comma), (1, 2), {'a': 1}, {1, 2}. Strings: 'hello' (single quotes). None -> 'None'. True/False capitalized. Floats: Python's default repr (e.g. 1.0 stays 1.0, not 1).
@@ -155,7 +184,9 @@ Return STRICT JSON ONLY:
       "actualOutput": "exact output your simulation produced",
       "passed": boolean,
       "executionTime": "ms as string",
-      "error": "error message or empty string"
+      "error": "error message or empty string",
+      "mode": "STDIN"|"FUNCTION-CALL",
+      "detectionReason": "short justification"
     }
   ],
   "allPassed": boolean,
