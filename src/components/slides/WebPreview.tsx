@@ -2,8 +2,6 @@ import { useState, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Monitor, Smartphone, Tablet, RefreshCw, ExternalLink, Copy, Maximize2, Minimize2, Rocket, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import DOMPurify from 'dompurify';
-import HtmlPreviewFrame from './HtmlPreviewFrame';
 
 interface WebPreviewProps {
   htmlCode?: string;
