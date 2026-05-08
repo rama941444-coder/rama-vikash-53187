@@ -28,6 +28,20 @@ const Index = () => {
   // Web preview code - extracted from analysis results
   const [webPreviewCode, setWebPreviewCode] = useState('');
 
+  // Extract pure HTML/CSS/JS from AI output that may be wrapped in
+  // markdown fences or prose like "COMPLETE corrected code in TEXT format:"
+  const extractWebCode = (raw: string): string => {
+    if (!raw) return '';
+    let s = raw;
+    // Prefer fenced block (```html / ```)
+    const fence = s.match(/```(?:html|HTML|markup)?\s*([\s\S]*?)```/);
+    if (fence && fence[1]) s = fence[1];
+    // If still has prose before the doctype/html/body tag, slice from there
+    const idx = s.search(/<!DOCTYPE html|<html[\s>]|<body[\s>]/i);
+    if (idx > 0) s = s.slice(idx);
+    return s.trim();
+  };
+
   useEffect(() => {
     // Check authentication
     const checkAuth = async () => {
@@ -57,6 +71,7 @@ const Index = () => {
 
   // Check if code is web development (HTML/CSS/JS)
   const isWebCode = (code: string): boolean => {
+    if (!code) return false;
     return code.includes('<html') || 
            code.includes('<!DOCTYPE') || 
            code.includes('<body') ||
@@ -75,10 +90,12 @@ const Index = () => {
         onAnalysisComplete={(data) => {
           setAnalysisData(data);
           // Check if it's web code and set preview
-          if (data?.correctedCode && isWebCode(data.correctedCode)) {
-            setWebPreviewCode(data.correctedCode);
-          } else if (codeInputCode && isWebCode(codeInputCode)) {
-            setWebPreviewCode(codeInputCode);
+          const corrected = extractWebCode(data?.correctedCode || '');
+          const original  = extractWebCode(codeInputCode || '');
+          if (corrected && isWebCode(corrected)) {
+            setWebPreviewCode(corrected);
+          } else if (original && isWebCode(original)) {
+            setWebPreviewCode(original);
           }
           setCurrentSlide(2);
         }}
@@ -94,18 +111,16 @@ const Index = () => {
         onAnalysisComplete={(data) => {
           setAnalysisData(data);
           // Check if it's web code and set preview
-          if (liveCodeIDECode && isWebCode(liveCodeIDECode)) {
-            setWebPreviewCode(liveCodeIDECode);
-          }
+          const live = extractWebCode(liveCodeIDECode || '');
+          if (live && isWebCode(live)) setWebPreviewCode(live);
           // Don't navigate to slide 3 - keep in slide 5 with output console
         }}
         persistedCode={liveCodeIDECode}
         onCodeChange={(code) => {
           setLiveCodeIDECode(code);
           // Auto-update web preview if it's HTML
-          if (isWebCode(code)) {
-            setWebPreviewCode(code);
-          }
+          const extracted = extractWebCode(code);
+          if (isWebCode(extracted)) setWebPreviewCode(extracted);
         }}
       />, 
       title: "Live Code IDE" 
