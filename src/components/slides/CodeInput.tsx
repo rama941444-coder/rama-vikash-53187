@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import DOMPurify from 'dompurify';
 import LanguageSelector from '@/components/LanguageSelector';
 import EnhancedCodeEditor from '@/components/EnhancedCodeEditor';
+import HtmlPreviewFrame from './HtmlPreviewFrame';
 
 interface CodeInputProps {
   onAnalysisComplete: (data: any) => void;
