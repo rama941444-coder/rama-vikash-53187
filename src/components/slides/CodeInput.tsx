@@ -548,18 +548,7 @@ const CodeInput = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: Cod
             return (
               <div className="analysis-box-dark">
                 <h3 className="font-semibold text-lg mb-2">HTML Preview</h3>
-                <div className="bg-white rounded-lg p-4">
-                  <iframe 
-                    srcDoc={DOMPurify.sanitize(cleaned, { 
-                      WHOLE_DOCUMENT: true,
-                      ADD_TAGS: ['style', 'link', 'script'],
-                      ADD_ATTR: ['target', 'rel', 'onclick', 'onload', 'onchange', 'onsubmit', 'onkeydown', 'onkeyup', 'onmousedown', 'onmouseup', 'onmousemove']
-                    })}
-                    className="w-full min-h-[400px] border-0 rounded"
-                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-pointer-lock"
-                    title="HTML Preview"
-                  />
-                </div>
+                <HtmlPreviewFrame html={cleaned} title="HTML Preview" minHeight={420} />
               </div>
             );
           })()}
