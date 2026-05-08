@@ -17,6 +17,19 @@ const DiagnosticResults = ({ data }: DiagnosticResultsProps) => {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const { toast } = useToast();
 
+  // Strip markdown fences / prose so iframe gets pure HTML/CSS/JS
+  const extractWebCode = (raw: string): string => {
+    if (!raw) return '';
+    let s = raw;
+    const fence = s.match(/```(?:html|HTML|markup)?\s*([\s\S]*?)```/);
+    if (fence && fence[1]) s = fence[1];
+    const idx = s.search(/<!DOCTYPE html|<html[\s>]|<body[\s>]/i);
+    if (idx > 0) s = s.slice(idx);
+    return s.trim();
+  };
+  const webCode = extractWebCode(data?.correctedCode || '');
+  const hasWebPreview = !!webCode && (/<html|<!DOCTYPE|<body|<div|<script|<style/i).test(webCode);
+
   if (!data) {
     return (
       <div className="text-center py-16">
@@ -250,7 +263,7 @@ const DiagnosticResults = ({ data }: DiagnosticResultsProps) => {
         {/* Light Blue Box - Flowchart, DSA & HTML Preview */}
         {((data.flowchart && data.flowchart.trim() !== '') || 
           (data.dsa && data.dsa.trim() !== '') || 
-          (data.correctedCode && (data.correctedCode.includes('<html') || data.correctedCode.includes('<!DOCTYPE')))) && (
+          hasWebPreview) && (
           <div className="analysis-box-cyan">
             <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
               <span className="w-3 h-3 bg-cyan-500 rounded-full"></span>
@@ -279,25 +292,25 @@ const DiagnosticResults = ({ data }: DiagnosticResultsProps) => {
                     {data.dsa}
                   </pre>
                 </div>
-                {(data.correctedCode && (data.correctedCode.includes('<html') || data.correctedCode.includes('<!DOCTYPE'))) && (
+                {hasWebPreview && (
                   <div className="my-4 border-t-2 border-dotted border-cyan-400/50"></div>
                 )}
               </div>
             )}
 
             {/* HTML Preview Section */}
-            {data.correctedCode && (data.correctedCode.includes('<html') || data.correctedCode.includes('<!DOCTYPE')) && (
+            {hasWebPreview && (
               <div>
                 <h4 className="text-md font-semibold mb-2">HTML/CSS/JavaScript Preview</h4>
                 <div className="bg-white rounded-lg p-4 border-l-4 border-cyan-400">
                   <iframe 
-                    srcDoc={DOMPurify.sanitize(data.correctedCode, { 
+                    srcDoc={DOMPurify.sanitize(webCode, { 
                       WHOLE_DOCUMENT: true,
-                      ADD_TAGS: ['style', 'link'],
-                      ADD_ATTR: ['target', 'rel']
+                      ADD_TAGS: ['style', 'link', 'script'],
+                      ADD_ATTR: ['target', 'rel', 'onclick', 'onload', 'onchange', 'onsubmit', 'onkeydown', 'onkeyup', 'onmousedown', 'onmouseup', 'onmousemove']
                     })}
                     className="w-full min-h-[400px] border-0 rounded"
-                    sandbox="allow-scripts"
+                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-pointer-lock"
                     title="HTML Preview"
                   />
                 </div>
