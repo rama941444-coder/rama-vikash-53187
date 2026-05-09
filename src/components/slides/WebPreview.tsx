@@ -2,6 +2,7 @@ import { useState, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Monitor, Smartphone, Tablet, RefreshCw, ExternalLink, Copy, Maximize2, Minimize2, Rocket, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import DOMPurify from 'dompurify';
 
 interface WebPreviewProps {
   htmlCode?: string;
@@ -42,9 +43,14 @@ const WebPreview = ({ htmlCode = '', cssCode = '', jsCode = '', combinedCode = '
       }
     }
 
-    // Skip DOMPurify — it strips inline handlers/<script> bodies and breaks
-    // games & interactive demos. The iframe sandbox already isolates user code.
-    return html;
+    const sanitized = DOMPurify.sanitize(html, {
+      WHOLE_DOCUMENT: true,
+      ADD_TAGS: ['style', 'link', 'script'],
+      ADD_ATTR: ['target', 'rel', 'onclick', 'onload'],
+      FORCE_BODY: true,
+    });
+
+    return sanitized;
   }, [htmlCode, cssCode, jsCode, combinedCode]);
 
   const getViewportWidth = () => {
@@ -301,7 +307,7 @@ const WebPreview = ({ htmlCode = '', cssCode = '', jsCode = '', combinedCode = '
             key={key}
             srcDoc={previewContent}
             className="w-full h-full border-0"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-pointer-lock allow-downloads"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
             title="Web Preview"
           />
         </div>

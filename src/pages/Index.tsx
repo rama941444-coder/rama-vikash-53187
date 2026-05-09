@@ -36,15 +36,10 @@ const Index = () => {
     // Prefer fenced block (```html / ```)
     const fence = s.match(/```(?:html|HTML|markup)?\s*([\s\S]*?)```/);
     if (fence && fence[1]) s = fence[1];
-    // Strip common AI prose prefixes
-    s = s.replace(/^\s*(?:COMPLETE\s+)?corrected\s+code(?:\s+in\s+TEXT\s+format)?\s*:\s*-?\s*/i, '');
-    // If still has prose before any HTML-ish tag, slice from there
-    const idx = s.search(/<!DOCTYPE html|<html[\s>]|<body[\s>]|<head[\s>]|<div[\s>]|<style[\s>]|<script[\s>]/i);
+    // If still has prose before the doctype/html/body tag, slice from there
+    const idx = s.search(/<!DOCTYPE html|<html[\s>]|<body[\s>]/i);
     if (idx > 0) s = s.slice(idx);
-    s = s.trim();
-    // If after stripping there's still no HTML tag at all, return empty so we fall back to original
-    if (!/<[a-zA-Z!][^>]*>/.test(s)) return '';
-    return s;
+    return s.trim();
   };
 
   useEffect(() => {
@@ -94,16 +89,13 @@ const Index = () => {
       component: <CodeInput 
         onAnalysisComplete={(data) => {
           setAnalysisData(data);
-          // Prefer the user's original input for preview; only use corrected
-          // if the original isn't HTML but the corrected is.
-          const original  = extractWebCode(codeInputCode || '');
+          // Check if it's web code and set preview
           const corrected = extractWebCode(data?.correctedCode || '');
-          if (original && isWebCode(original)) {
-            setWebPreviewCode(original);
-          } else if (corrected && isWebCode(corrected)) {
+          const original  = extractWebCode(codeInputCode || '');
+          if (corrected && isWebCode(corrected)) {
             setWebPreviewCode(corrected);
-          } else {
-            setWebPreviewCode('');
+          } else if (original && isWebCode(original)) {
+            setWebPreviewCode(original);
           }
           setCurrentSlide(2);
         }}
