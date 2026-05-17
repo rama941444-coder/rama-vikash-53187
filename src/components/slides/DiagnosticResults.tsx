@@ -7,6 +7,7 @@ import jsPDF from 'jspdf';
 import NarrationControls from '@/components/NarrationControls';
 import AITeacherAnimation from '@/components/AITeacherAnimation';
 import DOMPurify from 'dompurify';
+import HtmlPreviewFrame from './HtmlPreviewFrame';
 
 interface DiagnosticResultsProps {
   data: any;
@@ -302,17 +303,8 @@ const DiagnosticResults = ({ data }: DiagnosticResultsProps) => {
             {hasWebPreview && (
               <div>
                 <h4 className="text-md font-semibold mb-2">HTML/CSS/JavaScript Preview</h4>
-                <div className="bg-white rounded-lg p-4 border-l-4 border-cyan-400">
-                  <iframe 
-                    srcDoc={DOMPurify.sanitize(webCode, { 
-                      WHOLE_DOCUMENT: true,
-                      ADD_TAGS: ['style', 'link', 'script'],
-                      ADD_ATTR: ['target', 'rel', 'onclick', 'onload', 'onchange', 'onsubmit', 'onkeydown', 'onkeyup', 'onmousedown', 'onmouseup', 'onmousemove']
-                    })}
-                    className="w-full min-h-[400px] border-0 rounded"
-                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-pointer-lock"
-                    title="HTML Preview"
-                  />
+                <div className="border-l-4 border-cyan-400 pl-4">
+                  <HtmlPreviewFrame html={webCode} title="HTML Preview" minHeight={420} />
                 </div>
               </div>
             )}
