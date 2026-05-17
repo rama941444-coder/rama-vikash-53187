@@ -446,16 +446,6 @@ export const PROGRAMMING_LANGUAGES = [
   { value: 'TinyOS', category: 'Embedded' },
   { value: 'mbed', category: 'Embedded' },
   { value: 'Node-RED', category: 'Embedded' },
-  { value: 'MQTT', category: 'Embedded' },
-  { value: 'CoAP', category: 'Embedded' },
-  { value: 'Modbus', category: 'Embedded' },
-  { value: 'CAN Bus', category: 'Embedded' },
-  { value: 'I2C', category: 'Embedded' },
-  { value: 'SPI', category: 'Embedded' },
-  { value: 'UART', category: 'Embedded' },
-  { value: 'GPIO', category: 'Embedded' },
-  { value: 'PWM', category: 'Embedded' },
-  { value: 'ADC/DAC', category: 'Embedded' },
   
   // Historical & Educational
   { value: 'BASIC', category: 'Historical' },
