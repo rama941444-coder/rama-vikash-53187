@@ -824,6 +824,42 @@ export const PROGRAMMING_LANGUAGES = [
   { value: 'VisualG', category: 'Regional' },
   { value: 'Algobox', category: 'Regional' },
   { value: 'DRAKON', category: 'Regional' },
+  // ===== Online Compiler / Runtime Variants =====
+  { value: 'NodeJS', category: 'Runtime' },
+  { value: 'Deno', category: 'Runtime' },
+  { value: 'Bun', category: 'Runtime' },
+  { value: 'JShell', category: 'Runtime' },
+  { value: 'Python2', category: 'Runtime' },
+  // ===== Additional Languages =====
+  { value: 'Groovy', category: 'JVM' },
+  { value: 'CommonLisp', category: 'Functional' },
+  { value: 'D', category: 'Systems' },
+  { value: 'R', category: 'Data' },
+  { value: 'Raku', category: 'Scripting' },
+  { value: 'Icon', category: 'Scripting' },
+  { value: 'ISPC', category: 'Systems' },
+  { value: 'BrainFK', category: 'Esoteric' },
+  { value: 'CoffeeScript', category: 'Web' },
+  // ===== CSS / JS Frameworks =====
+  { value: 'Materialize', category: 'Web' },
+  { value: 'HTMX', category: 'Web' },
+  { value: 'Alpine.js', category: 'Web' },
+  { value: 'Chart.js', category: 'Web' },
+  { value: 'D3.js', category: 'Web' },
+  { value: 'JQuery', category: 'Web' },
+  { value: 'Foundation', category: 'Web' },
+  { value: 'Bulma', category: 'Web' },
+  { value: 'Uikit', category: 'Web' },
+  { value: 'Semantic UI', category: 'Web' },
+  { value: 'Skeleton', category: 'Web' },
+  { value: 'Milligram', category: 'Web' },
+  { value: 'PaperCSS', category: 'Web' },
+  { value: 'BackboneJS', category: 'Web' },
+  // ===== Databases =====
+  { value: 'QuestDB', category: 'Database' },
+  { value: 'SurrealDB', category: 'Database' },
+  { value: 'Firebird', category: 'Database' },
+  { value: 'ClickHouse', category: 'Database' },
 ];
 
 // Get unique categories for grouping
