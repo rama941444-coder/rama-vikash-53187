@@ -21,12 +21,14 @@ interface LanguageSelectorProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  detectedLanguage?: string | null;
 }
 
 const LanguageSelector = ({ 
   value, 
   onChange, 
-  placeholder = "Select language..." 
+  placeholder = "Select language...",
+  detectedLanguage,
 }: LanguageSelectorProps) => {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -45,7 +47,10 @@ const LanguageSelector = ({
   // Get display label for selected value
   const selectedLanguage = PROGRAMMING_LANGUAGES.find(lang => lang.value === value);
 
+  const isAuto = !value || value === 'Auto-Detect';
+
   return (
+    <div className="w-full space-y-1">
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
@@ -143,6 +148,17 @@ const LanguageSelector = ({
         </Command>
       </PopoverContent>
     </Popover>
+      {isAuto && detectedLanguage && (
+        <button
+          type="button"
+          onClick={() => onChange(detectedLanguage)}
+          className="text-xs text-primary hover:underline"
+          title="Use detected language"
+        >
+          Detected: <span className="font-medium">{detectedLanguage}</span> — click to use
+        </button>
+      )}
+    </div>
   );
 };
 
