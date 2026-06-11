@@ -5,6 +5,7 @@ import { useToast } from '@/hooks/use-toast';
 import LanguageSelector from '@/components/LanguageSelector';
 import { supabase } from '@/integrations/supabase/client';
 import { treeSitterService, type TreeSitterError } from '@/lib/treeSitterService';
+import { detectLanguage, isAutoDetect } from '@/lib/languageDetect';
 
 interface LiveCodeIDEProps {
   onAnalysisComplete: (data: any) => void;
@@ -59,6 +60,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
   const [waitingForInput, setWaitingForInput] = useState(false);
   const [userInput, setUserInput] = useState('');
   const [inputPrompt, setInputPrompt] = useState('');
+  const [detected, setDetected] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lineNumbersRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -90,6 +92,15 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       onCodeChange(code);
     }
   }, [code, onCodeChange, persistedCode]);
+
+  // Auto-detect language from notepad content (debounced)
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (isAutoDetect(language)) setDetected(detectLanguage(code));
+      else setDetected(null);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [code, language]);
 
   const lines = code.split('\n');
   const lineCount = lines.length;
