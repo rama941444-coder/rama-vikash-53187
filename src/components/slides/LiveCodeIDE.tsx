@@ -1166,6 +1166,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
             value={language} 
             onChange={setLanguage}
             placeholder="Auto-Detect"
+            detectedLanguage={detected}
           />
         </div>
         <div className="flex-1">
