@@ -229,7 +229,7 @@ const CodeInput = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: Cod
       const { data, error } = await supabase.functions.invoke('analyze-code', {
         body: {
           code: code || '',
-          language,
+          language: isAutoDetect(language) && detected ? detected : language,
           files: filesData,
           fileData: fileData
         }
