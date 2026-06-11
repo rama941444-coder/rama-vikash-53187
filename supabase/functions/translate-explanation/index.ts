@@ -12,7 +12,11 @@ const RequestSchema = z.object({
     'English', 'Hindi', 'Telugu', 'Tamil', 'Kannada', 'Malayalam', 'Bengali',
     'Gujarati', 'Marathi', 'Punjabi', 'Odia', 'Assamese', 'Urdu', 'Sanskrit',
     'Nepali', 'Konkani', 'Maithili', 'Sindhi', 'Kashmiri', 'Manipuri', 'Bodo',
-    'Santali', 'Dogri'
+    'Santali', 'Dogri',
+    // Foreign languages
+    'Spanish', 'French', 'German', 'Portuguese', 'Italian', 'Russian',
+    'Arabic', 'Chinese', 'Japanese', 'Korean', 'Turkish', 'Vietnamese',
+    'Indonesian', 'Thai', 'Dutch', 'Polish', 'Swedish'
   ])
 });
 
