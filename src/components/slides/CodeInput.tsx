@@ -7,6 +7,7 @@ import DOMPurify from 'dompurify';
 import LanguageSelector from '@/components/LanguageSelector';
 import EnhancedCodeEditor from '@/components/EnhancedCodeEditor';
 import HtmlPreviewFrame from './HtmlPreviewFrame';
+import { detectLanguage, isAutoDetect } from '@/lib/languageDetect';
 
 interface CodeInputProps {
   onAnalysisComplete: (data: any) => void;
@@ -23,6 +24,7 @@ const CodeInput = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: Cod
   const [extracting, setExtracting] = useState(false);
   const [generatingCode, setGeneratingCode] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const [detected, setDetected] = useState<string | null>(null);
   const { toast } = useToast();
 
   // Sync with persisted code when it changes
@@ -38,6 +40,15 @@ const CodeInput = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: Cod
       onCodeChange(code);
     }
   }, [code, onCodeChange, persistedCode]);
+
+  // Auto-detect language from notepad content (debounced)
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (isAutoDetect(language)) setDetected(detectLanguage(code));
+      else setDetected(null);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [code, language]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const uploadedFiles = Array.from(e.target.files || []);
@@ -282,6 +293,7 @@ const CodeInput = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: Cod
             value={language} 
             onChange={setLanguage}
             placeholder="Auto-Detect"
+            detectedLanguage={detected}
           />
         </div>
 
