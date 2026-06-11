@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Upload, FileText, Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -8,6 +8,8 @@ import { parseDocument } from '@/lib/documentParser';
 import NarrationControls from '@/components/NarrationControls';
 import AITeacherAnimation from '@/components/AITeacherAnimation';
 import LanguageSelector from '@/components/LanguageSelector';
+import TranslatableErrorBox from '@/components/TranslatableErrorBox';
+import { detectLanguage, isAutoDetect } from '@/lib/languageDetect';
 // @ts-ignore - Vite resolves this to a URL string for the worker file
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
 
@@ -42,7 +44,15 @@ const UniversalAnalyzer = () => {
   const [language, setLanguage] = useState('Auto-Detect');
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const [detected, setDetected] = useState<string | null>(null);
   const { toast } = useToast();
+
+  // Auto-detect language from extracted text content of files (when result is in)
+  useEffect(() => {
+    if (!isAutoDetect(language)) { setDetected(null); return; }
+    const sample = (result?.correctedCode || result?.analysis || '').slice(0, 4000);
+    setDetected(detectLanguage(sample));
+  }, [result, language]);
 
   const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -268,6 +278,7 @@ const UniversalAnalyzer = () => {
             value={language} 
             onChange={setLanguage}
             placeholder="Auto-Detect"
+            detectedLanguage={detected}
           />
         </div>
 
@@ -293,10 +304,10 @@ const UniversalAnalyzer = () => {
 
       {result && (
         <div className="grid gap-4 mt-8">
-          <div className="analysis-box-red">
-            <h3 className="font-semibold text-lg mb-2">Analysis Report</h3>
-            <pre className="whitespace-pre-wrap text-sm">{result.analysis}</pre>
-          </div>
+          <TranslatableErrorBox
+            title="Analysis Report"
+            originalText={result.analysis || 'No analysis available'}
+          />
           
           <div className="analysis-box-green">
             <h3 className="font-semibold text-lg mb-2">✅ Corrected Code</h3>
