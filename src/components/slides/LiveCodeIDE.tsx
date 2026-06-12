@@ -1284,7 +1284,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
           </div>
 
           {/* Highlight overlay + Text Area */}
-          <div className="flex-1 relative" style={{ minWidth: 0 }}>
+          <div className="flex-1 relative bg-[#1a1a2e]" style={{ minWidth: 0 }}>
             <HighlightedOverlay
               ref={overlayRef}
               code={code}
