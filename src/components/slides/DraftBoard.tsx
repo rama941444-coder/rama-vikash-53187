@@ -766,6 +766,25 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const point = getCanvasPoint(e);
 
+    // DRAW TAB: pen/eraser always wins — skip all flowchart hit-tests
+    if (activeTab === 'draw') {
+      setIsDrawing(true);
+      lastPointRef.current = point;
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = thickness;
+        if (mode === 'pen') { ctx.globalCompositeOperation = 'source-over'; ctx.strokeStyle = color; }
+        else { ctx.globalCompositeOperation = 'destination-out'; }
+        ctx.beginPath();
+        ctx.moveTo(point.x, point.y);
+      }
+      return;
+    }
+
     // Check if clicking on a connection port to drag-connect
     if (activeTab === 'flowchart') {
       const portHit = hitTestPort(point.x, point.y);
