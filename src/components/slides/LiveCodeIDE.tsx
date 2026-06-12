@@ -6,6 +6,7 @@ import LanguageSelector from '@/components/LanguageSelector';
 import { supabase } from '@/integrations/supabase/client';
 import { treeSitterService, type TreeSitterError } from '@/lib/treeSitterService';
 import { detectLanguage, isAutoDetect } from '@/lib/languageDetect';
+import { HighlightedOverlay } from '@/lib/syntaxHighlight';
 
 interface LiveCodeIDEProps {
   onAnalysisComplete: (data: any) => void;
@@ -63,6 +64,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
   const [detected, setDetected] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lineNumbersRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLPreElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { toast } = useToast();
