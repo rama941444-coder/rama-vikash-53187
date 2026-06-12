@@ -386,7 +386,7 @@ const EnhancedCodeEditor = ({
         </div>
 
         {/* Highlight overlay + Text Area */}
-        <div className="flex-1 relative" style={{ minWidth: 0 }}>
+        <div className="flex-1 relative bg-[#1e1e1e]" style={{ minWidth: 0 }}>
           <HighlightedOverlay
             ref={overlayRef}
             code={value}
