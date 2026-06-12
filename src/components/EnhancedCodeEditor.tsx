@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Maximize2, Minimize2, Copy, Trash2, FileDown, Type } from 'lucide-react';
+import { Maximize2, Minimize2, Copy, Trash2, FileDown, Type, Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import jsPDF from 'jspdf';
@@ -9,6 +9,8 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
+import { HighlightedOverlay } from '@/lib/syntaxHighlight';
 
 const FONT_FAMILIES = [
   { label: 'Consolas', value: 'Consolas, Monaco, "Courier New", monospace' },
@@ -23,13 +25,15 @@ interface EnhancedCodeEditorProps {
   onChange: (value: string) => void;
   placeholder?: string;
   maxLines?: number;
+  language?: string;
 }
 
 const EnhancedCodeEditor = ({ 
   value, 
   onChange, 
   placeholder = "// Start typing your code here...\n// This editor supports up to 300,000 lines",
-  maxLines = 300000 
+  maxLines = 300000,
+  language,
 }: EnhancedCodeEditorProps) => {
   const [isMinimized, setIsMinimized] = useState(false);
   const [cursorPosition, setCursorPosition] = useState({ line: 1, column: 1 });
@@ -40,8 +44,20 @@ const EnhancedCodeEditor = ({
   const [fontFamily, setFontFamily] = useState<string>(() => {
     return localStorage.getItem('notepad.fontFamily') || FONT_FAMILIES[0].value;
   });
+  // PDF settings
+  const [pdfPageSize, setPdfPageSize] = useState<'a4' | 'letter' | 'legal'>(
+    (localStorage.getItem('pdf.pageSize') as 'a4' | 'letter' | 'legal') || 'a4'
+  );
+  const [pdfFontScale, setPdfFontScale] = useState<number>(() => {
+    const v = Number(localStorage.getItem('pdf.fontScale'));
+    return v >= 6 && v <= 16 ? v : 9;
+  });
+  const [pdfLineNumbers, setPdfLineNumbers] = useState<boolean>(
+    localStorage.getItem('pdf.lineNumbers') !== '0'
+  );
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lineNumbersRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLPreElement>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -50,6 +66,9 @@ const EnhancedCodeEditor = ({
   useEffect(() => {
     localStorage.setItem('notepad.fontFamily', fontFamily);
   }, [fontFamily]);
+  useEffect(() => { localStorage.setItem('pdf.pageSize', pdfPageSize); }, [pdfPageSize]);
+  useEffect(() => { localStorage.setItem('pdf.fontScale', String(pdfFontScale)); }, [pdfFontScale]);
+  useEffect(() => { localStorage.setItem('pdf.lineNumbers', pdfLineNumbers ? '1' : '0'); }, [pdfLineNumbers]);
 
   const lineHeightPx = Math.round(fontSize * 1.5);
 
@@ -61,6 +80,10 @@ const EnhancedCodeEditor = ({
   const handleScroll = useCallback(() => {
     if (textareaRef.current && lineNumbersRef.current) {
       lineNumbersRef.current.scrollTop = textareaRef.current.scrollTop;
+    }
+    if (textareaRef.current && overlayRef.current) {
+      overlayRef.current.scrollTop = textareaRef.current.scrollTop;
+      overlayRef.current.scrollLeft = textareaRef.current.scrollLeft;
     }
   }, []);
 
@@ -188,17 +211,17 @@ const EnhancedCodeEditor = ({
 
   const downloadPDF = () => {
     try {
-      const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+      const doc = new jsPDF({ unit: 'pt', format: pdfPageSize });
       const pageHeight = doc.internal.pageSize.getHeight();
       const pageWidth = doc.internal.pageSize.getWidth();
       const margin = 36;
-      const lh = 12;
+      const lh = Math.round(pdfFontScale * 1.35);
       doc.setFont('courier', 'normal');
-      doc.setFontSize(9);
+      doc.setFontSize(pdfFontScale);
       let y = margin;
       const codeLines = value.split('\n');
       codeLines.forEach((ln, idx) => {
-        const prefix = String(idx + 1).padStart(4, ' ') + ' | ';
+        const prefix = pdfLineNumbers ? (String(idx + 1).padStart(4, ' ') + ' | ') : '';
         const wrapped = doc.splitTextToSize(prefix + (ln || ' '), pageWidth - margin * 2);
         wrapped.forEach((w: string) => {
           if (y > pageHeight - margin) { doc.addPage(); y = margin; }
@@ -289,10 +312,44 @@ const EnhancedCodeEditor = ({
             className="h-7 px-2 text-gray-400 hover:text-white hover:bg-[#3d3d3d]">
             <Copy className="w-3.5 h-3.5" />
           </Button>
-          <Button variant="ghost" size="sm" onClick={downloadPDF}
-            className="h-7 px-2 text-gray-400 hover:text-white hover:bg-[#3d3d3d]" title="Download as PDF">
-            <FileDown className="w-3.5 h-3.5" />
-          </Button>
+          <div className="flex items-center">
+            <Button variant="ghost" size="sm" onClick={downloadPDF}
+              className="h-7 px-2 text-gray-400 hover:text-white hover:bg-[#3d3d3d]" title="Download as PDF">
+              <FileDown className="w-3.5 h-3.5" />
+            </Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="sm" title="PDF settings"
+                  className="h-7 px-1 text-gray-400 hover:text-white hover:bg-[#3d3d3d]">
+                  <Settings2 className="w-3 h-3" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-3 space-y-3" align="end">
+                <div className="text-xs font-semibold">PDF Settings</div>
+                <div>
+                  <div className="text-xs mb-1">Page size</div>
+                  <select value={pdfPageSize}
+                    onChange={(e) => setPdfPageSize(e.target.value as 'a4' | 'letter' | 'legal')}
+                    className="w-full bg-background border border-border rounded px-2 py-1 text-xs">
+                    <option value="a4">A4</option>
+                    <option value="letter">Letter</option>
+                    <option value="legal">Legal</option>
+                  </select>
+                </div>
+                <div>
+                  <div className="text-xs mb-1 flex justify-between">
+                    <span>Font scale</span><span className="text-muted-foreground">{pdfFontScale}pt</span>
+                  </div>
+                  <Slider min={6} max={16} step={1} value={[pdfFontScale]}
+                    onValueChange={(v) => setPdfFontScale(v[0])} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs">Include line numbers</span>
+                  <Switch checked={pdfLineNumbers} onCheckedChange={setPdfLineNumbers} />
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
           <Button variant="ghost" size="sm" onClick={clearEditor}
             className="h-7 px-2 text-gray-400 hover:text-white hover:bg-[#3d3d3d]">
             <Trash2 className="w-3.5 h-3.5" />
@@ -328,8 +385,18 @@ const EnhancedCodeEditor = ({
           ))}
         </div>
 
-        {/* Text Area */}
-        <textarea
+        {/* Highlight overlay + Text Area */}
+        <div className="flex-1 relative bg-[#1e1e1e]" style={{ minWidth: 0 }}>
+          <HighlightedOverlay
+            ref={overlayRef}
+            code={value}
+            language={language}
+            fontFamily={fontFamily}
+            fontSize={fontSize}
+            lineHeight={1.5}
+            padding="8px"
+          />
+          <textarea
           ref={textareaRef}
           value={value}
           onChange={handleChange}
@@ -338,7 +405,7 @@ const EnhancedCodeEditor = ({
           onClick={updateCursorPosition}
           onKeyUp={updateCursorPosition}
           placeholder={placeholder}
-          className="flex-1 bg-[#1e1e1e] text-[#d4d4d4] p-2 resize-none outline-none overflow-auto"
+          className="absolute inset-0 w-full h-full bg-transparent text-transparent caret-white p-2 resize-none outline-none overflow-auto placeholder:text-gray-500"
           style={{ 
             fontFamily,
             fontSize: `${fontSize}px`,
@@ -350,7 +417,8 @@ const EnhancedCodeEditor = ({
           spellCheck={false}
           autoCapitalize="off"
           autoCorrect="off"
-        />
+          />
+        </div>
       </div>
 
       {/* Status Bar */}

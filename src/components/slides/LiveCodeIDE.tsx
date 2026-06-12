@@ -6,6 +6,7 @@ import LanguageSelector from '@/components/LanguageSelector';
 import { supabase } from '@/integrations/supabase/client';
 import { treeSitterService, type TreeSitterError } from '@/lib/treeSitterService';
 import { detectLanguage, isAutoDetect } from '@/lib/languageDetect';
+import { HighlightedOverlay } from '@/lib/syntaxHighlight';
 
 interface LiveCodeIDEProps {
   onAnalysisComplete: (data: any) => void;
@@ -63,6 +64,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
   const [detected, setDetected] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lineNumbersRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLPreElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { toast } = useToast();
@@ -734,6 +736,10 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     if (textareaRef.current && lineNumbersRef.current) {
       lineNumbersRef.current.scrollTop = textareaRef.current.scrollTop;
     }
+    if (textareaRef.current && overlayRef.current) {
+      overlayRef.current.scrollTop = textareaRef.current.scrollTop;
+      overlayRef.current.scrollLeft = textareaRef.current.scrollLeft;
+    }
   }, []);
 
   const updateCursorPosition = useCallback(() => {
@@ -1277,8 +1283,18 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
             ))}
           </div>
 
-          {/* Text Area */}
-          <textarea
+          {/* Highlight overlay + Text Area */}
+          <div className="flex-1 relative bg-[#1a1a2e]" style={{ minWidth: 0 }}>
+            <HighlightedOverlay
+              ref={overlayRef}
+              code={code}
+              language={isAutoDetect(language) ? (detected || undefined) : language}
+              fontFamily={'JetBrains Mono, Consolas, Monaco, monospace'}
+              fontSize={14}
+              lineHeight={1.6}
+              padding="12px"
+            />
+            <textarea
             ref={textareaRef}
             value={code}
             onChange={handleChange}
@@ -1287,7 +1303,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
             onClick={updateCursorPosition}
             onKeyUp={updateCursorPosition}
             placeholder={"// 🚀 Start typing your code here...\n// ⚡ Live error detection in 0.005 sec\n// 📝 Supports 500,000+ lines\n// 🔧 Auto-close: () [] {} '' \"\" ``\n// ➡️ Tab for indent, Shift+Tab to unindent\n// 🎯 Errors show in RED, corrections in GREEN"}
-            className="flex-1 bg-[#1a1a2e] text-[#eaeaea] p-3 resize-none outline-none overflow-auto placeholder:text-gray-600"
+            className="absolute inset-0 w-full h-full bg-transparent text-transparent p-3 resize-none outline-none overflow-auto placeholder:text-gray-600"
             style={{ 
               fontFamily: 'JetBrains Mono, Consolas, Monaco, monospace',
               fontSize: '14px',
@@ -1300,7 +1316,8 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
             spellCheck={false}
             autoCapitalize="off"
             autoCorrect="off"
-          />
+            />
+          </div>
         </div>
 
         {/* Status Bar */}
