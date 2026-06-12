@@ -1052,6 +1052,21 @@ const DraftBoard = ({ onOpenLiveCode }: DraftBoardProps) => {
   const startDrawingTouch = (e: React.TouchEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     const point = getCanvasPoint(e);
+    if (activeTab === 'draw') {
+      setIsDrawing(true);
+      lastPointRef.current = point;
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = thickness;
+        if (mode === 'pen') { ctx.globalCompositeOperation = 'source-over'; ctx.strokeStyle = color; }
+        else { ctx.globalCompositeOperation = 'destination-out'; }
+        ctx.beginPath();
+        ctx.moveTo(point.x, point.y);
+      }
+      return;
+    }
     if (activeTab === 'flowchart' && selectedShape) {
       const shapeDef = FLOWCHART_SHAPES.find(s => s.id === selectedShape);
       if (!shapeDef) return;
