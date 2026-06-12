@@ -327,6 +327,7 @@ const CodeInput = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: Cod
         <EnhancedCodeEditor
           value={code}
           onChange={setCode}
+          language={isAutoDetect(language) ? (detected || undefined) : language}
           placeholder={"// Paste or type your code here...\n// Supports up to 300,000 lines\n// Features: Line numbers, auto-indent, bracket matching\n// Press Tab for indentation, Shift+Tab to unindent\n// Auto-closes: () [] {} '' \"\" ``"}
         />
       </div>
