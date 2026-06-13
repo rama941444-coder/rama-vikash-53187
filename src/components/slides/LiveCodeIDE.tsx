@@ -891,15 +891,50 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     toast({ title: "Cleared", description: "Editor content cleared" });
   };
 
-  const saveFile = () => {
-    const blob = new Blob([code], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'code.txt';
-    a.click();
-    URL.revokeObjectURL(url);
-    toast({ title: "💾 Saved!", description: "File saved as code.txt" });
+  // PDF settings (shared persistence keys with EnhancedCodeEditor)
+  const [pdfPageSize, setPdfPageSize] = useState<'a4' | 'letter' | 'legal'>(
+    (localStorage.getItem('pdf.pageSize') as 'a4' | 'letter' | 'legal') || 'a4'
+  );
+  const [pdfFontScale, setPdfFontScale] = useState<number>(() => {
+    const v = Number(localStorage.getItem('pdf.fontScale'));
+    return v >= 6 && v <= 16 ? v : 9;
+  });
+  const [pdfLineNumbers, setPdfLineNumbers] = useState<boolean>(
+    localStorage.getItem('pdf.lineNumbers') !== '0'
+  );
+  const [editorTheme, setEditorTheme] = useState<'dark' | 'light'>(
+    (localStorage.getItem('ide.theme') as 'dark' | 'light') || 'dark'
+  );
+  useEffect(() => { localStorage.setItem('pdf.pageSize', pdfPageSize); }, [pdfPageSize]);
+  useEffect(() => { localStorage.setItem('pdf.fontScale', String(pdfFontScale)); }, [pdfFontScale]);
+  useEffect(() => { localStorage.setItem('pdf.lineNumbers', pdfLineNumbers ? '1' : '0'); }, [pdfLineNumbers]);
+  useEffect(() => { localStorage.setItem('ide.theme', editorTheme); }, [editorTheme]);
+
+  const downloadPDF = () => {
+    try {
+      const doc = new jsPDF({ unit: 'pt', format: pdfPageSize });
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const margin = 36;
+      const lh = Math.round(pdfFontScale * 1.35);
+      doc.setFont('courier', 'normal');
+      doc.setFontSize(pdfFontScale);
+      let y = margin;
+      const codeLines = code.split('\n');
+      codeLines.forEach((ln, idx) => {
+        const prefix = pdfLineNumbers ? (String(idx + 1).padStart(4, ' ') + ' | ') : '';
+        const wrapped = doc.splitTextToSize(prefix + (ln || ' '), pageWidth - margin * 2);
+        wrapped.forEach((w: string) => {
+          if (y > pageHeight - margin) { doc.addPage(); y = margin; }
+          doc.text(w, margin, y);
+          y += lh;
+        });
+      });
+      doc.save(`code-${Date.now()}.pdf`);
+      toast({ title: '📄 Downloaded', description: 'Code saved as PDF' });
+    } catch {
+      toast({ title: 'PDF failed', description: 'Could not generate PDF', variant: 'destructive' });
+    }
   };
 
 
