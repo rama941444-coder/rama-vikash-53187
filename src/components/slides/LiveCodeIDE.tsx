@@ -1283,12 +1283,52 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
                 ⚠️ {warningCount} warnings
               </span>
             )}
+            <Button variant="ghost" size="sm" onClick={() => setEditorTheme(t => t === 'dark' ? 'light' : 'dark')}
+              className="h-8 px-2 text-gray-400 hover:text-white hover:bg-[#0f3460]"
+              title={editorTheme === 'dark' ? 'Switch to light background' : 'Switch to dark background'}>
+              {editorTheme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </Button>
             <Button variant="ghost" size="sm" onClick={copyToClipboard} className="h-8 px-2 text-gray-400 hover:text-white hover:bg-[#0f3460]">
               <Copy className="w-4 h-4" />
             </Button>
-            <Button variant="ghost" size="sm" onClick={saveFile} className="h-8 px-2 text-gray-400 hover:text-white hover:bg-[#0f3460]" title="Save">
-              <Save className="w-4 h-4" />
-            </Button>
+            <div className="flex items-center">
+              <Button variant="ghost" size="sm" onClick={downloadPDF}
+                className="h-8 px-2 text-gray-400 hover:text-white hover:bg-[#0f3460]" title="Download as PDF">
+                <FileDown className="w-4 h-4" />
+              </Button>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="sm" title="PDF settings"
+                    className="h-8 px-1 text-gray-400 hover:text-white hover:bg-[#0f3460]">
+                    <Settings2 className="w-3.5 h-3.5" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-64 p-3 space-y-3" align="end">
+                  <div className="text-xs font-semibold">PDF Settings</div>
+                  <div>
+                    <div className="text-xs mb-1">Page size</div>
+                    <select value={pdfPageSize}
+                      onChange={(e) => setPdfPageSize(e.target.value as 'a4' | 'letter' | 'legal')}
+                      className="w-full bg-background border border-border rounded px-2 py-1 text-xs">
+                      <option value="a4">A4</option>
+                      <option value="letter">Letter</option>
+                      <option value="legal">Legal</option>
+                    </select>
+                  </div>
+                  <div>
+                    <div className="text-xs mb-1 flex justify-between">
+                      <span>Font scale</span><span className="text-muted-foreground">{pdfFontScale}pt</span>
+                    </div>
+                    <Slider min={6} max={16} step={1} value={[pdfFontScale]}
+                      onValueChange={(v) => setPdfFontScale(v[0])} />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs">Include line numbers</span>
+                    <Switch checked={pdfLineNumbers} onCheckedChange={setPdfLineNumbers} />
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
             <Button variant="ghost" size="sm" onClick={clearEditor} className="h-8 px-2 text-gray-400 hover:text-white hover:bg-[#0f3460]">
               <Trash2 className="w-4 h-4" />
             </Button>
@@ -1323,7 +1363,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
           </div>
 
           {/* Highlight overlay + Text Area */}
-          <div className="flex-1 relative bg-[#1a1a2e]" style={{ minWidth: 0 }}>
+          <div className={`flex-1 relative ${editorTheme === 'light' ? 'bg-white' : 'bg-[#1a1a2e]'}`} style={{ minWidth: 0 }}>
             <HighlightedOverlay
               ref={overlayRef}
               code={code}
@@ -1332,6 +1372,8 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
               fontSize={14}
               lineHeight={1.6}
               padding="12px"
+              theme={editorTheme}
+              errorLines={errors.map(e => e.line).filter(n => Number.isFinite(n) && n > 0)}
             />
             <textarea
             ref={textareaRef}
@@ -1342,7 +1384,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
             onClick={updateCursorPosition}
             onKeyUp={updateCursorPosition}
             placeholder={"// 🚀 Start typing your code here...\n// ⚡ Live error detection in 0.005 sec\n// 📝 Supports 500,000+ lines\n// 🔧 Auto-close: () [] {} '' \"\" ``\n// ➡️ Tab for indent, Shift+Tab to unindent\n// 🎯 Errors show in RED, corrections in GREEN"}
-            className="absolute inset-0 w-full h-full bg-transparent text-transparent p-3 resize-none outline-none overflow-auto placeholder:text-gray-600"
+            className={`absolute inset-0 w-full h-full bg-transparent text-transparent p-3 resize-none outline-none overflow-auto placeholder:text-gray-500`}
             style={{ 
               fontFamily: 'JetBrains Mono, Consolas, Monaco, monospace',
               fontSize: '14px',
@@ -1350,7 +1392,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
               tabSize: 4,
               whiteSpace: 'pre',
               overflowWrap: 'normal',
-              caretColor: '#e94560',
+              caretColor: editorTheme === 'light' ? '#000000' : '#e94560',
             }}
             spellCheck={false}
             autoCapitalize="off"
