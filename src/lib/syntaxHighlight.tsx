@@ -182,7 +182,7 @@ export const HighlightedOverlay = forwardRef<HTMLPreElement, OverlayProps>(
           position: 'absolute', inset: 0, margin: 0, padding,
           fontFamily, fontSize: `${fontSize}px`, lineHeight: String(lineHeight),
           whiteSpace: 'pre', overflow: 'hidden', pointerEvents: 'none',
-          color: 'transparent', background: 'transparent',
+          color: '#d4d4d4', background: 'transparent',
           tabSize: 4 as unknown as number,
         }}
         dangerouslySetInnerHTML={{ __html: html }}
