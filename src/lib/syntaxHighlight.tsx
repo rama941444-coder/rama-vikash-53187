@@ -31,19 +31,32 @@ import 'prismjs/components/prism-elixir';
 import 'prismjs/components/prism-erlang';
 import 'prismjs/components/prism-julia';
 
-/* VS Code "Dark+" inspired token colors + bracket pair colorization */
+/* VS Code Dark+ and Light+ inspired token colors + bracket pair colorization */
 const TOKEN_CSS = `
-.lov-hl .token.comment,.lov-hl .token.prolog,.lov-hl .token.doctype,.lov-hl .token.cdata{color:#6a9955;font-style:italic}
-.lov-hl .token.punctuation{color:#d4d4d4}
-.lov-hl .token.property,.lov-hl .token.tag,.lov-hl .token.boolean,.lov-hl .token.number,.lov-hl .token.constant,.lov-hl .token.symbol{color:#b5cea8}
-.lov-hl .token.selector,.lov-hl .token.attr-name,.lov-hl .token.string,.lov-hl .token.char,.lov-hl .token.builtin{color:#ce9178}
-.lov-hl .token.operator,.lov-hl .token.entity,.lov-hl .token.url,.lov-hl .language-css .token.string,.lov-hl .style .token.string{color:#d4d4d4}
-.lov-hl .token.atrule,.lov-hl .token.attr-value,.lov-hl .token.keyword{color:#569cd6;font-weight:600}
-.lov-hl .token.function,.lov-hl .token.class-name{color:#dcdcaa}
-.lov-hl .token.regex,.lov-hl .token.important,.lov-hl .token.variable{color:#9cdcfe}
-.lov-hl .bp0{color:#ffd700}
-.lov-hl .bp1{color:#da70d6}
-.lov-hl .bp2{color:#179fff}
+/* Dark theme (default) */
+.lov-hl.dark .token.comment,.lov-hl.dark .token.prolog,.lov-hl.dark .token.doctype,.lov-hl.dark .token.cdata{color:#6a9955;font-style:italic}
+.lov-hl.dark .token.punctuation{color:#d4d4d4}
+.lov-hl.dark .token.property,.lov-hl.dark .token.tag,.lov-hl.dark .token.boolean,.lov-hl.dark .token.number,.lov-hl.dark .token.constant,.lov-hl.dark .token.symbol{color:#b5cea8}
+.lov-hl.dark .token.selector,.lov-hl.dark .token.attr-name,.lov-hl.dark .token.string,.lov-hl.dark .token.char,.lov-hl.dark .token.builtin{color:#ce9178}
+.lov-hl.dark .token.operator,.lov-hl.dark .token.entity,.lov-hl.dark .token.url{color:#d4d4d4}
+.lov-hl.dark .token.atrule,.lov-hl.dark .token.attr-value,.lov-hl.dark .token.keyword{color:#569cd6;font-weight:600}
+.lov-hl.dark .token.function,.lov-hl.dark .token.class-name{color:#dcdcaa}
+.lov-hl.dark .token.regex,.lov-hl.dark .token.important,.lov-hl.dark .token.variable{color:#9cdcfe}
+.lov-hl.dark .bp0{color:#ffd700}
+.lov-hl.dark .bp1{color:#da70d6}
+.lov-hl.dark .bp2{color:#179fff}
+/* Light theme */
+.lov-hl.light .token.comment,.lov-hl.light .token.prolog,.lov-hl.light .token.doctype,.lov-hl.light .token.cdata{color:#008000;font-style:italic}
+.lov-hl.light .token.punctuation{color:#000000}
+.lov-hl.light .token.property,.lov-hl.light .token.tag,.lov-hl.light .token.boolean,.lov-hl.light .token.number,.lov-hl.light .token.constant,.lov-hl.light .token.symbol{color:#098658}
+.lov-hl.light .token.selector,.lov-hl.light .token.attr-name,.lov-hl.light .token.string,.lov-hl.light .token.char,.lov-hl.light .token.builtin{color:#a31515}
+.lov-hl.light .token.operator,.lov-hl.light .token.entity,.lov-hl.light .token.url{color:#000000}
+.lov-hl.light .token.atrule,.lov-hl.light .token.attr-value,.lov-hl.light .token.keyword{color:#0000ff;font-weight:600}
+.lov-hl.light .token.function,.lov-hl.light .token.class-name{color:#795e26}
+.lov-hl.light .token.regex,.lov-hl.light .token.important,.lov-hl.light .token.variable{color:#001080}
+.lov-hl.light .bp0{color:#0431fa}
+.lov-hl.light .bp1{color:#319331}
+.lov-hl.light .bp2{color:#7b3814}
 .lov-hl .err-sq{text-decoration:underline wavy #f14c4c;text-decoration-skip-ink:none}
 `;
 
@@ -117,28 +130,6 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-function underlineErrors(code: string, lang: string | null): Set<number> {
-  const bad = new Set<number>();
-  if (!lang) return bad;
-  if (!['java', 'c', 'cpp', 'csharp', 'javascript', 'typescript'].includes(lang)) return bad;
-  const lines = code.split('\n');
-  lines.forEach((ln, i) => {
-    const t = ln.replace(/\/\/.*$/, '').trim();
-    if (!t) return;
-    if (/[{};:,\\)]$/.test(t)) return;
-    if (/^(if|else|for|while|do|switch|case|default|try|catch|finally|public|private|protected|class|interface|enum|import|package|return|break|continue|#include|#define|@\w+)\b/.test(t)) return;
-    if (t.endsWith(')') && /^(if|while|for|switch)\b/.test(t)) return;
-    if (/^[A-Za-z_][\w]*\s*\(/.test(t) && t.endsWith(')')) {
-      bad.add(i + 1);
-    } else if (/=\s*[^;]+$/.test(t)) {
-      bad.add(i + 1);
-    } else if (/^\s*\w+\s+\w+\s*$/.test(t)) {
-      bad.add(i + 1);
-    }
-  });
-  return bad;
-}
-
 interface OverlayProps {
   code: string;
   language?: string;
@@ -146,13 +137,17 @@ interface OverlayProps {
   fontSize?: number;
   lineHeight?: number;
   padding?: string;
+  /** Authoritative 1-based line numbers to mark with the red wavy underline.
+   *  When omitted (or empty), NO wavy underline is rendered — preventing false positives. */
+  errorLines?: number[];
+  theme?: 'dark' | 'light';
 }
 
 export const HighlightedOverlay = forwardRef<HTMLPreElement, OverlayProps>(
-  ({ code, language, fontFamily, fontSize = 14, lineHeight = 1.5, padding = '8px' }, ref) => {
+  ({ code, language, fontFamily, fontSize = 14, lineHeight = 1.5, padding = '8px', errorLines, theme = 'dark' }, ref) => {
     const html = useMemo(() => {
       const lang = normalizeLang(language);
-      const errLines = underlineErrors(code, lang);
+      const errSet = new Set<number>(errorLines || []);
       // ensure trailing newline so caret line is rendered
       const src = code.endsWith('\n') ? code + ' ' : code;
       let highlighted: string;
@@ -163,26 +158,27 @@ export const HighlightedOverlay = forwardRef<HTMLPreElement, OverlayProps>(
         highlighted = escapeHtml(src);
       }
       highlighted = colorizeBrackets(highlighted);
-      if (errLines.size) {
+      if (errSet.size) {
         const parts = highlighted.split('\n');
         for (let i = 0; i < parts.length; i++) {
-          if (errLines.has(i + 1)) parts[i] = `<span class="err-sq">${parts[i] || ' '}</span>`;
+          if (errSet.has(i + 1)) parts[i] = `<span class="err-sq">${parts[i] || ' '}</span>`;
         }
         highlighted = parts.join('\n');
       }
       return highlighted;
-    }, [code, language]);
+    }, [code, language, errorLines]);
 
     return (
       <pre
         ref={ref}
         aria-hidden
-        className="lov-hl"
+        className={`lov-hl ${theme}`}
         style={{
           position: 'absolute', inset: 0, margin: 0, padding,
           fontFamily, fontSize: `${fontSize}px`, lineHeight: String(lineHeight),
           whiteSpace: 'pre', overflow: 'hidden', pointerEvents: 'none',
-          color: '#d4d4d4', background: 'transparent',
+          color: theme === 'light' ? '#000000' : '#d4d4d4',
+          background: 'transparent',
           tabSize: 4 as unknown as number,
         }}
         dangerouslySetInnerHTML={{ __html: html }}

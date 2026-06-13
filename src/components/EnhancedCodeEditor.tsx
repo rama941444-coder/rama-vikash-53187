@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Maximize2, Minimize2, Copy, Trash2, FileDown, Type, Settings2 } from 'lucide-react';
+import { Maximize2, Minimize2, Copy, Trash2, FileDown, Type, Settings2, Sun, Moon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import jsPDF from 'jspdf';
@@ -55,6 +55,9 @@ const EnhancedCodeEditor = ({
   const [pdfLineNumbers, setPdfLineNumbers] = useState<boolean>(
     localStorage.getItem('pdf.lineNumbers') !== '0'
   );
+  const [theme, setTheme] = useState<'dark' | 'light'>(
+    (localStorage.getItem('notepad.theme') as 'dark' | 'light') || 'dark'
+  );
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lineNumbersRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLPreElement>(null);
@@ -69,6 +72,7 @@ const EnhancedCodeEditor = ({
   useEffect(() => { localStorage.setItem('pdf.pageSize', pdfPageSize); }, [pdfPageSize]);
   useEffect(() => { localStorage.setItem('pdf.fontScale', String(pdfFontScale)); }, [pdfFontScale]);
   useEffect(() => { localStorage.setItem('pdf.lineNumbers', pdfLineNumbers ? '1' : '0'); }, [pdfLineNumbers]);
+  useEffect(() => { localStorage.setItem('notepad.theme', theme); }, [theme]);
 
   const lineHeightPx = Math.round(fontSize * 1.5);
 
@@ -264,25 +268,30 @@ const EnhancedCodeEditor = ({
   }
 
   return (
-    <div className="border border-border rounded-lg overflow-hidden bg-[#1e1e1e]">
+    <div className={`border border-border rounded-lg overflow-hidden ${theme === 'light' ? 'bg-white' : 'bg-[#1e1e1e]'}`}>
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-3 py-2 bg-[#2d2d2d] border-b border-border/50">
+      <div className={`flex items-center justify-between px-3 py-2 border-b border-border/50 ${theme === 'light' ? 'bg-[#f3f3f3]' : 'bg-[#2d2d2d]'}`}>
         <div className="flex items-center gap-3">
-          <span className="text-xs font-medium text-gray-400">
+          <span className={`text-xs font-medium ${theme === 'light' ? 'text-gray-700' : 'text-gray-400'}`}>
             Notepad-Style Code Editor
           </span>
-          <span className="text-xs text-gray-500">
+          <span className={`text-xs ${theme === 'light' ? 'text-gray-500' : 'text-gray-500'}`}>
             |
           </span>
-          <span className="text-xs text-gray-500">
+          <span className={`text-xs ${theme === 'light' ? 'text-gray-500' : 'text-gray-500'}`}>
             Lines: {lineCount.toLocaleString()} / {maxLines.toLocaleString()}
           </span>
         </div>
         <div className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
+            title={theme === 'dark' ? 'Switch to light background' : 'Switch to dark background'}
+            className={`h-7 px-2 ${theme === 'light' ? 'text-gray-700 hover:bg-gray-200' : 'text-gray-400 hover:text-white hover:bg-[#3d3d3d]'}`}>
+            {theme === 'dark' ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+          </Button>
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="ghost" size="sm" title="Text size & font"
-                className="h-7 px-2 text-gray-400 hover:text-white hover:bg-[#3d3d3d]">
+                className={`h-7 px-2 ${theme === 'light' ? 'text-gray-700 hover:bg-gray-200' : 'text-gray-400 hover:text-white hover:bg-[#3d3d3d]'}`}>
                 <Type className="w-3.5 h-3.5" />
               </Button>
             </PopoverTrigger>
@@ -309,18 +318,18 @@ const EnhancedCodeEditor = ({
             </PopoverContent>
           </Popover>
           <Button variant="ghost" size="sm" onClick={copyToClipboard}
-            className="h-7 px-2 text-gray-400 hover:text-white hover:bg-[#3d3d3d]">
+            className={`h-7 px-2 ${theme === 'light' ? 'text-gray-700 hover:bg-gray-200' : 'text-gray-400 hover:text-white hover:bg-[#3d3d3d]'}`}>
             <Copy className="w-3.5 h-3.5" />
           </Button>
           <div className="flex items-center">
             <Button variant="ghost" size="sm" onClick={downloadPDF}
-              className="h-7 px-2 text-gray-400 hover:text-white hover:bg-[#3d3d3d]" title="Download as PDF">
+              className={`h-7 px-2 ${theme === 'light' ? 'text-gray-700 hover:bg-gray-200' : 'text-gray-400 hover:text-white hover:bg-[#3d3d3d]'}`} title="Download as PDF">
               <FileDown className="w-3.5 h-3.5" />
             </Button>
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="ghost" size="sm" title="PDF settings"
-                  className="h-7 px-1 text-gray-400 hover:text-white hover:bg-[#3d3d3d]">
+                  className={`h-7 px-1 ${theme === 'light' ? 'text-gray-700 hover:bg-gray-200' : 'text-gray-400 hover:text-white hover:bg-[#3d3d3d]'}`}>
                   <Settings2 className="w-3 h-3" />
                 </Button>
               </PopoverTrigger>
@@ -351,11 +360,11 @@ const EnhancedCodeEditor = ({
             </Popover>
           </div>
           <Button variant="ghost" size="sm" onClick={clearEditor}
-            className="h-7 px-2 text-gray-400 hover:text-white hover:bg-[#3d3d3d]">
+            className={`h-7 px-2 ${theme === 'light' ? 'text-gray-700 hover:bg-gray-200' : 'text-gray-400 hover:text-white hover:bg-[#3d3d3d]'}`}>
             <Trash2 className="w-3.5 h-3.5" />
           </Button>
           <Button variant="ghost" size="sm" onClick={() => setIsMinimized(true)}
-            className="h-7 px-2 text-gray-400 hover:text-white hover:bg-[#3d3d3d]">
+            className={`h-7 px-2 ${theme === 'light' ? 'text-gray-700 hover:bg-gray-200' : 'text-gray-400 hover:text-white hover:bg-[#3d3d3d]'}`}>
             <Minimize2 className="w-3.5 h-3.5" />
           </Button>
         </div>
@@ -366,7 +375,7 @@ const EnhancedCodeEditor = ({
         {/* Line Numbers */}
         <div 
           ref={lineNumbersRef}
-          className="bg-[#252526] text-gray-500 text-right py-2 overflow-hidden select-none border-r border-[#3d3d3d]"
+          className={`text-right py-2 overflow-hidden select-none border-r ${theme === 'light' ? 'bg-[#f8f8f8] text-gray-500 border-[#e5e5e5]' : 'bg-[#252526] text-gray-500 border-[#3d3d3d]'}`}
           style={{ 
             minWidth: '60px',
             fontFamily,
@@ -377,7 +386,7 @@ const EnhancedCodeEditor = ({
           {lineNumbers.map(num => (
             <div 
               key={num} 
-              className={`px-3 ${num === cursorPosition.line ? 'text-white bg-[#264f78]' : ''}`}
+              className={`px-3 ${num === cursorPosition.line ? (theme === 'light' ? 'text-black bg-[#e8f0fe]' : 'text-white bg-[#264f78]') : ''}`}
               style={{ height: `${lineHeightPx}px` }}
             >
               {num}
@@ -386,7 +395,7 @@ const EnhancedCodeEditor = ({
         </div>
 
         {/* Highlight overlay + Text Area */}
-        <div className="flex-1 relative bg-[#1e1e1e]" style={{ minWidth: 0 }}>
+        <div className={`flex-1 relative ${theme === 'light' ? 'bg-white' : 'bg-[#1e1e1e]'}`} style={{ minWidth: 0 }}>
           <HighlightedOverlay
             ref={overlayRef}
             code={value}
@@ -395,6 +404,7 @@ const EnhancedCodeEditor = ({
             fontSize={fontSize}
             lineHeight={1.5}
             padding="8px"
+            theme={theme}
           />
           <textarea
           ref={textareaRef}
@@ -405,7 +415,7 @@ const EnhancedCodeEditor = ({
           onClick={updateCursorPosition}
           onKeyUp={updateCursorPosition}
           placeholder={placeholder}
-          className="absolute inset-0 w-full h-full bg-transparent text-transparent caret-white p-2 resize-none outline-none overflow-auto placeholder:text-gray-500"
+          className={`absolute inset-0 w-full h-full bg-transparent text-transparent p-2 resize-none outline-none overflow-auto placeholder:text-gray-500 ${theme === 'light' ? 'caret-black' : 'caret-white'}`}
           style={{ 
             fontFamily,
             fontSize: `${fontSize}px`,

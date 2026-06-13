@@ -1,6 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Play, AlertCircle, CheckCircle, Copy, Trash2, Maximize2, Minimize2, Loader2, Lightbulb, Zap, ArrowRight, Sparkles, Terminal, TrendingUp, Award, Save, FileDown } from 'lucide-react';
+import { Play, AlertCircle, CheckCircle, Copy, Trash2, Maximize2, Minimize2, Loader2, Lightbulb, Zap, ArrowRight, Sparkles, Terminal, TrendingUp, Award, FileDown, Settings2, Sun, Moon } from 'lucide-react';
+import jsPDF from 'jspdf';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import LanguageSelector from '@/components/LanguageSelector';
 import { supabase } from '@/integrations/supabase/client';
@@ -887,15 +891,50 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     toast({ title: "Cleared", description: "Editor content cleared" });
   };
 
-  const saveFile = () => {
-    const blob = new Blob([code], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'code.txt';
-    a.click();
-    URL.revokeObjectURL(url);
-    toast({ title: "💾 Saved!", description: "File saved as code.txt" });
+  // PDF settings (shared persistence keys with EnhancedCodeEditor)
+  const [pdfPageSize, setPdfPageSize] = useState<'a4' | 'letter' | 'legal'>(
+    (localStorage.getItem('pdf.pageSize') as 'a4' | 'letter' | 'legal') || 'a4'
+  );
+  const [pdfFontScale, setPdfFontScale] = useState<number>(() => {
+    const v = Number(localStorage.getItem('pdf.fontScale'));
+    return v >= 6 && v <= 16 ? v : 9;
+  });
+  const [pdfLineNumbers, setPdfLineNumbers] = useState<boolean>(
+    localStorage.getItem('pdf.lineNumbers') !== '0'
+  );
+  const [editorTheme, setEditorTheme] = useState<'dark' | 'light'>(
+    (localStorage.getItem('ide.theme') as 'dark' | 'light') || 'dark'
+  );
+  useEffect(() => { localStorage.setItem('pdf.pageSize', pdfPageSize); }, [pdfPageSize]);
+  useEffect(() => { localStorage.setItem('pdf.fontScale', String(pdfFontScale)); }, [pdfFontScale]);
+  useEffect(() => { localStorage.setItem('pdf.lineNumbers', pdfLineNumbers ? '1' : '0'); }, [pdfLineNumbers]);
+  useEffect(() => { localStorage.setItem('ide.theme', editorTheme); }, [editorTheme]);
+
+  const downloadPDF = () => {
+    try {
+      const doc = new jsPDF({ unit: 'pt', format: pdfPageSize });
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const margin = 36;
+      const lh = Math.round(pdfFontScale * 1.35);
+      doc.setFont('courier', 'normal');
+      doc.setFontSize(pdfFontScale);
+      let y = margin;
+      const codeLines = code.split('\n');
+      codeLines.forEach((ln, idx) => {
+        const prefix = pdfLineNumbers ? (String(idx + 1).padStart(4, ' ') + ' | ') : '';
+        const wrapped = doc.splitTextToSize(prefix + (ln || ' '), pageWidth - margin * 2);
+        wrapped.forEach((w: string) => {
+          if (y > pageHeight - margin) { doc.addPage(); y = margin; }
+          doc.text(w, margin, y);
+          y += lh;
+        });
+      });
+      doc.save(`code-${Date.now()}.pdf`);
+      toast({ title: '📄 Downloaded', description: 'Code saved as PDF' });
+    } catch {
+      toast({ title: 'PDF failed', description: 'Could not generate PDF', variant: 'destructive' });
+    }
   };
 
 
@@ -1244,12 +1283,52 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
                 ⚠️ {warningCount} warnings
               </span>
             )}
+            <Button variant="ghost" size="sm" onClick={() => setEditorTheme(t => t === 'dark' ? 'light' : 'dark')}
+              className="h-8 px-2 text-gray-400 hover:text-white hover:bg-[#0f3460]"
+              title={editorTheme === 'dark' ? 'Switch to light background' : 'Switch to dark background'}>
+              {editorTheme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </Button>
             <Button variant="ghost" size="sm" onClick={copyToClipboard} className="h-8 px-2 text-gray-400 hover:text-white hover:bg-[#0f3460]">
               <Copy className="w-4 h-4" />
             </Button>
-            <Button variant="ghost" size="sm" onClick={saveFile} className="h-8 px-2 text-gray-400 hover:text-white hover:bg-[#0f3460]" title="Save">
-              <Save className="w-4 h-4" />
-            </Button>
+            <div className="flex items-center">
+              <Button variant="ghost" size="sm" onClick={downloadPDF}
+                className="h-8 px-2 text-gray-400 hover:text-white hover:bg-[#0f3460]" title="Download as PDF">
+                <FileDown className="w-4 h-4" />
+              </Button>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="sm" title="PDF settings"
+                    className="h-8 px-1 text-gray-400 hover:text-white hover:bg-[#0f3460]">
+                    <Settings2 className="w-3.5 h-3.5" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-64 p-3 space-y-3" align="end">
+                  <div className="text-xs font-semibold">PDF Settings</div>
+                  <div>
+                    <div className="text-xs mb-1">Page size</div>
+                    <select value={pdfPageSize}
+                      onChange={(e) => setPdfPageSize(e.target.value as 'a4' | 'letter' | 'legal')}
+                      className="w-full bg-background border border-border rounded px-2 py-1 text-xs">
+                      <option value="a4">A4</option>
+                      <option value="letter">Letter</option>
+                      <option value="legal">Legal</option>
+                    </select>
+                  </div>
+                  <div>
+                    <div className="text-xs mb-1 flex justify-between">
+                      <span>Font scale</span><span className="text-muted-foreground">{pdfFontScale}pt</span>
+                    </div>
+                    <Slider min={6} max={16} step={1} value={[pdfFontScale]}
+                      onValueChange={(v) => setPdfFontScale(v[0])} />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs">Include line numbers</span>
+                    <Switch checked={pdfLineNumbers} onCheckedChange={setPdfLineNumbers} />
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
             <Button variant="ghost" size="sm" onClick={clearEditor} className="h-8 px-2 text-gray-400 hover:text-white hover:bg-[#0f3460]">
               <Trash2 className="w-4 h-4" />
             </Button>
@@ -1284,7 +1363,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
           </div>
 
           {/* Highlight overlay + Text Area */}
-          <div className="flex-1 relative bg-[#1a1a2e]" style={{ minWidth: 0 }}>
+          <div className={`flex-1 relative ${editorTheme === 'light' ? 'bg-white' : 'bg-[#1a1a2e]'}`} style={{ minWidth: 0 }}>
             <HighlightedOverlay
               ref={overlayRef}
               code={code}
@@ -1293,6 +1372,8 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
               fontSize={14}
               lineHeight={1.6}
               padding="12px"
+              theme={editorTheme}
+              errorLines={errors.map(e => e.line).filter(n => Number.isFinite(n) && n > 0)}
             />
             <textarea
             ref={textareaRef}
@@ -1303,7 +1384,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
             onClick={updateCursorPosition}
             onKeyUp={updateCursorPosition}
             placeholder={"// 🚀 Start typing your code here...\n// ⚡ Live error detection in 0.005 sec\n// 📝 Supports 500,000+ lines\n// 🔧 Auto-close: () [] {} '' \"\" ``\n// ➡️ Tab for indent, Shift+Tab to unindent\n// 🎯 Errors show in RED, corrections in GREEN"}
-            className="absolute inset-0 w-full h-full bg-transparent text-transparent p-3 resize-none outline-none overflow-auto placeholder:text-gray-600"
+            className={`absolute inset-0 w-full h-full bg-transparent text-transparent p-3 resize-none outline-none overflow-auto placeholder:text-gray-500`}
             style={{ 
               fontFamily: 'JetBrains Mono, Consolas, Monaco, monospace',
               fontSize: '14px',
@@ -1311,7 +1392,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
               tabSize: 4,
               whiteSpace: 'pre',
               overflowWrap: 'normal',
-              caretColor: '#e94560',
+              caretColor: editorTheme === 'light' ? '#000000' : '#e94560',
             }}
             spellCheck={false}
             autoCapitalize="off"
