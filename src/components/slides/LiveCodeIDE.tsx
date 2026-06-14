@@ -1044,6 +1044,17 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
 
   // Execute code via AI backend (like online compiler)
   const executeCodeViaAI = async (codeText: string, lang: string, stdin: string = '') => {
+    // 100% offline path — when there's no network, run JS locally and
+    // gracefully refuse for other languages instead of failing the fetch.
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      const r = runOffline(codeText, lang, stdin);
+      return {
+        output: r.output,
+        hasError: !!r.error,
+        errorMessage: r.error,
+        requiresInput: false,
+      };
+    }
     const { data, error } = await supabase.functions.invoke('analyze-code', {
       body: {
         code: codeText,
@@ -1053,14 +1064,36 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       }
     });
 
-    if (error) throw error;
+    if (error) {
+      // Network/AI failure → seamless offline fallback
+      const r = runOffline(codeText, lang, stdin);
+      return {
+        output: r.output,
+        hasError: !!r.error,
+        errorMessage: r.error || (error as any).message,
+        requiresInput: false,
+      };
+    }
     return data;
   };
 
-  // Analyze complexity via AI
+  // Analyze complexity — offline-first (deterministic AST/regex), AI augments when online
   const analyzeComplexity = async () => {
     if (!code.trim()) return;
     setIsAnalyzingComplexity(true);
+
+    // Instant offline result so the dashboard renders even with no network
+    const offline = analyzeComplexityOffline(code, language);
+    setComplexityAnalysis({
+      timeComplexity: offline.timeComplexity,
+      spaceComplexity: offline.spaceComplexity,
+      explanation: offline.explanation,
+    });
+
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      setIsAnalyzingComplexity(false);
+      return;
+    }
 
     try {
       const { data, error } = await supabase.functions.invoke('analyze-code', {
@@ -1084,11 +1117,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
         });
       }
     } catch {
-      const lowerCode = code.toLowerCase();
-      let timeEst = 'O(n)', spaceEst = 'O(1)';
-      if (lowerCode.includes('for') && lowerCode.split('for').length > 2) timeEst = 'O(n²)';
-      if (lowerCode.includes('sort')) timeEst = 'O(n log n)';
-      setComplexityAnalysis({ timeComplexity: timeEst, spaceComplexity: spaceEst, explanation: 'Estimated (run AI for precise results)' });
+      // Offline result already shown — nothing to do.
     } finally {
       setIsAnalyzingComplexity(false);
     }
