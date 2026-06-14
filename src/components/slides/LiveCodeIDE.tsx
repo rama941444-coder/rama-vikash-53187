@@ -959,6 +959,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
           codeLines[lineIndex] = codeLines[lineIndex].replace(error.wrongCode, error.correctCode);
         }
         setCode(codeLines.join('\n'));
+        setFixCount(c => c + 1);
         toast({
           title: "✅ Fix Applied",
           description: `Fixed error on line ${error.line}: ${error.suggestion || error.message}`,
@@ -976,6 +977,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
         const line = codeLines[lineIndex];
         codeLines[lineIndex] = line.substring(0, col) + missingToken + line.substring(col);
         setCode(codeLines.join('\n'));
+        setFixCount(c => c + 1);
         toast({
           title: "✅ Fix Applied",
           description: `Inserted missing '${missingToken}' on line ${error.line}`,
@@ -990,6 +992,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
         const quoteChar = error.message.includes('single') ? "'" : '"';
         codeLines[lineIndex] = codeLines[lineIndex] + quoteChar;
         setCode(codeLines.join('\n'));
+        setFixCount(c => c + 1);
         toast({
           title: "✅ Fix Applied",
           description: `Added closing ${quoteChar} on line ${error.line}`,
@@ -1003,6 +1006,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       setCode(correctedCode);
       setCorrectedCode('');
       setErrors([]);
+      setFixCount(c => c + 1);
       toast({ 
         title: "✅ Fix Applied", 
         description: "Corrected code has been applied to the editor" 
@@ -1015,6 +1019,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       setCode(correctedCode);
       setCorrectedCode('');
       setErrors([]);
+      setFixCount(c => c + 1);
       toast({ 
         title: "✅ Fix Applied", 
         description: "Corrected code has been applied to the editor" 
