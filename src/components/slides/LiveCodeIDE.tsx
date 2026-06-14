@@ -67,6 +67,11 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
   const [userInput, setUserInput] = useState('');
   const [inputPrompt, setInputPrompt] = useState('');
   const [detected, setDetected] = useState<string | null>(null);
+  const [fixCount, setFixCount] = useState<number>(() => {
+    const v = parseInt(localStorage.getItem('ide.fixCount') || '0', 10);
+    return Number.isFinite(v) ? v : 0;
+  });
+  useEffect(() => { localStorage.setItem('ide.fixCount', String(fixCount)); }, [fixCount]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lineNumbersRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLPreElement>(null);
