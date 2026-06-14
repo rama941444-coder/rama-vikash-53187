@@ -9,7 +9,9 @@
 
 import { Parser, Language } from 'web-tree-sitter';
 
-// CDN base for pre-built tree-sitter WASM grammars
+// Local grammars (100% offline) — copied from tree-sitter-wasms into public/grammars/.
+// Falls back to the CDN if a grammar is missing locally and the network is available.
+const GRAMMAR_LOCAL = '/grammars';
 const GRAMMAR_CDN = 'https://cdn.jsdelivr.net/npm/tree-sitter-wasms@latest/out';
 
 // Map language names to tree-sitter grammar names (60+ languages)
@@ -221,17 +223,21 @@ class TreeSitterService {
       return true;
     }
 
-    try {
-      const wasmUrl = `${GRAMMAR_CDN}/${grammarName}.wasm`;
-      const lang = await Language.load(wasmUrl);
-      this.languageCache.set(grammarName, lang);
-      this.parser.setLanguage(lang);
-      return true;
-    } catch (e) {
-      console.warn(`Failed to load grammar for ${langKey}:`, e);
-      this.failedGrammars.add(grammarName);
-      return false;
+    // Try local first (offline-first), then CDN as a fallback.
+    const sources = [`${GRAMMAR_LOCAL}/${grammarName}.wasm`, `${GRAMMAR_CDN}/${grammarName}.wasm`];
+    for (const wasmUrl of sources) {
+      try {
+        const lang = await Language.load(wasmUrl);
+        this.languageCache.set(grammarName, lang);
+        this.parser.setLanguage(lang);
+        return true;
+      } catch (e) {
+        // try next source
+      }
     }
+    console.warn(`Failed to load grammar for ${langKey} from local and CDN`);
+    this.failedGrammars.add(grammarName);
+    return false;
   }
 
   parse(code: string, language: string): TreeSitterError[] {
