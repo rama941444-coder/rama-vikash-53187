@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { treeSitterService, type TreeSitterError } from '@/lib/treeSitterService';
 import { detectLanguage, isAutoDetect } from '@/lib/languageDetect';
 import { HighlightedOverlay } from '@/lib/syntaxHighlight';
+import { analyzeComplexityOffline, runOffline } from '@/lib/offlineAnalysis';
 
 interface LiveCodeIDEProps {
   onAnalysisComplete: (data: any) => void;
@@ -66,6 +67,11 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
   const [userInput, setUserInput] = useState('');
   const [inputPrompt, setInputPrompt] = useState('');
   const [detected, setDetected] = useState<string | null>(null);
+  const [fixCount, setFixCount] = useState<number>(() => {
+    const v = parseInt(localStorage.getItem('ide.fixCount') || '0', 10);
+    return Number.isFinite(v) ? v : 0;
+  });
+  useEffect(() => { localStorage.setItem('ide.fixCount', String(fixCount)); }, [fixCount]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lineNumbersRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLPreElement>(null);
@@ -953,6 +959,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
           codeLines[lineIndex] = codeLines[lineIndex].replace(error.wrongCode, error.correctCode);
         }
         setCode(codeLines.join('\n'));
+        setFixCount(c => c + 1);
         toast({
           title: "✅ Fix Applied",
           description: `Fixed error on line ${error.line}: ${error.suggestion || error.message}`,
@@ -970,6 +977,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
         const line = codeLines[lineIndex];
         codeLines[lineIndex] = line.substring(0, col) + missingToken + line.substring(col);
         setCode(codeLines.join('\n'));
+        setFixCount(c => c + 1);
         toast({
           title: "✅ Fix Applied",
           description: `Inserted missing '${missingToken}' on line ${error.line}`,
@@ -984,6 +992,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
         const quoteChar = error.message.includes('single') ? "'" : '"';
         codeLines[lineIndex] = codeLines[lineIndex] + quoteChar;
         setCode(codeLines.join('\n'));
+        setFixCount(c => c + 1);
         toast({
           title: "✅ Fix Applied",
           description: `Added closing ${quoteChar} on line ${error.line}`,
@@ -997,6 +1006,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       setCode(correctedCode);
       setCorrectedCode('');
       setErrors([]);
+      setFixCount(c => c + 1);
       toast({ 
         title: "✅ Fix Applied", 
         description: "Corrected code has been applied to the editor" 
@@ -1009,6 +1019,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       setCode(correctedCode);
       setCorrectedCode('');
       setErrors([]);
+      setFixCount(c => c + 1);
       toast({ 
         title: "✅ Fix Applied", 
         description: "Corrected code has been applied to the editor" 
@@ -1033,6 +1044,17 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
 
   // Execute code via AI backend (like online compiler)
   const executeCodeViaAI = async (codeText: string, lang: string, stdin: string = '') => {
+    // 100% offline path — when there's no network, run JS locally and
+    // gracefully refuse for other languages instead of failing the fetch.
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      const r = runOffline(codeText, lang, stdin);
+      return {
+        output: r.output,
+        hasError: !!r.error,
+        errorMessage: r.error,
+        requiresInput: false,
+      };
+    }
     const { data, error } = await supabase.functions.invoke('analyze-code', {
       body: {
         code: codeText,
@@ -1042,14 +1064,36 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       }
     });
 
-    if (error) throw error;
+    if (error) {
+      // Network/AI failure → seamless offline fallback
+      const r = runOffline(codeText, lang, stdin);
+      return {
+        output: r.output,
+        hasError: !!r.error,
+        errorMessage: r.error || (error as any).message,
+        requiresInput: false,
+      };
+    }
     return data;
   };
 
-  // Analyze complexity via AI
+  // Analyze complexity — offline-first (deterministic AST/regex), AI augments when online
   const analyzeComplexity = async () => {
     if (!code.trim()) return;
     setIsAnalyzingComplexity(true);
+
+    // Instant offline result so the dashboard renders even with no network
+    const offline = analyzeComplexityOffline(code, language);
+    setComplexityAnalysis({
+      timeComplexity: offline.timeComplexity,
+      spaceComplexity: offline.spaceComplexity,
+      explanation: offline.explanation,
+    });
+
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      setIsAnalyzingComplexity(false);
+      return;
+    }
 
     try {
       const { data, error } = await supabase.functions.invoke('analyze-code', {
@@ -1073,11 +1117,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
         });
       }
     } catch {
-      const lowerCode = code.toLowerCase();
-      let timeEst = 'O(n)', spaceEst = 'O(1)';
-      if (lowerCode.includes('for') && lowerCode.split('for').length > 2) timeEst = 'O(n²)';
-      if (lowerCode.includes('sort')) timeEst = 'O(n log n)';
-      setComplexityAnalysis({ timeComplexity: timeEst, spaceComplexity: spaceEst, explanation: 'Estimated (run AI for precise results)' });
+      // Offline result already shown — nothing to do.
     } finally {
       setIsAnalyzingComplexity(false);
     }
@@ -1282,6 +1322,22 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
               <span className="text-xs px-2 py-1 rounded-full bg-yellow-500/20 text-yellow-400 flex items-center gap-1">
                 ⚠️ {warningCount} warnings
               </span>
+            )}
+            <span
+              className="text-xs px-2 py-1 rounded-full bg-green-500/20 text-green-400 flex items-center gap-1"
+              title="Total Apply Fix clicks this session"
+            >
+              <CheckCircle className="w-3 h-3" />
+              {fixCount} fixes
+            </span>
+            {fixCount > 0 && (
+              <button
+                onClick={() => setFixCount(0)}
+                className="text-[10px] text-gray-500 hover:text-gray-300 underline"
+                title="Reset fix counter"
+              >
+                reset
+              </button>
             )}
             <Button variant="ghost" size="sm" onClick={() => setEditorTheme(t => t === 'dark' ? 'light' : 'dark')}
               className="h-8 px-2 text-gray-400 hover:text-white hover:bg-[#0f3460]"
