@@ -1323,6 +1323,22 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
                 ⚠️ {warningCount} warnings
               </span>
             )}
+            <span
+              className="text-xs px-2 py-1 rounded-full bg-green-500/20 text-green-400 flex items-center gap-1"
+              title="Total Apply Fix clicks this session"
+            >
+              <CheckCircle className="w-3 h-3" />
+              {fixCount} fixes
+            </span>
+            {fixCount > 0 && (
+              <button
+                onClick={() => setFixCount(0)}
+                className="text-[10px] text-gray-500 hover:text-gray-300 underline"
+                title="Reset fix counter"
+              >
+                reset
+              </button>
+            )}
             <Button variant="ghost" size="sm" onClick={() => setEditorTheme(t => t === 'dark' ? 'light' : 'dark')}
               className="h-8 px-2 text-gray-400 hover:text-white hover:bg-[#0f3460]"
               title={editorTheme === 'dark' ? 'Switch to light background' : 'Switch to dark background'}>
