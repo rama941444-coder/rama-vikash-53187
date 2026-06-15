@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { treeSitterService, type TreeSitterError } from '@/lib/treeSitterService';
 import { detectLanguage, isAutoDetect } from '@/lib/languageDetect';
 import { HighlightedOverlay } from '@/lib/syntaxHighlight';
+import { validateLive, isRegisteredLanguage, unsupportedLanguageNotice } from '@/lib/liveSyntaxValidator';
 
 interface LiveCodeIDEProps {
   onAnalysisComplete: (data: any) => void;
@@ -330,9 +331,35 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     const detectedErrors: CodeError[] = [];
     const codeLines = codeText.split('\n');
 
+    // === LIVE CHARACTER VALIDATOR (per-keystroke, 2-5ms, 106 registered languages) ===
+    // Uses zero network / zero LLM cost. If the selected language is in the
+    // registry we run rich casing + bracket rules. If not, we emit a single
+    // console note telling the user the AI model is required for that language.
+    const activeLang = isAutoDetect(language) ? (detected || '') : language;
+    if (activeLang && isRegisteredLanguage(activeLang)) {
+      const liveErrs = validateLive(codeText, activeLang);
+      liveErrs.forEach((e) => detectedErrors.push({
+        line: e.line,
+        column: e.column,
+        message: e.message,
+        severity: e.severity,
+        type: e.type,
+        wrongCode: e.wrongCode,
+        suggestion: e.suggestion,
+      }));
+    } else if (activeLang && !isAutoDetect(language)) {
+      detectedErrors.push({
+        line: 1,
+        column: 1,
+        message: unsupportedLanguageNotice(activeLang),
+        severity: 'warning',
+        type: 'NeedsAIModel',
+      });
+    }
+
     // === TREE-SITTER INCREMENTAL PARSING (primary, ~0.5ms) ===
     let treeSitterUsed = false;
-    if (treeSitterReady) {
+    if (treeSitterReady && !isRegisteredLanguage(activeLang)) {
       const langNorm = language.toLowerCase().replace(/\s+/g, '');
       const tsLang = langNorm === 'auto-detect' ? '' : langNorm;
       
@@ -660,7 +687,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     const endTime = performance.now();
     setDetectionTime(endTime - startTime);
     setIsDetecting(false);
-  }, [language, getCompilerName, treeSitterReady]);
+  }, [language, detected, getCompilerName, treeSitterReady]);
 
   // AI-powered deep error detection (runs with delay, replaces local errors when available)
   const detectErrorsAI = useCallback(async (codeText: string) => {
@@ -728,13 +755,18 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
   // AI deep detection (1.5s debounce - like typing pause)
   useEffect(() => {
     if (aiDetectRef.current) clearTimeout(aiDetectRef.current);
-    if (code.trim() && code.length >= 10 && navigator.onLine) {
+    const activeLang = isAutoDetect(language) ? (detected || '') : language;
+    // Spec: NO cloud LLM calls in the real-time typing loop for the 106
+    // registered languages. Only invoke AI as a fallback for languages outside
+    // the registry (e.g. one of the other 1600+ languages the selector offers).
+    const needsAI = !isRegisteredLanguage(activeLang);
+    if (needsAI && code.trim() && code.length >= 10 && navigator.onLine) {
       aiDetectRef.current = setTimeout(() => {
         detectErrorsAI(code);
       }, 1500);
     }
     return () => { if (aiDetectRef.current) clearTimeout(aiDetectRef.current); };
-  }, [code, language, detectErrorsAI]);
+  }, [code, language, detected, detectErrorsAI]);
 
   const handleScroll = useCallback(() => {
     if (textareaRef.current && lineNumbersRef.current) {
