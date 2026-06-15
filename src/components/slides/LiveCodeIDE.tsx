@@ -755,13 +755,18 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
   // AI deep detection (1.5s debounce - like typing pause)
   useEffect(() => {
     if (aiDetectRef.current) clearTimeout(aiDetectRef.current);
-    if (code.trim() && code.length >= 10 && navigator.onLine) {
+    const activeLang = isAutoDetect(language) ? (detected || '') : language;
+    // Spec: NO cloud LLM calls in the real-time typing loop for the 106
+    // registered languages. Only invoke AI as a fallback for languages outside
+    // the registry (e.g. one of the other 1600+ languages the selector offers).
+    const needsAI = !isRegisteredLanguage(activeLang);
+    if (needsAI && code.trim() && code.length >= 10 && navigator.onLine) {
       aiDetectRef.current = setTimeout(() => {
         detectErrorsAI(code);
       }, 1500);
     }
     return () => { if (aiDetectRef.current) clearTimeout(aiDetectRef.current); };
-  }, [code, language, detectErrorsAI]);
+  }, [code, language, detected, detectErrorsAI]);
 
   const handleScroll = useCallback(() => {
     if (textareaRef.current && lineNumbersRef.current) {
