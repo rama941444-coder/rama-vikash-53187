@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { treeSitterService, type TreeSitterError } from '@/lib/treeSitterService';
 import { detectLanguage, isAutoDetect } from '@/lib/languageDetect';
 import { HighlightedOverlay } from '@/lib/syntaxHighlight';
+import { validateLive, isRegisteredLanguage, unsupportedLanguageNotice } from '@/lib/liveSyntaxValidator';
 
 interface LiveCodeIDEProps {
   onAnalysisComplete: (data: any) => void;
