@@ -170,11 +170,15 @@ export function validateLive(code: string, language: string): LiveError[] {
   if (brack > 0) push(out, lines.length, last.length + 1, 1, `${brack} unclosed '['`, 'SyntaxError');
   if (brace > 0) push(out, lines.length, last.length + 1, 1, `${brace} unclosed '{'`, 'SyntaxError');
 
-  // ---- per-family casing rules ----
+  // ---- per-family casing and statement rules ----
+  let maskingBlockComment = false;
   for (let li = 0; li < lines.length; li++) {
     const line = lines[li];
     const lineNum = li + 1;
     const trimmed = line.trim();
+    const masked = maskNonCode(line, fam, maskingBlockComment);
+    maskingBlockComment = masked.inBlock;
+    const codeOnly = masked.text;
     if (trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*')) continue;
     if ((fam === 'python' || fam === 'config') && trimmed.startsWith('#')) continue;
 
@@ -193,6 +197,44 @@ export function validateLive(code: string, language: string): LiveError[] {
         push(out, lineNum, 1, trimmed.length,
           "Missing '#' before preprocessor directive. Expected '#include <header.h>'.",
           'PreprocessorError', 'error', trimmed, "Prefix with '#'.");
+      }
+
+      scan(codeOnly, lineNum, /\b[A-Za-z_]\w*\b/, (m) => {
+        const tok = m[0];
+        const lower = tok.toLowerCase();
+        const upper = tok.toUpperCase();
+        const before = codeOnly.slice(0, m.index);
+        if (tok !== lower && C_LOWERCASE_TOKENS.has(lower)) {
+          return {
+            msg: `Fatal Compilation Syntax Error. C/C++ is case-sensitive: '${tok}' must be '${lower}'.`,
+            type: 'CaseSensitivityError',
+            suggestion: `Replace '${tok}' with '${lower}'.`,
+          };
+        }
+        if (tok !== upper && C_UPPERCASE_TOKENS.has(upper)) {
+          return {
+            msg: `Macro/constant case anomaly. Standard macro '${upper}' must remain uppercase, not '${tok}'.`,
+            type: 'CaseSensitivityError',
+            severity: 'warning',
+            suggestion: `Replace '${tok}' with '${upper}'.`,
+          };
+        }
+        if (/^\s*#\s*define\s+$/.test(before) && /[a-z]/.test(tok)) {
+          return {
+            msg: `Macro definition '${tok}' should be uppercase by C convention.`,
+            type: 'MacroCaseWarning',
+            severity: 'warning',
+            suggestion: `Use '${upper}'.`,
+          };
+        }
+        return null;
+      }, out);
+
+      const nextTrimmed = (lines[li + 1] || '').trim();
+      if (needsCSemicolon(codeOnly.trim(), nextTrimmed)) {
+        push(out, lineNum, line.length || 1, 1,
+          "expected ';' at end of this C/C++ statement.",
+          'SyntaxError', 'error', line, "Append ';' only on this statement line.");
       }
     }
 
