@@ -378,7 +378,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       });
     }
 
-    // === TREE-SITTER INCREMENTAL PARSING (primary, ~0.5ms) ===
+    // === TREE-SITTER INCREMENTAL PARSING (extended registry only) ===
     let treeSitterUsed = false;
     if (treeSitterReady && !isRegisteredLanguage(activeLang)) {
       const langNorm = language.toLowerCase().replace(/\s+/g, '');
@@ -412,8 +412,8 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       }
     }
     
-    // Only run regex fallback if Tree-sitter didn't handle it
-    if (!treeSitterUsed) {
+    // Only run legacy regex fallback for languages not covered by the strict live validator.
+    if (!treeSitterUsed && (!activeLang || !isRegisteredLanguage(activeLang))) {
     
     // Determine language patterns to use
     let patterns = errorPatterns.js;

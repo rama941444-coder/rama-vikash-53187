@@ -55,6 +55,61 @@ function familyOf(lang: string): string {
   return 'generic';
 }
 
+const C_LOWERCASE_TOKENS = new Set([
+  'auto','break','case','char','const','continue','default','do','double','else','enum','extern','float','for','goto','if','inline','int','long','register','restrict','return','short','signed','sizeof','static','struct','switch','typedef','union','unsigned','void','volatile','while',
+  'alignas','alignof','and','and_eq','asm','bitand','bitor','bool','catch','class','compl','concept','consteval','constexpr','constinit','decltype','delete','dynamic_cast','explicit','export','false','friend','mutable','namespace','new','noexcept','not','not_eq','nullptr','operator','or','or_eq','private','protected','public','reinterpret_cast','requires','static_assert','static_cast','template','this','thread_local','throw','true','try','typeid','typename','using','virtual','wchar_t','xor','xor_eq',
+  'main','include','define','ifdef','ifndef','endif','elif','pragma','error','warning','printf','scanf','fprintf','fscanf','sprintf','sscanf','puts','gets','putchar','getchar','malloc','calloc','realloc','free','memset','memcpy','strlen','strcpy','strcmp','fopen','fclose','fread','fwrite','stdin','stdout','stderr'
+]);
+
+const C_UPPERCASE_TOKENS = new Set([
+  'NULL','EOF','FILE','BUFSIZ','FILENAME_MAX','FOPEN_MAX','TMP_MAX','SEEK_SET','SEEK_CUR','SEEK_END','EXIT_SUCCESS','EXIT_FAILURE','RAND_MAX','INT_MIN','INT_MAX','UINT_MAX','LONG_MIN','LONG_MAX','ULONG_MAX','CHAR_BIT','CHAR_MIN','CHAR_MAX','SCHAR_MIN','SCHAR_MAX','UCHAR_MAX','SHRT_MIN','SHRT_MAX','USHRT_MAX','FLT_MIN','FLT_MAX','DBL_MIN','DBL_MAX','TRUE','FALSE'
+]);
+
+function maskNonCode(line: string, fam: string, inBlockStart: boolean): { text: string; inBlock: boolean } {
+  let out = '';
+  let inBlock = inBlockStart;
+  let inSingle = false;
+  let inDouble = false;
+  let inTpl = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    const n = line[i + 1] || '';
+    const prev = i > 0 ? line[i - 1] : '';
+    if (inBlock) {
+      if (c === '*' && n === '/') { out += '  '; i++; inBlock = false; }
+      else out += ' ';
+      continue;
+    }
+    if (!inSingle && !inDouble && !inTpl) {
+      if (c === '/' && n === '/') { out += ' '.repeat(line.length - i); break; }
+      if (c === '/' && n === '*') { out += '  '; i++; inBlock = true; continue; }
+      if (c === '#' && (fam === 'python' || fam === 'config' || fam === 'generic')) { out += ' '.repeat(line.length - i); break; }
+    }
+    if (prev !== '\\') {
+      if (c === '"' && !inSingle && !inTpl) { inDouble = !inDouble; out += c; continue; }
+      if (c === "'" && !inDouble && !inTpl) { inSingle = !inSingle; out += c; continue; }
+      if (c === '`' && !inSingle && !inDouble) { inTpl = !inTpl; out += c; continue; }
+    }
+    out += (inSingle || inDouble || inTpl) ? ' ' : c;
+  }
+  return { text: out, inBlock };
+}
+
+function needsCSemicolon(trimmed: string, nextTrimmed: string): boolean {
+  if (!trimmed || /[;{}:,\\]$/.test(trimmed) || /^#/.test(trimmed)) return false;
+  if (/^(if|else|for|while|do|switch|case|default|try|catch|class|namespace|public|private|protected)\b/.test(trimmed)) return false;
+  if (/^(struct|union|enum)\b.*\{?$/.test(trimmed)) return false;
+  if (/^[A-Za-z_]\w*\s*:\s*$/.test(trimmed)) return false;
+  if (/^[A-Za-z_][\w:\s*&*<>~,]+\s+[A-Za-z_]\w*\s*\([^;]*\)\s*(?:const\s*)?(?:\{|$)/.test(trimmed)) return false;
+  if (nextTrimmed === '{' && /^[A-Za-z_][\w:\s*&*<>~,]+\s+[A-Za-z_]\w*\s*\([^;]*\)\s*$/.test(trimmed)) return false;
+  if (/^(return|break|continue|goto|throw)\b/.test(trimmed)) return true;
+  if (/(\+\+|--)$/.test(trimmed)) return true;
+  if (/(^|[^=!<>])=(?!=)|\+=|-=|\*=|\/=|%=|&=|\|=|\^=|<<=|>>=/.test(trimmed)) return true;
+  if (/^(?:const\s+|static\s+|extern\s+|register\s+|volatile\s+|unsigned\s+|signed\s+|long\s+|short\s+|struct\s+\w+\s+|enum\s+\w+\s+|union\s+\w+\s+)*(?:void|char|short|int|long|float|double|signed|unsigned|size_t|bool|FILE|auto|[A-Za-z_]\w*(?:::\w+)?(?:\s*[<*][^;=(){}]*[>*])?)\s+[A-Za-z_*&\s][\w*&\s]*(?:\[[^\]]*\])?\s*(?:$|,)/.test(trimmed)) return true;
+  if (/^[A-Za-z_]\w*(?:::\w+)?\s*\([^;{}]*\)$/.test(trimmed)) return true;
+  return false;
+}
+
 function push(out: LiveError[], line: number, col: number, len: number, msg: string, type = 'SyntaxError', severity: 'error' | 'warning' = 'error', wrongCode?: string, suggestion?: string) {
   out.push({ line, column: col, endLine: line, endColumn: col + Math.max(1, len), message: msg, severity, type, wrongCode, suggestion });
 }
@@ -115,11 +170,15 @@ export function validateLive(code: string, language: string): LiveError[] {
   if (brack > 0) push(out, lines.length, last.length + 1, 1, `${brack} unclosed '['`, 'SyntaxError');
   if (brace > 0) push(out, lines.length, last.length + 1, 1, `${brace} unclosed '{'`, 'SyntaxError');
 
-  // ---- per-family casing rules ----
+  // ---- per-family casing and statement rules ----
+  let maskingBlockComment = false;
   for (let li = 0; li < lines.length; li++) {
     const line = lines[li];
     const lineNum = li + 1;
     const trimmed = line.trim();
+    const masked = maskNonCode(line, fam, maskingBlockComment);
+    maskingBlockComment = masked.inBlock;
+    const codeOnly = masked.text;
     if (trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*')) continue;
     if ((fam === 'python' || fam === 'config') && trimmed.startsWith('#')) continue;
 
@@ -138,6 +197,44 @@ export function validateLive(code: string, language: string): LiveError[] {
         push(out, lineNum, 1, trimmed.length,
           "Missing '#' before preprocessor directive. Expected '#include <header.h>'.",
           'PreprocessorError', 'error', trimmed, "Prefix with '#'.");
+      }
+
+      scan(codeOnly, lineNum, /\b[A-Za-z_]\w*\b/, (m) => {
+        const tok = m[0];
+        const lower = tok.toLowerCase();
+        const upper = tok.toUpperCase();
+        const before = codeOnly.slice(0, m.index);
+        if (tok !== lower && C_LOWERCASE_TOKENS.has(lower)) {
+          return {
+            msg: `Fatal Compilation Syntax Error. C/C++ is case-sensitive: '${tok}' must be '${lower}'.`,
+            type: 'CaseSensitivityError',
+            suggestion: `Replace '${tok}' with '${lower}'.`,
+          };
+        }
+        if (tok !== upper && C_UPPERCASE_TOKENS.has(upper)) {
+          return {
+            msg: `Macro/constant case anomaly. Standard macro '${upper}' must remain uppercase, not '${tok}'.`,
+            type: 'CaseSensitivityError',
+            severity: 'warning',
+            suggestion: `Replace '${tok}' with '${upper}'.`,
+          };
+        }
+        if (/^\s*#\s*define\s+$/.test(before) && /[a-z]/.test(tok)) {
+          return {
+            msg: `Macro definition '${tok}' should be uppercase by C convention.`,
+            type: 'MacroCaseWarning',
+            severity: 'warning',
+            suggestion: `Use '${upper}'.`,
+          };
+        }
+        return null;
+      }, out);
+
+      const nextTrimmed = (lines[li + 1] || '').trim();
+      if (needsCSemicolon(codeOnly.trim(), nextTrimmed)) {
+        push(out, lineNum, line.length || 1, 1,
+          "expected ';' at end of this C/C++ statement.",
+          'SyntaxError', 'error', line, "Append ';' only on this statement line.");
       }
     }
 
