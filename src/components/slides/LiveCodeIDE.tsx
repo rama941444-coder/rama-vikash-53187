@@ -109,6 +109,27 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     return () => clearTimeout(t);
   }, [code, language]);
 
+  // One-time browser-console announcement when the active language changes,
+  // so users can verify which engine (local registry vs. tree-sitter vs. AI)
+  // is handling their per-keystroke diagnostics. UI is unchanged.
+  useEffect(() => {
+    const activeLang = isAutoDetect(language) ? (detected || '') : language;
+    if (!activeLang) return;
+    if (isRegisteredLanguage(activeLang)) {
+      console.log(
+        `%c[Slide 5] %cLocal live validator active for '${activeLang}' — 2–5 ms per keystroke, 0 network cost.`,
+        'color:#22c55e;font-weight:bold', 'color:inherit'
+      );
+    } else if (treeSitterService.isLanguageSupported(activeLang.toLowerCase().replace(/\s+/g, ''))) {
+      console.log(
+        `%c[Slide 5] %cTree-sitter WASM grammar will lazy-load from CDN for '${activeLang}'.`,
+        'color:#3b82f6;font-weight:bold', 'color:inherit'
+      );
+    } else {
+      console.warn(`[Slide 5] ${unsupportedLanguageNotice(activeLang)}`);
+    }
+  }, [language, detected]);
+
   const lines = code.split('\n');
   const lineCount = lines.length;
   const maxLines = 500000;
