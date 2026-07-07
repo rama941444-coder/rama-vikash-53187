@@ -5,7 +5,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import DOMPurify from 'dompurify';
 import LanguageSelector from '@/components/LanguageSelector';
-import EnhancedCodeEditor from '@/components/EnhancedCodeEditor';
+import MonacoNotepad from '@/components/MonacoNotepad';
 import HtmlPreviewFrame from './HtmlPreviewFrame';
 import { detectLanguage, isAutoDetect } from '@/lib/languageDetect';
 
@@ -324,10 +324,11 @@ const CodeInput = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: Cod
         <label className="block text-lg font-semibold mb-2">
           Manual Code/Text Editor (Notepad Style)
         </label>
-        <EnhancedCodeEditor
+        <MonacoNotepad
           value={code}
           onChange={setCode}
           language={isAutoDetect(language) ? (detected || undefined) : language}
+          headerLabel="Slide 2 · Monaco Notepad"
           placeholder={"// Paste or type your code here...\n// Supports up to 300,000 lines\n// Features: Line numbers, auto-indent, bracket matching\n// Press Tab for indentation, Shift+Tab to unindent\n// Auto-closes: () [] {} '' \"\" ``"}
         />
       </div>

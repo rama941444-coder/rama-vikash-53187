@@ -12,6 +12,10 @@ import { treeSitterService, type TreeSitterError } from '@/lib/treeSitterService
 import { detectLanguage, isAutoDetect } from '@/lib/languageDetect';
 import { HighlightedOverlay } from '@/lib/syntaxHighlight';
 import { validateLive, isRegisteredLanguage, unsupportedLanguageNotice } from '@/lib/liveSyntaxValidator';
+import { detectRuntimeRisks } from '@/lib/runtimeRiskHeuristics';
+import Editor from '@monaco-editor/react';
+import type * as MonacoNS from 'monaco-editor';
+import { toMonacoLang } from '@/components/MonacoNotepad';
 
 interface LiveCodeIDEProps {
   onAnalysisComplete: (data: any) => void;
@@ -76,6 +80,8 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
 
   const [treeSitterReady, setTreeSitterReady] = useState(false);
   const treeSitterLangRef = useRef<string>('');
+  const monacoEditorRef = useRef<MonacoNS.editor.IStandaloneCodeEditor | null>(null);
+  const monacoNsRef = useRef<any>(null);
 
   // Sync with persisted code
   useEffect(() => {
@@ -99,6 +105,32 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       onCodeChange(code);
     }
   }, [code, onCodeChange, persistedCode]);
+
+  // Sync error list into Monaco as red/amber wavy underlines (setModelMarkers)
+  useEffect(() => {
+    const editor = monacoEditorRef.current;
+    const monaco = monacoNsRef.current;
+    if (!editor || !monaco) return;
+    const model = editor.getModel();
+    if (!model) return;
+    const markers = errors
+      .filter((e) => Number.isFinite(e.line) && e.line > 0)
+      .map((e) => {
+        const lineText = code.split('\n')[e.line - 1] || '';
+        const startCol = Math.max(1, e.column || 1);
+        const endCol = Math.max(startCol + 1, lineText.length + 1);
+        return {
+          startLineNumber: e.line,
+          startColumn: startCol,
+          endLineNumber: e.line,
+          endColumn: endCol,
+          message: `${e.type}: ${e.message}${e.suggestion ? `\n💡 ${e.suggestion}` : ''}`,
+          severity: e.severity === 'error' ? 8 : 4, // MarkerSeverity: Error=8, Warning=4
+          source: 'slide5-live',
+        };
+      });
+    monaco.editor.setModelMarkers(model, 'slide5-live', markers);
+  }, [errors, code]);
 
   // Auto-detect language from notepad content (debounced)
   useEffect(() => {
@@ -360,6 +392,17 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     if (activeLang && isRegisteredLanguage(activeLang)) {
       const liveErrs = validateLive(codeText, activeLang);
       liveErrs.forEach((e) => detectedErrors.push({
+        line: e.line,
+        column: e.column,
+        message: e.message,
+        severity: e.severity,
+        type: e.type,
+        wrongCode: e.wrongCode,
+        suggestion: e.suggestion,
+      }));
+      // Heuristic runtime-risk warnings (memory leaks, overflow, infinite loops, etc.)
+      const risks = detectRuntimeRisks(codeText, activeLang);
+      risks.forEach((e) => detectedErrors.push({
         line: e.line,
         column: e.column,
         message: e.message,
@@ -1391,67 +1434,48 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
           </div>
         </div>
 
-        {/* Editor Body */}
-        <div className="flex relative" style={{ height: '400px' }}>
-          {/* Line Numbers */}
-          <div 
-            ref={lineNumbersRef}
-            className="bg-[#16213e] text-gray-500 text-right py-2 overflow-hidden select-none border-r border-[#0f3460]"
-            style={{ 
-              minWidth: '60px',
-              fontFamily: 'JetBrains Mono, Consolas, Monaco, monospace',
-              fontSize: '14px',
-              lineHeight: '1.6',
-            }}
-          >
-            {lineNumbers.map(num => (
-              <div 
-                key={num} 
-                className={`px-3 transition-colors ${num === cursorPosition.line ? 'text-[#e94560] bg-[#0f3460]' : ''} ${getLineClass(num)}`}
-                style={{ height: '22.4px' }}
-              >
-                {num}
-              </div>
-            ))}
-          </div>
-
-          {/* Highlight overlay + Text Area */}
-          <div className={`flex-1 relative ${editorTheme === 'light' ? 'bg-white' : 'bg-[#1a1a2e]'}`} style={{ minWidth: 0 }}>
-            <HighlightedOverlay
-              ref={overlayRef}
-              code={code}
-              language={isAutoDetect(language) ? (detected || undefined) : language}
-              fontFamily={'JetBrains Mono, Consolas, Monaco, monospace'}
-              fontSize={14}
-              lineHeight={1.6}
-              padding="12px"
-              theme={editorTheme}
-              errorLines={errors.map(e => e.line).filter(n => Number.isFinite(n) && n > 0)}
-            />
-            <textarea
-            ref={textareaRef}
+        {/* Editor Body — Monaco with per-character diagnostics */}
+        <div className="relative" style={{ height: '420px', background: editorTheme === 'light' ? '#ffffff' : '#1a1a2e' }}>
+          <Editor
+            height="100%"
+            theme={editorTheme === 'light' ? 'vs' : 'vs-dark'}
+            language={toMonacoLang(isAutoDetect(language) ? (detected || 'plaintext') : language)}
             value={code}
-            onChange={handleChange}
-            onKeyDown={handleKeyDown}
-            onScroll={handleScroll}
-            onClick={updateCursorPosition}
-            onKeyUp={updateCursorPosition}
-            placeholder={"// 🚀 Start typing your code here...\n// ⚡ Live error detection in 0.005 sec\n// 📝 Supports 500,000+ lines\n// 🔧 Auto-close: () [] {} '' \"\" ``\n// ➡️ Tab for indent, Shift+Tab to unindent\n// 🎯 Errors show in RED, corrections in GREEN"}
-            className={`absolute inset-0 w-full h-full bg-transparent text-transparent p-3 resize-none outline-none overflow-auto placeholder:text-gray-500`}
-            style={{ 
-              fontFamily: 'JetBrains Mono, Consolas, Monaco, monospace',
-              fontSize: '14px',
-              lineHeight: '1.6',
-              tabSize: 4,
-              whiteSpace: 'pre',
-              overflowWrap: 'normal',
-              caretColor: editorTheme === 'light' ? '#000000' : '#e94560',
+            onChange={(v) => {
+              const next = v ?? '';
+              const newLineCount = next.split('\n').length;
+              if (newLineCount > maxLines) {
+                toast({ title: 'Line limit reached', description: `Max ${maxLines.toLocaleString()} lines`, variant: 'destructive' });
+                return;
+              }
+              setCode(next);
             }}
-            spellCheck={false}
-            autoCapitalize="off"
-            autoCorrect="off"
-            />
-          </div>
+            onMount={(editor, monaco) => {
+              monacoEditorRef.current = editor;
+              monacoNsRef.current = monaco;
+              editor.onDidChangeCursorPosition((e) => {
+                setCursorPosition({ line: e.position.lineNumber, column: e.position.column });
+              });
+            }}
+            options={{
+              fontSize: 14,
+              fontFamily: "'JetBrains Mono', Consolas, Monaco, monospace",
+              fontLigatures: true,
+              minimap: { enabled: true },
+              automaticLayout: true,
+              bracketPairColorization: { enabled: true },
+              guides: { bracketPairs: true, indentation: true },
+              tabSize: 4,
+              insertSpaces: true,
+              renderWhitespace: 'selection',
+              scrollBeyondLastLine: false,
+              smoothScrolling: true,
+              padding: { top: 8, bottom: 8 },
+              suggestOnTriggerCharacters: true,
+              quickSuggestions: true,
+              cursorBlinking: 'smooth',
+            }}
+          />
         </div>
 
         {/* Status Bar */}

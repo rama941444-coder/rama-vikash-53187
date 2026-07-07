@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Monitor, Smartphone, Tablet, RefreshCw, ExternalLink, Copy, Maximize2, Minimize2, Rocket, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -109,19 +110,31 @@ const WebPreview = ({ htmlCode = '', cssCode = '', jsCode = '', combinedCode = '
     setIsDeploying(true);
     setShowDeployForm(false);
 
-    try {
-      const deployUrl = `https://www.${sanitizedName}.com`;
-      setDeployedUrl(deployUrl);
-
-      toast({
-        title: "🚀 Website Deployed!",
-        description: `Your site is live at ${deployUrl}`
-      });
-    } catch (error: any) {
-      toast({ title: "Deploy failed", description: error.message, variant: "destructive" });
-    } finally {
-      setIsDeploying(false);
-    }
+    (async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke('netlify-deploy', {
+          body: { html: previewContent, siteName: sanitizedName },
+        });
+        if (error) throw error;
+        if (!data?.url) throw new Error(data?.detail || 'Deploy failed');
+        setDeployedUrl(data.url);
+        toast({
+          title: '🚀 Deployed to public URL!',
+          description: `Live at ${data.url} — works on any device without Lovable`,
+        });
+      } catch (err: any) {
+        // Fall back to local in-tab simulation if Netlify Drop is unreachable
+        const fallback = `https://www.${sanitizedName}.com`;
+        setDeployedUrl(fallback);
+        toast({
+          title: '⚠️ Deployed locally',
+          description: `Public deploy failed (${err?.message || 'network'}). Falling back to preview-only URL.`,
+          variant: 'destructive',
+        });
+      } finally {
+        setIsDeploying(false);
+      }
+    })();
   };
 
   const cancelDeploy = () => {
