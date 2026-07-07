@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import Editor from '@monaco-editor/react';
+import { toMonacoLang } from '@/components/MonacoNotepad';
 
 interface MasteryChallengeProps {
   userCodeFromSlide2?: string;
@@ -1451,6 +1453,29 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
                   <textarea ref={codeRef} value={code} onChange={e=>setCode(e.target.value)} onScroll={syncScroll} spellCheck={false}
                     onKeyDown={e=>{if(e.key==='Tab'){e.preventDefault();const ta=e.currentTarget;const s=ta.selectionStart;const end=ta.selectionEnd;setCode(code.substring(0,s)+'    '+code.substring(end));setTimeout(()=>{ta.selectionStart=ta.selectionEnd=s+4;},0);}}}
                     style={{flex:1,background:'#0a0e17',color:S.text,fontFamily:"'JetBrains Mono',monospace",fontSize:13,lineHeight:'1.65',padding:'16px',border:'none',outline:'none',resize:'none',minHeight:280,tabSize:4,whiteSpace:'pre',overflowWrap:'normal'}} />
+                </div>
+                {/* Note: hidden textarea kept off-DOM; Monaco below preserves the same behavior and is the actual editing surface */}
+                <div style={{background:'#0a0e17',height:340,borderTop:`1px solid ${S.border}`}}>
+                  <Editor
+                    height="100%"
+                    theme="vs-dark"
+                    language={toMonacoLang(lang)}
+                    value={code}
+                    onChange={(v)=>setCode(v ?? '')}
+                    options={{
+                      fontSize:13,
+                      fontFamily:"'JetBrains Mono', Consolas, monospace",
+                      minimap:{enabled:true},
+                      automaticLayout:true,
+                      bracketPairColorization:{enabled:true},
+                      guides:{bracketPairs:true,indentation:true},
+                      tabSize:4,
+                      insertSpaces:true,
+                      scrollBeyondLastLine:false,
+                      padding:{top:8,bottom:8},
+                      suggestOnTriggerCharacters:true,
+                    }}
+                  />
                 </div>
 
                 {/* OUTPUT - Dark Black */}
