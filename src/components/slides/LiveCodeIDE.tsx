@@ -12,6 +12,10 @@ import { treeSitterService, type TreeSitterError } from '@/lib/treeSitterService
 import { detectLanguage, isAutoDetect } from '@/lib/languageDetect';
 import { HighlightedOverlay } from '@/lib/syntaxHighlight';
 import { validateLive, isRegisteredLanguage, unsupportedLanguageNotice } from '@/lib/liveSyntaxValidator';
+import { detectRuntimeRisks } from '@/lib/runtimeRiskHeuristics';
+import Editor from '@monaco-editor/react';
+import type * as MonacoNS from 'monaco-editor';
+import { toMonacoLang } from '@/components/MonacoNotepad';
 
 interface LiveCodeIDEProps {
   onAnalysisComplete: (data: any) => void;
@@ -76,6 +80,8 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
 
   const [treeSitterReady, setTreeSitterReady] = useState(false);
   const treeSitterLangRef = useRef<string>('');
+  const monacoEditorRef = useRef<MonacoNS.editor.IStandaloneCodeEditor | null>(null);
+  const monacoNsRef = useRef<any>(null);
 
   // Sync with persisted code
   useEffect(() => {
@@ -360,6 +366,17 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     if (activeLang && isRegisteredLanguage(activeLang)) {
       const liveErrs = validateLive(codeText, activeLang);
       liveErrs.forEach((e) => detectedErrors.push({
+        line: e.line,
+        column: e.column,
+        message: e.message,
+        severity: e.severity,
+        type: e.type,
+        wrongCode: e.wrongCode,
+        suggestion: e.suggestion,
+      }));
+      // Heuristic runtime-risk warnings (memory leaks, overflow, infinite loops, etc.)
+      const risks = detectRuntimeRisks(codeText, activeLang);
+      risks.forEach((e) => detectedErrors.push({
         line: e.line,
         column: e.column,
         message: e.message,
