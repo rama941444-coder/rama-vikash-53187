@@ -106,6 +106,32 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     }
   }, [code, onCodeChange, persistedCode]);
 
+  // Sync error list into Monaco as red/amber wavy underlines (setModelMarkers)
+  useEffect(() => {
+    const editor = monacoEditorRef.current;
+    const monaco = monacoNsRef.current;
+    if (!editor || !monaco) return;
+    const model = editor.getModel();
+    if (!model) return;
+    const markers = errors
+      .filter((e) => Number.isFinite(e.line) && e.line > 0)
+      .map((e) => {
+        const lineText = code.split('\n')[e.line - 1] || '';
+        const startCol = Math.max(1, e.column || 1);
+        const endCol = Math.max(startCol + 1, lineText.length + 1);
+        return {
+          startLineNumber: e.line,
+          startColumn: startCol,
+          endLineNumber: e.line,
+          endColumn: endCol,
+          message: `${e.type}: ${e.message}${e.suggestion ? `\n💡 ${e.suggestion}` : ''}`,
+          severity: e.severity === 'error' ? 8 : 4, // MarkerSeverity: Error=8, Warning=4
+          source: 'slide5-live',
+        };
+      });
+    monaco.editor.setModelMarkers(model, 'slide5-live', markers);
+  }, [errors, code]);
+
   // Auto-detect language from notepad content (debounced)
   useEffect(() => {
     const t = setTimeout(() => {
