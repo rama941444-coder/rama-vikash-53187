@@ -1446,15 +1446,7 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
                   </div>
                 </div>
 
-                {/* Code Editor */}
-                <div style={{display:'flex',position:'relative'}}>
-                  <div ref={lineNumRef} style={{width:52,padding:'16px 6px',background:'#0d1117',fontFamily:"'JetBrains Mono',monospace",fontSize:13,color:'#3d4f6b',lineHeight:'1.65',textAlign:'right',userSelect:'none',overflow:'hidden',borderRight:`1px solid ${S.border}`}}
-                    dangerouslySetInnerHTML={{__html:Array.from({length:lineCount},(_,i)=>i+1).join('<br/>')}} />
-                  <textarea ref={codeRef} value={code} onChange={e=>setCode(e.target.value)} onScroll={syncScroll} spellCheck={false}
-                    onKeyDown={e=>{if(e.key==='Tab'){e.preventDefault();const ta=e.currentTarget;const s=ta.selectionStart;const end=ta.selectionEnd;setCode(code.substring(0,s)+'    '+code.substring(end));setTimeout(()=>{ta.selectionStart=ta.selectionEnd=s+4;},0);}}}
-                    style={{flex:1,background:'#0a0e17',color:S.text,fontFamily:"'JetBrains Mono',monospace",fontSize:13,lineHeight:'1.65',padding:'16px',border:'none',outline:'none',resize:'none',minHeight:280,tabSize:4,whiteSpace:'pre',overflowWrap:'normal'}} />
-                </div>
-                {/* Note: hidden textarea kept off-DOM; Monaco below preserves the same behavior and is the actual editing surface */}
+                {/* Code Editor — Monaco */}
                 <div style={{background:'#0a0e17',height:340,borderTop:`1px solid ${S.border}`}}>
                   <Editor
                     height="100%"
