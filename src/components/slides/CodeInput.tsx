@@ -1,13 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Upload, Loader2, Play, Image, Wand2, Sparkles } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import DOMPurify from 'dompurify';
 import LanguageSelector from '@/components/LanguageSelector';
-import MonacoNotepad from '@/components/MonacoNotepad';
+import MonacoNotepad, { type MonacoNotepadHandle } from '@/components/MonacoNotepad';
 import HtmlPreviewFrame from './HtmlPreviewFrame';
 import { detectLanguage, isAutoDetect } from '@/lib/languageDetect';
+import { validateLive } from '@/lib/liveSyntaxValidator';
+import { detectRuntimeRisks } from '@/lib/runtimeRiskHeuristics';
 
 interface CodeInputProps {
   onAnalysisComplete: (data: any) => void;
@@ -26,6 +28,47 @@ const CodeInput = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: Cod
   const [result, setResult] = useState<any>(null);
   const [detected, setDetected] = useState<string | null>(null);
   const { toast } = useToast();
+  const notepadRef = useRef<MonacoNotepadHandle>(null);
+
+  // Live per-keystroke diagnostics for Slide 2 (syntax + math/logic/runtime heuristics)
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const h = notepadRef.current;
+      const editor = h?.getEditor();
+      const monaco = h?.getMonaco();
+      if (!editor || !monaco) return;
+      const model = editor.getModel();
+      if (!model) return;
+      const activeLang = isAutoDetect(language) ? (detected || detectLanguage(code) || '') : language;
+      let findings: any[] = [];
+      try { findings = findings.concat(validateLive(code, activeLang) || []); } catch {}
+      try { findings = findings.concat(detectRuntimeRisks(code, activeLang) || []); } catch {}
+      const markers = findings
+        .filter((e) => Number.isFinite(e.line) && e.line > 0)
+        .map((e) => {
+          const lt = code.split('\n')[e.line - 1] || '';
+          const startCol = Math.max(1, e.column || 1);
+          const endCol = Math.max(startCol + 1, e.endColumn || lt.length + 1);
+          return {
+            startLineNumber: e.line,
+            startColumn: startCol,
+            endLineNumber: e.endLine || e.line,
+            endColumn: endCol,
+            message: `${e.type}: ${e.message}${e.suggestion ? `\n💡 ${e.suggestion}` : ''}`,
+            severity: e.severity === 'error' ? 8 : 4,
+            source: 'slide2-live',
+          };
+        });
+      monaco.editor.setModelMarkers(model, 'slide2-live', markers);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [code, language, detected]);
+
+  // Auto-detect language for validators
+  useEffect(() => {
+    if (isAutoDetect(language)) setDetected(detectLanguage(code));
+    else setDetected(null);
+  }, [code, language]);
 
   // Sync with persisted code when it changes
   useEffect(() => {
@@ -325,6 +368,7 @@ const CodeInput = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: Cod
           Manual Code/Text Editor (Notepad Style)
         </label>
         <MonacoNotepad
+          ref={notepadRef}
           value={code}
           onChange={setCode}
           language={isAutoDetect(language) ? (detected || undefined) : language}
