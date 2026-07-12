@@ -145,6 +145,170 @@ export function detectRuntimeRisks(code: string, language?: string | null): Find
     }
   }
 
+  // --- Math errors ------------------------------------------------------------
+
+  // Modulo by zero literal: `a % 0`
+  {
+    const re = /%\s*0(?!\.\d|\d)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(code))) {
+      const p = loc(lines, m.index, m.index);
+      const lt = lines[p.line - 1] || '';
+      if (lt.trim().startsWith('//') || lt.trim().startsWith('#')) continue;
+      push(out, p.line, p.column, m[0].length,
+        `Modulo by zero. Runtime will throw / produce NaN.`,
+        'ModuloByZeroError', 'error', 'Check divisor is non-zero before %.', m[0]);
+    }
+  }
+
+  // sqrt of a negative literal: sqrt(-N), Math.sqrt(-N)
+  {
+    const re = /\b(?:Math\.)?sqrt\s*\(\s*-\s*\d+(?:\.\d+)?\s*\)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(code))) {
+      const p = loc(lines, m.index, m.index);
+      push(out, p.line, p.column, m[0].length,
+        `Math error: sqrt of a negative number → NaN / domain error.`,
+        'MathDomainError', 'error', 'Take abs() first or use a complex number type.', m[0]);
+    }
+  }
+
+  // log of zero or negative literal: log(0), log(-N), Math.log(0)
+  {
+    const re = /\b(?:Math\.)?(?:log|log2|log10|ln)\s*\(\s*(-\s*\d+(?:\.\d+)?|0(?:\.0+)?)\s*\)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(code))) {
+      const p = loc(lines, m.index, m.index);
+      push(out, p.line, p.column, m[0].length,
+        `Math error: log(${m[1].replace(/\s+/g, '')}) is undefined / -Infinity.`,
+        'MathDomainError', 'error', 'Ensure argument > 0.', m[0]);
+    }
+  }
+
+  // pow(0, 0) — indeterminate in some languages
+  {
+    const re = /\b(?:Math\.)?pow\s*\(\s*0\s*,\s*0\s*\)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(code))) {
+      const p = loc(lines, m.index, m.index);
+      push(out, p.line, p.column, m[0].length,
+        `pow(0, 0) is indeterminate; many math libraries return 1 but semantics vary.`,
+        'MathIndeterminateWarning', 'warning', 'Handle the (0,0) case explicitly.', m[0]);
+    }
+  }
+
+  // Integer overflow risk: shift by >= 32 for 32-bit ints
+  {
+    const re = /(?:<<|>>)\s*(\d{2,})/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(code))) {
+      const n = Number(m[1]);
+      if (n >= 32) {
+        const p = loc(lines, m.index, m.index);
+        push(out, p.line, p.column, m[0].length,
+          `Bit-shift by ${n} on a 32-bit int is undefined / wraps to 0.`,
+          'IntegerOverflowWarning', 'warning', 'Use a 64-bit type or mask the shift amount.', m[0]);
+      }
+    }
+  }
+
+  // Python integer division vs float division confusion: `x / n` where a Python-3 int result is used with % or [] indexing
+  if (family === 'python') {
+    const re = /\[\s*[a-zA-Z_]\w*\s*\/\s*[a-zA-Z_0-9]+\s*\]/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(code))) {
+      const p = loc(lines, m.index, m.index);
+      push(out, p.line, p.column, m[0].length,
+        `Python 3: '/' returns a float. Indexing with a float raises TypeError. Use '//' for int division.`,
+        'FloatIndexError', 'error', "Replace '/' with '//' inside the index.", m[0]);
+    }
+  }
+
+  // --- Logic errors ----------------------------------------------------------
+
+  // Assignment inside a condition: if (x = 5) — likely meant ==
+  {
+    const re = /\b(if|while)\s*\(\s*[A-Za-z_]\w*\s*=(?!=)\s*[^)]+\)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(code))) {
+      const p = loc(lines, m.index, m.index);
+      push(out, p.line, p.column, m[0].length,
+        `Assignment inside '${m[1]}' condition — did you mean '=='?`,
+        'AssignmentInConditionWarning', 'warning', "Use '==' or '===' for comparison.", m[0]);
+    }
+  }
+
+  // Self-assignment: `x = x;`
+  {
+    const re = /\b([A-Za-z_]\w*)\s*=\s*\1\s*[;\n]/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(code))) {
+      const p = loc(lines, m.index, m.index);
+      push(out, p.line, p.column, m[0].length,
+        `Self-assignment '${m[1]} = ${m[1]}' has no effect.`,
+        'SelfAssignmentWarning', 'warning', 'Remove the line or fix the intended target.', m[0]);
+    }
+  }
+
+  // Always-true / always-false condition
+  {
+    const re = /\b(if|while)\s*\(\s*(true|false|1|0|1\s*==\s*1|0\s*==\s*0|1\s*!=\s*0)\s*\)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(code))) {
+      const val = m[2];
+      const truthy = val === 'true' || val === '1' || val === '1 == 1' || val === '0 == 0' || val === '1 != 0';
+      if (m[1] === 'while' && truthy) continue; // covered by infinite-loop check
+      const p = loc(lines, m.index, m.index);
+      push(out, p.line, p.column, m[0].length,
+        `Constant '${m[1]}' condition — always ${truthy ? 'true' : 'false'}.`,
+        'ConstantConditionWarning', 'warning', 'Replace with a real condition or remove the branch.', m[0]);
+    }
+  }
+
+  // Unreachable code after return / throw / break / continue on the previous non-blank line
+  {
+    for (let i = 0; i < lines.length - 1; i++) {
+      const t = lines[i].trim();
+      if (/^(return\b|throw\b|break\s*;|continue\s*;|exit\s*\(|raise\b)/.test(t) && /[;}]?\s*$/.test(t)) {
+        // find next non-blank, non-comment, non-closing-brace line
+        for (let j = i + 1; j < lines.length; j++) {
+          const nt = lines[j].trim();
+          if (!nt) continue;
+          if (nt.startsWith('//') || nt.startsWith('#') || nt.startsWith('/*') || nt.startsWith('*')) continue;
+          if (/^[})\]]/.test(nt)) break; // block ended
+          push(out, j + 1, 1, nt.length,
+            `Unreachable code — previous line already returns/throws/breaks.`,
+            'UnreachableCodeWarning', 'warning', 'Remove the dead code or restructure the flow.', nt);
+          break;
+        }
+      }
+    }
+  }
+
+  // Off-by-one: `for (i = 0; i <= arr.length; i++)` — should be `<`
+  {
+    const re = /for\s*\(\s*(?:let|var|int|size_t)?\s*([A-Za-z_]\w*)\s*=\s*0\s*;\s*\1\s*<=\s*([A-Za-z_]\w*)\.(?:length|size\s*\(\s*\))\s*;/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(code))) {
+      const p = loc(lines, m.index, m.index);
+      push(out, p.line, p.column, m[0].length,
+        `Off-by-one: '${m[1]} <= ${m[2]}.length' will overflow by one. Use '<'.`,
+        'OffByOneError', 'error', "Change '<=' to '<'.", m[0]);
+    }
+  }
+
+  // Comparing float with == (JS/C-family)
+  if (family === 'js' || family === 'c' || family === 'jvm') {
+    const re = /([A-Za-z_]\w*|\d+\.\d+)\s*(===?)\s*(\d+\.\d+)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(code))) {
+      const p = loc(lines, m.index, m.index);
+      push(out, p.line, p.column, m[0].length,
+        `Float equality '${m[2]}' is unreliable due to IEEE-754 rounding.`,
+        'FloatEqualityWarning', 'warning', 'Compare using abs(a - b) < EPS.', m[0]);
+    }
+  }
+
   // --- Unbounded recursion: function fn(...) { ... fn(...) ... } with no base case return before the recursive call
   const funcRe = /\b(?:function|def|fn|func)\s+([A-Za-z_]\w*)\s*\(/g;
   {
