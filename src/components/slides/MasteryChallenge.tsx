@@ -2,7 +2,10 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import Editor from '@monaco-editor/react';
+import type * as MonacoNS from 'monaco-editor';
 import { toMonacoLang } from '@/components/MonacoNotepad';
+import { validateLive } from '@/lib/liveSyntaxValidator';
+import { detectRuntimeRisks } from '@/lib/runtimeRiskHeuristics';
 
 interface MasteryChallengeProps {
   userCodeFromSlide2?: string;
