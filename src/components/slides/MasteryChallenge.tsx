@@ -630,6 +630,40 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
   const lineNumRef = useRef<HTMLDivElement>(null);
   const stdinRef = useRef<HTMLInputElement>(null);
   const outputRef = useRef<HTMLDivElement>(null);
+  const monacoEditorRef = useRef<MonacoNS.editor.IStandaloneCodeEditor | null>(null);
+  const monacoNsRef = useRef<any>(null);
+
+  // Slide 6 live per-keystroke diagnostics (syntax + math/logic/runtime heuristics)
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const editor = monacoEditorRef.current;
+      const monaco = monacoNsRef.current;
+      if (!editor || !monaco) return;
+      const model = editor.getModel();
+      if (!model) return;
+      let findings: any[] = [];
+      try { findings = findings.concat(validateLive(code, lang) || []); } catch {}
+      try { findings = findings.concat(detectRuntimeRisks(code, lang) || []); } catch {}
+      const markers = findings
+        .filter((e) => Number.isFinite(e.line) && e.line > 0)
+        .map((e) => {
+          const lt = code.split('\n')[e.line - 1] || '';
+          const startCol = Math.max(1, e.column || 1);
+          const endCol = Math.max(startCol + 1, e.endColumn || lt.length + 1);
+          return {
+            startLineNumber: e.line,
+            startColumn: startCol,
+            endLineNumber: e.endLine || e.line,
+            endColumn: endCol,
+            message: `${e.type}: ${e.message}${e.suggestion ? `\n💡 ${e.suggestion}` : ''}`,
+            severity: e.severity === 'error' ? 8 : 4,
+            source: 'slide6-live',
+          };
+        });
+      monaco.editor.setModelMarkers(model, 'slide6-live', markers);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [code, lang]);
 
   // Timer
   useEffect(() => {
@@ -1457,6 +1491,10 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
                     language={toMonacoLang(lang)}
                     value={code}
                     onChange={(v)=>setCode(v ?? '')}
+                    onMount={(editor, monaco) => {
+                      monacoEditorRef.current = editor;
+                      monacoNsRef.current = monaco;
+                    }}
                     options={{
                       fontSize:13,
                       fontFamily:"'JetBrains Mono', Consolas, monospace",
