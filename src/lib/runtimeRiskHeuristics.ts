@@ -18,6 +18,48 @@ function loc(lines: string[], idx: number, offset: number): { line: number; colu
   return { line: lines.length, column: 1 };
 }
 
+/**
+ * Replace the contents of string literals, char literals, and line/block
+ * comments with spaces so regex scans don't match inside them. Preserves
+ * length + newlines so `loc()` offsets stay correct.
+ */
+function stripNonCode(src: string, family: string): string {
+  let out = '';
+  let i = 0;
+  const N = src.length;
+  const lineCmt = family === 'python' ? '#' : '//';
+  const supportsBlock = family !== 'python';
+  while (i < N) {
+    const c = src[i];
+    const n = src[i + 1];
+    // block comment
+    if (supportsBlock && c === '/' && n === '*') {
+      out += '  '; i += 2;
+      while (i < N && !(src[i] === '*' && src[i + 1] === '/')) { out += src[i] === '\n' ? '\n' : ' '; i++; }
+      if (i < N) { out += '  '; i += 2; }
+      continue;
+    }
+    // line comment
+    if (src.startsWith(lineCmt, i)) {
+      while (i < N && src[i] !== '\n') { out += ' '; i++; }
+      continue;
+    }
+    // string / char literal
+    if (c === '"' || c === "'" || c === '`') {
+      const q = c; out += q; i++;
+      while (i < N && src[i] !== q) {
+        if (src[i] === '\\' && i + 1 < N) { out += '  '; i += 2; continue; }
+        if (src[i] === '\n') { out += '\n'; i++; continue; }
+        out += ' '; i++;
+      }
+      if (i < N) { out += q; i++; }
+      continue;
+    }
+    out += c; i++;
+  }
+  return out;
+}
+
 function push(out: Finding[], line: number, column: number, length: number, message: string, type: string, severity: 'error' | 'warning' = 'warning', suggestion?: string, wrongCode?: string) {
   out.push({
     line, column, endLine: line, endColumn: column + Math.max(1, length),
@@ -41,14 +83,20 @@ export function detectRuntimeRisks(code: string, language?: string | null): Find
   if (!code) return out;
   const family = fam(language);
   const lines = code.split('\n');
+  // Scan on a masked copy so patterns don't match inside strings/comments.
+  const src = stripNonCode(code, family);
 
   // --- Memory leak: malloc/calloc/new without free/delete in the file
   if (family === 'c') {
     const allocRe = /\b(malloc|calloc|realloc)\s*\(/g;
-    const hasFree = /\bfree\s*\(/.test(code);
+    const hasFree = /\bfree\s*\(/.test(src);
+    // Skip leak warning when the file already uses RAII / smart pointers,
+    // or when every alloc is returned (ownership transfer).
+    const usesSmart = /\b(unique_ptr|shared_ptr|make_unique|make_shared|std::vector|std::string)\b/.test(src);
+    const returnsAlloc = /\breturn\s+(?:\w+\s*=\s*)?(?:malloc|calloc|realloc|new)\b/.test(src);
     let m: RegExpExecArray | null;
-    while ((m = allocRe.exec(code))) {
-      if (!hasFree) {
+    while ((m = allocRe.exec(src))) {
+      if (!hasFree && !usesSmart && !returnsAlloc) {
         const p = loc(lines, m.index, m.index);
         push(out, p.line, p.column, m[0].length,
           `Possible memory leak: '${m[1]}' has no matching free() in this file.`,
@@ -57,7 +105,7 @@ export function detectRuntimeRisks(code: string, language?: string | null): Find
     }
     // Buffer overflow risk
     const dangerRe = /\b(gets|strcpy|strcat|sprintf)\s*\(/g;
-    while ((m = dangerRe.exec(code))) {
+    while ((m = dangerRe.exec(src))) {
       const p = loc(lines, m.index, m.index);
       push(out, p.line, p.column, m[0].length,
         `Buffer overflow risk: '${m[1]}' does not bound writes. Use ${m[1] === 'gets' ? 'fgets' : m[1] === 'strcpy' ? 'strncpy' : m[1] === 'strcat' ? 'strncat' : 'snprintf'}.`,
@@ -65,7 +113,7 @@ export function detectRuntimeRisks(code: string, language?: string | null): Find
     }
     // scanf("%s", …) — no width
     const scanfRe = /\bscanf\s*\(\s*"[^"]*%s[^"]*"/g;
-    while ((m = scanfRe.exec(code))) {
+    while ((m = scanfRe.exec(code))) { // scan original (needs literal)
       const p = loc(lines, m.index, m.index);
       push(out, p.line, p.column, m[0].length,
         `Buffer overflow risk: scanf("%s") is unbounded. Use a width like %255s.`,
@@ -73,8 +121,8 @@ export function detectRuntimeRisks(code: string, language?: string | null): Find
     }
     // File leak
     const fopenRe = /\bfopen\s*\(/g;
-    const hasFclose = /\bfclose\s*\(/.test(code);
-    while ((m = fopenRe.exec(code))) {
+    const hasFclose = /\bfclose\s*\(/.test(src);
+    while ((m = fopenRe.exec(src))) {
       if (!hasFclose) {
         const p = loc(lines, m.index, m.index);
         push(out, p.line, p.column, m[0].length,
@@ -87,10 +135,12 @@ export function detectRuntimeRisks(code: string, language?: string | null): Find
   // --- C++ new without delete
   if (family === 'c') {
     const newRe = /\bnew\s+[A-Za-z_][\w:]*(?:\s*\[[^\]]*\])?/g;
-    const hasDelete = /\bdelete\s*(\[\])?\s*\w/.test(code);
+    const hasDelete = /\bdelete\s*(\[\])?\s*\w/.test(src);
+    const usesSmart = /\b(unique_ptr|shared_ptr|make_unique|make_shared)\b/.test(src);
+    const returnsAlloc = /\breturn\s+new\b/.test(src);
     let m: RegExpExecArray | null;
-    while ((m = newRe.exec(code))) {
-      if (!hasDelete) {
+    while ((m = newRe.exec(src))) {
+      if (!hasDelete && !usesSmart && !returnsAlloc) {
         const p = loc(lines, m.index, m.index);
         push(out, p.line, p.column, m[0].length,
           `Possible memory leak: 'new' has no matching 'delete' in this file. Prefer smart pointers.`,
@@ -103,10 +153,9 @@ export function detectRuntimeRisks(code: string, language?: string | null): Find
   const infRe = /\b(while\s*\(\s*(?:true|1)\s*\)|for\s*\(\s*;\s*;\s*\))/g;
   {
     let m: RegExpExecArray | null;
-    while ((m = infRe.exec(code))) {
+    while ((m = infRe.exec(src))) {
       const p = loc(lines, m.index, m.index);
-      // Look for a nearby break/return inside the following 400 chars (rough scope)
-      const window = code.slice(m.index, Math.min(code.length, m.index + 600));
+      const window = src.slice(m.index, Math.min(src.length, m.index + 800));
       if (!/\b(break|return|exit|throw)\b/.test(window)) {
         push(out, p.line, p.column, m[0].length,
           `Possible infinite loop: no break/return/exit found inside the loop body.`,
@@ -119,7 +168,7 @@ export function detectRuntimeRisks(code: string, language?: string | null): Find
   const bigArrRe = /\b(new\s+\w+\s*\[|malloc\s*\(|calloc\s*\(\s*)(\d{7,})/g;
   {
     let m: RegExpExecArray | null;
-    while ((m = bigArrRe.exec(code))) {
+    while ((m = bigArrRe.exec(src))) {
       const n = Number(m[2]);
       if (n > 10_000_000) {
         const p = loc(lines, m.index, m.index);
@@ -131,14 +180,12 @@ export function detectRuntimeRisks(code: string, language?: string | null): Find
   }
 
   // --- Division by zero literal
-  const divZeroRe = /\/\s*0(?!\.\d|\d)/g;
+  // Only flag `/ 0` where the divisor is a bare literal 0 (not 0.5, not part of an identifier).
+  const divZeroRe = /(?<![\/*])\/\s*0(?![\d.\w])/g;
   {
     let m: RegExpExecArray | null;
-    while ((m = divZeroRe.exec(code))) {
+    while ((m = divZeroRe.exec(src))) {
       const p = loc(lines, m.index, m.index);
-      // Skip if inside a comment (rough check: line starts with // or #)
-      const lineText = lines[p.line - 1] || '';
-      if (lineText.trim().startsWith('//') || lineText.trim().startsWith('#')) continue;
       push(out, p.line, p.column, m[0].length,
         `Division by zero (literal). Runtime will crash (or produce NaN/Infinity).`,
         'DivisionByZeroError', 'error', 'Guard against zero divisor before dividing.', m[0]);
@@ -151,10 +198,8 @@ export function detectRuntimeRisks(code: string, language?: string | null): Find
   {
     const re = /%\s*0(?!\.\d|\d)/g;
     let m: RegExpExecArray | null;
-    while ((m = re.exec(code))) {
+    while ((m = re.exec(src))) {
       const p = loc(lines, m.index, m.index);
-      const lt = lines[p.line - 1] || '';
-      if (lt.trim().startsWith('//') || lt.trim().startsWith('#')) continue;
       push(out, p.line, p.column, m[0].length,
         `Modulo by zero. Runtime will throw / produce NaN.`,
         'ModuloByZeroError', 'error', 'Check divisor is non-zero before %.', m[0]);
@@ -165,7 +210,7 @@ export function detectRuntimeRisks(code: string, language?: string | null): Find
   {
     const re = /\b(?:Math\.)?sqrt\s*\(\s*-\s*\d+(?:\.\d+)?\s*\)/g;
     let m: RegExpExecArray | null;
-    while ((m = re.exec(code))) {
+    while ((m = re.exec(src))) {
       const p = loc(lines, m.index, m.index);
       push(out, p.line, p.column, m[0].length,
         `Math error: sqrt of a negative number → NaN / domain error.`,
@@ -177,7 +222,7 @@ export function detectRuntimeRisks(code: string, language?: string | null): Find
   {
     const re = /\b(?:Math\.)?(?:log|log2|log10|ln)\s*\(\s*(-\s*\d+(?:\.\d+)?|0(?:\.0+)?)\s*\)/g;
     let m: RegExpExecArray | null;
-    while ((m = re.exec(code))) {
+    while ((m = re.exec(src))) {
       const p = loc(lines, m.index, m.index);
       push(out, p.line, p.column, m[0].length,
         `Math error: log(${m[1].replace(/\s+/g, '')}) is undefined / -Infinity.`,
@@ -185,11 +230,52 @@ export function detectRuntimeRisks(code: string, language?: string | null): Find
     }
   }
 
+  // asin / acos with argument outside [-1, 1]
+  {
+    const re = /\b(?:Math\.)?(asin|acos)\s*\(\s*(-?\d+(?:\.\d+)?)\s*\)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(src))) {
+      const v = Number(m[2]);
+      if (v < -1 || v > 1) {
+        const p = loc(lines, m.index, m.index);
+        push(out, p.line, p.column, m[0].length,
+          `Math domain error: ${m[1]}(${v}) — argument must be in [-1, 1].`,
+          'MathDomainError', 'error', `Clamp the argument to [-1, 1] before calling ${m[1]}.`, m[0]);
+      }
+    }
+  }
+
+  // factorial(negative literal)
+  {
+    const re = /\b(?:math\.)?factorial\s*\(\s*(-\s*\d+)\s*\)/gi;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(src))) {
+      const p = loc(lines, m.index, m.index);
+      push(out, p.line, p.column, m[0].length,
+        `Math error: factorial of a negative number is undefined.`,
+        'MathDomainError', 'error', 'Ensure the argument is >= 0.', m[0]);
+    }
+  }
+
+  // Array index literal that is clearly negative or absurdly large
+  {
+    const re = /\[\s*(-\d+)\s*\]/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(src))) {
+      // Python allows negative indexing; skip for python family.
+      if (family === 'python') continue;
+      const p = loc(lines, m.index, m.index);
+      push(out, p.line, p.column, m[0].length,
+        `Negative array index literal '${m[1]}' — undefined behaviour in C-family / RangeError in JS/JVM.`,
+        'InvalidIndexError', 'error', 'Use a non-negative index.', m[0]);
+    }
+  }
+
   // pow(0, 0) — indeterminate in some languages
   {
     const re = /\b(?:Math\.)?pow\s*\(\s*0\s*,\s*0\s*\)/g;
     let m: RegExpExecArray | null;
-    while ((m = re.exec(code))) {
+    while ((m = re.exec(src))) {
       const p = loc(lines, m.index, m.index);
       push(out, p.line, p.column, m[0].length,
         `pow(0, 0) is indeterminate; many math libraries return 1 but semantics vary.`,
@@ -201,7 +287,7 @@ export function detectRuntimeRisks(code: string, language?: string | null): Find
   {
     const re = /(?:<<|>>)\s*(\d{2,})/g;
     let m: RegExpExecArray | null;
-    while ((m = re.exec(code))) {
+    while ((m = re.exec(src))) {
       const n = Number(m[1]);
       if (n >= 32) {
         const p = loc(lines, m.index, m.index);
@@ -216,7 +302,7 @@ export function detectRuntimeRisks(code: string, language?: string | null): Find
   if (family === 'python') {
     const re = /\[\s*[a-zA-Z_]\w*\s*\/\s*[a-zA-Z_0-9]+\s*\]/g;
     let m: RegExpExecArray | null;
-    while ((m = re.exec(code))) {
+    while ((m = re.exec(src))) {
       const p = loc(lines, m.index, m.index);
       push(out, p.line, p.column, m[0].length,
         `Python 3: '/' returns a float. Indexing with a float raises TypeError. Use '//' for int division.`,
@@ -230,7 +316,7 @@ export function detectRuntimeRisks(code: string, language?: string | null): Find
   {
     const re = /\b(if|while)\s*\(\s*[A-Za-z_]\w*\s*=(?!=)\s*[^)]+\)/g;
     let m: RegExpExecArray | null;
-    while ((m = re.exec(code))) {
+    while ((m = re.exec(src))) {
       const p = loc(lines, m.index, m.index);
       push(out, p.line, p.column, m[0].length,
         `Assignment inside '${m[1]}' condition — did you mean '=='?`,
@@ -242,7 +328,7 @@ export function detectRuntimeRisks(code: string, language?: string | null): Find
   {
     const re = /\b([A-Za-z_]\w*)\s*=\s*\1\s*[;\n]/g;
     let m: RegExpExecArray | null;
-    while ((m = re.exec(code))) {
+    while ((m = re.exec(src))) {
       const p = loc(lines, m.index, m.index);
       push(out, p.line, p.column, m[0].length,
         `Self-assignment '${m[1]} = ${m[1]}' has no effect.`,
@@ -254,7 +340,7 @@ export function detectRuntimeRisks(code: string, language?: string | null): Find
   {
     const re = /\b(if|while)\s*\(\s*(true|false|1|0|1\s*==\s*1|0\s*==\s*0|1\s*!=\s*0)\s*\)/g;
     let m: RegExpExecArray | null;
-    while ((m = re.exec(code))) {
+    while ((m = re.exec(src))) {
       const val = m[2];
       const truthy = val === 'true' || val === '1' || val === '1 == 1' || val === '0 == 0' || val === '1 != 0';
       if (m[1] === 'while' && truthy) continue; // covered by infinite-loop check
@@ -276,6 +362,7 @@ export function detectRuntimeRisks(code: string, language?: string | null): Find
           if (!nt) continue;
           if (nt.startsWith('//') || nt.startsWith('#') || nt.startsWith('/*') || nt.startsWith('*')) continue;
           if (/^[})\]]/.test(nt)) break; // block ended
+          if (/^(case\b|default\b|else\b|elif\b|catch\b|finally\b)/.test(nt)) break; // legit branch
           push(out, j + 1, 1, nt.length,
             `Unreachable code — previous line already returns/throws/breaks.`,
             'UnreachableCodeWarning', 'warning', 'Remove the dead code or restructure the flow.', nt);
@@ -289,7 +376,7 @@ export function detectRuntimeRisks(code: string, language?: string | null): Find
   {
     const re = /for\s*\(\s*(?:let|var|int|size_t)?\s*([A-Za-z_]\w*)\s*=\s*0\s*;\s*\1\s*<=\s*([A-Za-z_]\w*)\.(?:length|size\s*\(\s*\))\s*;/g;
     let m: RegExpExecArray | null;
-    while ((m = re.exec(code))) {
+    while ((m = re.exec(src))) {
       const p = loc(lines, m.index, m.index);
       push(out, p.line, p.column, m[0].length,
         `Off-by-one: '${m[1]} <= ${m[2]}.length' will overflow by one. Use '<'.`,
@@ -301,7 +388,7 @@ export function detectRuntimeRisks(code: string, language?: string | null): Find
   if (family === 'js' || family === 'c' || family === 'jvm') {
     const re = /([A-Za-z_]\w*|\d+\.\d+)\s*(===?)\s*(\d+\.\d+)/g;
     let m: RegExpExecArray | null;
-    while ((m = re.exec(code))) {
+    while ((m = re.exec(src))) {
       const p = loc(lines, m.index, m.index);
       push(out, p.line, p.column, m[0].length,
         `Float equality '${m[2]}' is unreliable due to IEEE-754 rounding.`,
@@ -309,33 +396,14 @@ export function detectRuntimeRisks(code: string, language?: string | null): Find
     }
   }
 
-  // --- Unbounded recursion: function fn(...) { ... fn(...) ... } with no base case return before the recursive call
-  const funcRe = /\b(?:function|def|fn|func)\s+([A-Za-z_]\w*)\s*\(/g;
-  {
-    let m: RegExpExecArray | null;
-    while ((m = funcRe.exec(code))) {
-      const name = m[1];
-      const start = m.index;
-      // Take a rough 800-char body window
-      const body = code.slice(start, Math.min(code.length, start + 1200));
-      const selfCall = new RegExp(`\\b${name}\\s*\\(`, 'g');
-      const callMatches = body.match(selfCall) || [];
-      if (callMatches.length >= 2) { // definition + at least one recursive call
-        if (!/\b(if|switch|match|guard|when)\b[^{;]*\breturn\b/s.test(body) && !/\bif\b[^{;]*:\s*(?:return|raise)/.test(body)) {
-          const p = loc(lines, start, start);
-          push(out, p.line, p.column, name.length,
-            `Possible unbounded recursion in '${name}': no base-case return detected before the recursive call. Risk of stack overflow.`,
-            'RecursionWarning', 'warning', 'Add a base-case condition that returns before recursing.');
-        }
-      }
-    }
-  }
+  // (Removed: unbounded-recursion heuristic — produced too many false positives
+  // on well-formed recursive functions. Prefer real static analysis.)
 
   // --- Python: mutable default arg
   if (family === 'python') {
     const mutDefRe = /\bdef\s+\w+\s*\([^)]*=\s*(\[\]|\{\}|dict\(\)|list\(\))/g;
     let m: RegExpExecArray | null;
-    while ((m = mutDefRe.exec(code))) {
+    while ((m = mutDefRe.exec(src))) {
       const p = loc(lines, m.index, m.index);
       push(out, p.line, p.column, m[0].length,
         `Mutable default argument (${m[1]}) is a common Python bug — the same object is shared across calls.`,
@@ -345,13 +413,17 @@ export function detectRuntimeRisks(code: string, language?: string | null): Find
 
   // --- JS: == comparison
   if (family === 'js') {
-    const looseEq = /[^=!<>]==(?!=)/g;
+    // Only flag loose equality that is NOT the well-known idiomatic `== null`
+    // / `== undefined` null-check. Also skip `!=` / `===` / `!==`.
+    const looseEq = /[^=!<>](==|!=)(?!=)\s*([A-Za-z_$][\w$]*|\d+|"[^"]*"|'[^']*')/g;
     let m: RegExpExecArray | null;
-    while ((m = looseEq.exec(code))) {
+    while ((m = looseEq.exec(src))) {
+      const rhs = m[3];
+      if (rhs === 'null' || rhs === 'undefined') continue; // idiomatic
       const p = loc(lines, m.index + 1, m.index + 1);
       push(out, p.line, p.column, 2,
-        `Loose equality '==' performs type coercion. Prefer '==='.`,
-        'LooseEqualityWarning', 'warning', "Replace '==' with '==='.", '==');
+        `Loose ${m[1] === '==' ? 'equality' : 'inequality'} '${m[1]}' performs type coercion. Prefer '${m[1]}='.`,
+        'LooseEqualityWarning', 'warning', `Replace '${m[1]}' with '${m[1]}='.`, m[1]);
     }
   }
 
@@ -363,9 +435,12 @@ export const RUNTIME_RISK_LEGEND = [
   'Buffer overflow (gets, strcpy, unbounded scanf)',
   'Infinite loops (while(true) / for(;;) with no break)',
   'Stack/heap overflow (arrays > 10⁷)',
-  'Division by zero',
-  'Unbounded recursion',
+  'Division / modulo by zero',
+  'Math domain errors (sqrt/log/asin/acos/factorial)',
+  'Negative or out-of-range array indices',
+  'Off-by-one loop bounds',
+  'Assignment-in-condition, self-assignment, constant conditions, unreachable code',
   'File handle leaks',
   'Python mutable default args',
-  'JS loose equality',
+  'JS loose equality (excluding idiomatic == null)',
 ];
