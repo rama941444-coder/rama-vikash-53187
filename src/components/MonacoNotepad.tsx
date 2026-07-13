@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback, forwardRef, useImperativeHandle } from 'react';
 import Editor, { Monaco, OnMount } from '@monaco-editor/react';
 import type * as MonacoNS from 'monaco-editor';
-import { Maximize2, Minimize2, Copy, Trash2, FileDown, Type, Settings2, Sun, Moon } from 'lucide-react';
+import { Maximize2, Minimize2, Copy, Trash2, FileDown, Type, Settings2, Sun, Moon, AlertCircle, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import jsPDF from 'jspdf';
@@ -59,6 +59,15 @@ export interface MonacoNotepadHandle {
   getMonaco(): Monaco | null;
 }
 
+export interface NotepadFinding {
+  line: number;
+  column: number;
+  message: string;
+  severity: 'error' | 'warning';
+  type: string;
+  suggestion?: string;
+}
+
 interface Props {
   value: string;
   onChange: (v: string) => void;
@@ -70,13 +79,18 @@ interface Props {
   onMount?: (editor: MonacoNS.editor.IStandaloneCodeEditor, monaco: Monaco) => void;
   onCursorChange?: (pos: { line: number; column: number }) => void;
   className?: string;
+  /** Optional live findings to render below the editor as a rule-explanation panel. */
+  findings?: NotepadFinding[];
+  /** Called when the user clicks a finding row (e.g. jump to line). */
+  onFindingClick?: (f: NotepadFinding) => void;
 }
 
 const MonacoNotepad = forwardRef<MonacoNotepadHandle, Props>(function MonacoNotepad(
-  { value, onChange, placeholder, maxLines = 300000, language, height = 400, headerLabel = 'Monaco Code Editor', onMount, onCursorChange, className },
+  { value, onChange, placeholder, maxLines = 300000, language, height = 400, headerLabel = 'Monaco Code Editor', onMount, onCursorChange, className, findings, onFindingClick },
   ref,
 ) {
   const [isMinimized, setIsMinimized] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(true);
   const [cursor, setCursor] = useState({ line: 1, column: 1 });
   const [fontSize, setFontSize] = useState<number>(() => {
     const v = Number(localStorage.getItem('notepad.fontSize'));
@@ -108,7 +122,7 @@ const MonacoNotepad = forwardRef<MonacoNotepadHandle, Props>(function MonacoNote
 
   const lineCount = value.split('\n').length;
 
-  const handleMount: OnMount = (editor, monaco) => {
+  const handleMount: OnMount = useCallback((editor, monaco) => {
     editorRef.current = editor;
     monacoRef.current = monaco;
     editor.onDidChangeCursorPosition((e) => {
@@ -117,9 +131,9 @@ const MonacoNotepad = forwardRef<MonacoNotepadHandle, Props>(function MonacoNote
       onCursorChange?.(p);
     });
     onMount?.(editor, monaco);
-  };
+  }, [onCursorChange, onMount]);
 
-  const handleChange = (v: string | undefined) => {
+  const handleChange = useCallback((v: string | undefined) => {
     const next = v ?? '';
     const ln = next.split('\n').length;
     if (ln > maxLines) {
@@ -127,7 +141,7 @@ const MonacoNotepad = forwardRef<MonacoNotepadHandle, Props>(function MonacoNote
       return;
     }
     onChange(next);
-  };
+  }, [maxLines, onChange, toast]);
 
   const copyToClipboard = async () => {
     try { await navigator.clipboard.writeText(value); toast({ title: 'Copied!', description: 'Code copied to clipboard' }); }
@@ -175,6 +189,42 @@ const MonacoNotepad = forwardRef<MonacoNotepadHandle, Props>(function MonacoNote
 
   const dark = theme === 'dark';
   const monacoLang = toMonacoLang(language);
+
+  // Memoize Monaco options so identity is stable across keystrokes.
+  // A new options object every render forces Monaco to re-apply options
+  // per keystroke, which causes the "typing feels laggy / keys drop" bug.
+  const editorOptions = useMemo<MonacoNS.editor.IStandaloneEditorConstructionOptions>(() => ({
+    fontSize,
+    fontFamily,
+    fontLigatures: true,
+    minimap: { enabled: true },
+    automaticLayout: true,
+    bracketPairColorization: { enabled: true },
+    guides: { bracketPairs: true, indentation: true },
+    wordWrap: 'off',
+    tabSize: 4,
+    insertSpaces: true,
+    renderWhitespace: 'selection',
+    scrollBeyondLastLine: false,
+    smoothScrolling: true,
+    cursorBlinking: 'smooth',
+    padding: { top: 8, bottom: 8 },
+    suggestOnTriggerCharacters: true,
+    quickSuggestions: true,
+  }), [fontSize, fontFamily]);
+
+  const errCount = findings?.filter(f => f.severity === 'error').length || 0;
+  const warnCount = findings?.filter(f => f.severity === 'warning').length || 0;
+
+  const jumpToFinding = (f: NotepadFinding) => {
+    const editor = editorRef.current;
+    if (editor) {
+      editor.revealLineInCenter(f.line);
+      editor.setPosition({ lineNumber: f.line, column: Math.max(1, f.column) });
+      editor.focus();
+    }
+    onFindingClick?.(f);
+  };
 
   return (
     <div className={`border border-border rounded-lg overflow-hidden ${dark ? 'bg-[#1e1e1e]' : 'bg-white'} ${className || ''}`}>
@@ -268,25 +318,7 @@ const MonacoNotepad = forwardRef<MonacoNotepadHandle, Props>(function MonacoNote
           theme={dark ? 'vs-dark' : 'vs'}
           onChange={handleChange}
           onMount={handleMount}
-          options={{
-            fontSize,
-            fontFamily,
-            fontLigatures: true,
-            minimap: { enabled: true },
-            automaticLayout: true,
-            bracketPairColorization: { enabled: true },
-            guides: { bracketPairs: true, indentation: true },
-            wordWrap: 'off',
-            tabSize: 4,
-            insertSpaces: true,
-            renderWhitespace: 'selection',
-            scrollBeyondLastLine: false,
-            smoothScrolling: true,
-            cursorBlinking: 'smooth',
-            padding: { top: 8, bottom: 8 },
-            suggestOnTriggerCharacters: true,
-            quickSuggestions: true,
-          }}
+          options={editorOptions}
         />
         {!value && placeholder && (
           <div
@@ -297,6 +329,49 @@ const MonacoNotepad = forwardRef<MonacoNotepadHandle, Props>(function MonacoNote
           </div>
         )}
       </div>
+
+      {findings && findings.length > 0 && (
+        <div className={`border-t border-border/60 ${dark ? 'bg-[#161616]' : 'bg-[#f8f8f8]'}`}>
+          <button
+            type="button"
+            onClick={() => setPanelOpen(o => !o)}
+            className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs font-medium ${dark ? 'text-gray-200 hover:bg-[#222]' : 'text-gray-700 hover:bg-gray-200'}`}
+          >
+            {panelOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+            <span>Rule-based diagnostics</span>
+            {errCount > 0 && (
+              <span className="ml-1 inline-flex items-center gap-1 text-red-400"><AlertCircle className="w-3 h-3" />{errCount}</span>
+            )}
+            {warnCount > 0 && (
+              <span className="ml-1 inline-flex items-center gap-1 text-amber-400"><AlertTriangle className="w-3 h-3" />{warnCount}</span>
+            )}
+            <span className="ml-auto text-[10px] uppercase tracking-wide opacity-60">click a rule to jump</span>
+          </button>
+          {panelOpen && (
+            <div className="max-h-40 overflow-y-auto px-2 pb-2 space-y-1">
+              {findings.slice(0, 100).map((f, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => jumpToFinding(f)}
+                  className={`w-full text-left flex items-start gap-2 px-2 py-1 rounded text-xs font-mono ${dark ? 'hover:bg-[#252525]' : 'hover:bg-gray-200'} ${f.severity === 'error' ? 'text-red-300' : 'text-amber-300'}`}
+                >
+                  {f.severity === 'error' ? <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" /> : <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />}
+                  <span className="shrink-0 opacity-70">Ln {f.line}:{f.column}</span>
+                  <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] ${dark ? 'bg-[#2d2d2d] text-cyan-300' : 'bg-gray-200 text-blue-700'}`}>{f.type}</span>
+                  <span className={dark ? 'text-gray-200' : 'text-gray-800'}>
+                    {f.message}
+                    {f.suggestion ? <span className="text-emerald-400"> — 💡 {f.suggestion}</span> : null}
+                  </span>
+                </button>
+              ))}
+              {findings.length > 100 && (
+                <div className="px-2 py-1 text-[10px] opacity-60">…{findings.length - 100} more findings hidden</div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="flex items-center justify-between px-3 py-1.5 bg-[#007acc] text-white text-xs">
         <div className="flex items-center gap-4">

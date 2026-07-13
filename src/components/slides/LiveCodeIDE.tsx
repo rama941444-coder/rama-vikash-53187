@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Play, AlertCircle, CheckCircle, Copy, Trash2, Maximize2, Minimize2, Loader2, Lightbulb, Zap, ArrowRight, Sparkles, Terminal, TrendingUp, Award, FileDown, Settings2, Sun, Moon } from 'lucide-react';
 import jsPDF from 'jspdf';
@@ -1097,6 +1097,23 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
         title: "✅ Fix Applied", 
         description: "Corrected code has been applied to the editor" 
       });
+      return;
+    }
+
+    // Case 5: Heuristic/runtime warnings — apply the suggestion as an inline
+    // annotation comment on the offending line so the fix action always does
+    // something visible when the user clicks it.
+    if (error.suggestion && lineIndex >= 0 && lineIndex < codeLines.length) {
+      const lang = (language || '').toLowerCase();
+      const cmt = lang.includes('python') || lang.includes('bash') || lang.includes('ruby') || lang.includes('yaml') ? '#' : '//';
+      // Avoid stacking annotations
+      if (!codeLines[lineIndex].includes(`${cmt} 💡`)) {
+        codeLines[lineIndex] = `${codeLines[lineIndex]}  ${cmt} 💡 ${error.suggestion}`;
+        setCode(codeLines.join('\n'));
+        toast({ title: '💡 Suggestion Applied', description: `Line ${error.line}: ${error.suggestion}` });
+      } else {
+        toast({ title: 'Already annotated', description: `Line ${error.line} already has the suggestion.` });
+      }
     }
   };
 
@@ -1111,6 +1128,27 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       });
     }
   };
+
+  // Memoize Monaco options — new object identity every render forces Monaco
+  // to re-apply options on every keystroke, which causes typing jank.
+  const monacoOptions = useMemo<MonacoNS.editor.IStandaloneEditorConstructionOptions>(() => ({
+    fontSize: 14,
+    fontFamily: "'JetBrains Mono', Consolas, Monaco, monospace",
+    fontLigatures: true,
+    minimap: { enabled: true },
+    automaticLayout: true,
+    bracketPairColorization: { enabled: true },
+    guides: { bracketPairs: true, indentation: true },
+    tabSize: 4,
+    insertSpaces: true,
+    renderWhitespace: 'selection',
+    scrollBeyondLastLine: false,
+    smoothScrolling: true,
+    padding: { top: 8, bottom: 8 },
+    suggestOnTriggerCharacters: true,
+    quickSuggestions: true,
+    cursorBlinking: 'smooth',
+  }), []);
 
   // Detect if code requires user input
   const codeRequiresInput = (codeText: string): boolean => {
@@ -1457,24 +1495,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
                 setCursorPosition({ line: e.position.lineNumber, column: e.position.column });
               });
             }}
-            options={{
-              fontSize: 14,
-              fontFamily: "'JetBrains Mono', Consolas, Monaco, monospace",
-              fontLigatures: true,
-              minimap: { enabled: true },
-              automaticLayout: true,
-              bracketPairColorization: { enabled: true },
-              guides: { bracketPairs: true, indentation: true },
-              tabSize: 4,
-              insertSpaces: true,
-              renderWhitespace: 'selection',
-              scrollBeyondLastLine: false,
-              smoothScrolling: true,
-              padding: { top: 8, bottom: 8 },
-              suggestOnTriggerCharacters: true,
-              quickSuggestions: true,
-              cursorBlinking: 'smooth',
-            }}
+            options={monacoOptions}
           />
         </div>
 

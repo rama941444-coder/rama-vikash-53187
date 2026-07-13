@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import Editor from '@monaco-editor/react';
 import type * as MonacoNS from 'monaco-editor';
 import { toMonacoLang } from '@/components/MonacoNotepad';
+import { AlertCircle, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
 import { validateLive } from '@/lib/liveSyntaxValidator';
 import { detectRuntimeRisks } from '@/lib/runtimeRiskHeuristics';
 
@@ -632,15 +633,17 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
   const outputRef = useRef<HTMLDivElement>(null);
   const monacoEditorRef = useRef<MonacoNS.editor.IStandaloneCodeEditor | null>(null);
   const monacoNsRef = useRef<any>(null);
+  const [liveFindings, setLiveFindings] = useState<Array<{line:number;column:number;message:string;severity:'error'|'warning';type:string;suggestion?:string}>>([]);
+  const [rulePanelOpen, setRulePanelOpen] = useState(true);
 
   // Slide 6 live per-keystroke diagnostics (syntax + math/logic/runtime heuristics)
   useEffect(() => {
     const t = setTimeout(() => {
       const editor = monacoEditorRef.current;
       const monaco = monacoNsRef.current;
-      if (!editor || !monaco) return;
+      if (!editor || !monaco) { setLiveFindings([]); return; }
       const model = editor.getModel();
-      if (!model) return;
+      if (!model) { setLiveFindings([]); return; }
       let findings: any[] = [];
       try { findings = findings.concat(validateLive(code, lang) || []); } catch {}
       try { findings = findings.concat(detectRuntimeRisks(code, lang) || []); } catch {}
@@ -661,9 +664,37 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
           };
         });
       monaco.editor.setModelMarkers(model, 'slide6-live', markers);
-    }, 250);
+      setLiveFindings(
+        findings
+          .filter((e) => Number.isFinite(e.line) && e.line > 0)
+          .map((e) => ({ line: e.line, column: e.column || 1, message: e.message, severity: e.severity, type: e.type, suggestion: e.suggestion }))
+      );
+    }, 400);
     return () => clearTimeout(t);
   }, [code, lang]);
+
+  // Stable Monaco options to avoid re-applying on every keystroke.
+  const monacoOptions = useMemo<MonacoNS.editor.IStandaloneEditorConstructionOptions>(() => ({
+    fontSize: 13,
+    fontFamily: "'JetBrains Mono', Consolas, monospace",
+    minimap: { enabled: true },
+    automaticLayout: true,
+    bracketPairColorization: { enabled: true },
+    guides: { bracketPairs: true, indentation: true },
+    tabSize: 4,
+    insertSpaces: true,
+    scrollBeyondLastLine: false,
+    padding: { top: 8, bottom: 8 },
+    suggestOnTriggerCharacters: true,
+  }), []);
+
+  const jumpToLiveFinding = (f: {line:number;column:number}) => {
+    const editor = monacoEditorRef.current;
+    if (!editor) return;
+    editor.revealLineInCenter(f.line);
+    editor.setPosition({ lineNumber: f.line, column: Math.max(1, f.column) });
+    editor.focus();
+  };
 
   // Timer
   useEffect(() => {
@@ -1495,21 +1526,45 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
                       monacoEditorRef.current = editor;
                       monacoNsRef.current = monaco;
                     }}
-                    options={{
-                      fontSize:13,
-                      fontFamily:"'JetBrains Mono', Consolas, monospace",
-                      minimap:{enabled:true},
-                      automaticLayout:true,
-                      bracketPairColorization:{enabled:true},
-                      guides:{bracketPairs:true,indentation:true},
-                      tabSize:4,
-                      insertSpaces:true,
-                      scrollBeyondLastLine:false,
-                      padding:{top:8,bottom:8},
-                      suggestOnTriggerCharacters:true,
-                    }}
+                    options={monacoOptions}
                   />
                 </div>
+
+                {/* Rule-based diagnostics explanation panel (Slide 6) */}
+                {liveFindings.length > 0 && (
+                  <div style={{borderTop:`1px solid ${S.border}`, background:'#0a0e17'}}>
+                    <button
+                      type="button"
+                      onClick={() => setRulePanelOpen(o => !o)}
+                      style={{width:'100%',display:'flex',alignItems:'center',gap:8,padding:'8px 14px',background:'transparent',border:'none',color:S.text,cursor:'pointer',fontSize:11,fontWeight:700,fontFamily:"'Space Mono',monospace",textTransform:'uppercase'}}
+                    >
+                      {rulePanelOpen ? <ChevronDown size={14}/> : <ChevronRight size={14}/>}
+                      <span>Rule-based diagnostics</span>
+                      <span style={{color:'#ef4444',display:'inline-flex',alignItems:'center',gap:4}}>
+                        <AlertCircle size={12}/> {liveFindings.filter(f=>f.severity==='error').length}
+                      </span>
+                      <span style={{color:'#f59e0b',display:'inline-flex',alignItems:'center',gap:4}}>
+                        <AlertTriangle size={12}/> {liveFindings.filter(f=>f.severity==='warning').length}
+                      </span>
+                      <span style={{marginLeft:'auto',fontSize:9,opacity:.6}}>click a rule to jump</span>
+                    </button>
+                    {rulePanelOpen && (
+                      <div style={{maxHeight:160,overflowY:'auto',padding:'0 8px 8px'}}>
+                        {liveFindings.slice(0,100).map((f,i)=>(
+                          <button key={i} type="button" onClick={()=>jumpToLiveFinding(f)}
+                            style={{width:'100%',textAlign:'left',display:'flex',gap:8,alignItems:'flex-start',padding:'4px 8px',borderRadius:4,marginBottom:2,background:'transparent',border:'none',cursor:'pointer',fontFamily:"'JetBrains Mono',monospace",fontSize:11,color:f.severity==='error'?'#fca5a5':'#fcd34d'}}
+                            onMouseEnter={(e)=>{(e.currentTarget as HTMLElement).style.background='#161b26';}}
+                            onMouseLeave={(e)=>{(e.currentTarget as HTMLElement).style.background='transparent';}}>
+                            {f.severity==='error' ? <AlertCircle size={12} style={{marginTop:2,flexShrink:0}}/> : <AlertTriangle size={12} style={{marginTop:2,flexShrink:0}}/>}
+                            <span style={{flexShrink:0,opacity:.7}}>Ln {f.line}:{f.column}</span>
+                            <span style={{flexShrink:0,padding:'1px 6px',borderRadius:3,background:'#111',color:'#67e8f9',fontSize:9}}>{f.type}</span>
+                            <span style={{color:'#e5e7eb'}}>{f.message}{f.suggestion ? <span style={{color:'#34d399'}}> — 💡 {f.suggestion}</span> : null}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* OUTPUT - Dark Black */}
                 <div style={{borderTop:`1px solid ${S.border}`}}>
