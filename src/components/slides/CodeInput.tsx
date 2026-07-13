@@ -5,7 +5,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import DOMPurify from 'dompurify';
 import LanguageSelector from '@/components/LanguageSelector';
-import MonacoNotepad, { type MonacoNotepadHandle } from '@/components/MonacoNotepad';
+import MonacoNotepad, { type MonacoNotepadHandle, type NotepadFinding } from '@/components/MonacoNotepad';
 import HtmlPreviewFrame from './HtmlPreviewFrame';
 import { detectLanguage, isAutoDetect } from '@/lib/languageDetect';
 import { validateLive } from '@/lib/liveSyntaxValidator';
@@ -29,6 +29,7 @@ const CodeInput = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: Cod
   const [detected, setDetected] = useState<string | null>(null);
   const { toast } = useToast();
   const notepadRef = useRef<MonacoNotepadHandle>(null);
+  const [findings, setFindings] = useState<NotepadFinding[]>([]);
 
   // Live per-keystroke diagnostics for Slide 2 (syntax + math/logic/runtime heuristics)
   useEffect(() => {
@@ -36,9 +37,9 @@ const CodeInput = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: Cod
       const h = notepadRef.current;
       const editor = h?.getEditor();
       const monaco = h?.getMonaco();
-      if (!editor || !monaco) return;
+      if (!editor || !monaco) { setFindings([]); return; }
       const model = editor.getModel();
-      if (!model) return;
+      if (!model) { setFindings([]); return; }
       const activeLang = isAutoDetect(language) ? (detected || detectLanguage(code) || '') : language;
       let findings: any[] = [];
       try { findings = findings.concat(validateLive(code, activeLang) || []); } catch {}
@@ -60,7 +61,16 @@ const CodeInput = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: Cod
           };
         });
       monaco.editor.setModelMarkers(model, 'slide2-live', markers);
-    }, 250);
+      // Feed the explanation panel with a compact projection.
+      setFindings(
+        findings
+          .filter((e) => Number.isFinite(e.line) && e.line > 0)
+          .map((e) => ({
+            line: e.line, column: e.column || 1, message: e.message,
+            severity: e.severity, type: e.type, suggestion: e.suggestion,
+          }))
+      );
+    }, 400);
     return () => clearTimeout(t);
   }, [code, language, detected]);
 
@@ -373,6 +383,7 @@ const CodeInput = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: Cod
           onChange={setCode}
           language={isAutoDetect(language) ? (detected || undefined) : language}
           headerLabel="Slide 2 · Monaco Notepad"
+          findings={findings}
           placeholder={"// Paste or type your code here...\n// Supports up to 300,000 lines\n// Features: Line numbers, auto-indent, bracket matching\n// Press Tab for indentation, Shift+Tab to unindent\n// Auto-closes: () [] {} '' \"\" ``"}
         />
       </div>
