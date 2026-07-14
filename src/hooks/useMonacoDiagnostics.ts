@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import type { Monaco } from '@monaco-editor/react';
 import type * as MonacoNS from 'monaco-editor';
 import { validateLive } from '@/lib/liveSyntaxValidator';
@@ -18,8 +18,8 @@ export interface MonacoDiagnosticFinding {
 interface UseMonacoDiagnosticsArgs {
   code: string;
   language?: string | null;
-  editorRef: React.MutableRefObject<MonacoNS.editor.IStandaloneCodeEditor | null>;
-  monacoRef: React.MutableRefObject<Monaco | null>;
+  editorRef: MutableRefObject<MonacoNS.editor.IStandaloneCodeEditor | null>;
+  monacoRef: MutableRefObject<Monaco | null>;
   owner: string;
   readyKey?: number;
   debounceMs?: number;
