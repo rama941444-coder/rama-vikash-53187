@@ -94,13 +94,15 @@ export function useMonacoDiagnostics({
       currentModelRef.current = model;
 
       const markers = deduped.map((f) => {
-        const lineText = model.getLineContent(Math.min(f.line, model.getLineCount())) || '';
+        const lineNumber = Math.max(1, Math.min(f.line, model.getLineCount()));
+        const endLineNumber = Math.max(lineNumber, Math.min(f.endLine || f.line, model.getLineCount()));
+        const lineText = model.getLineContent(lineNumber) || '';
         const startColumn = Math.max(1, Math.min(f.column || 1, lineText.length + 1));
         const endColumn = Math.max(startColumn + 1, Math.min(f.endColumn || lineText.length + 1, lineText.length + 1));
         return {
-          startLineNumber: f.line,
+          startLineNumber: lineNumber,
           startColumn,
-          endLineNumber: f.endLine || f.line,
+          endLineNumber,
           endColumn,
           message: `${f.type}: ${f.message}${f.suggestion ? `\n💡 ${f.suggestion}` : ''}`,
           severity: f.severity === 'error' ? monaco.MarkerSeverity.Error : monaco.MarkerSeverity.Warning,
