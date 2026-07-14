@@ -427,6 +427,233 @@ export function detectRuntimeRisks(code: string, language?: string | null): Find
     }
   }
 
+  // --- Typo / misspelling / case-sensitivity detection ---------------------
+  // Character-level detection so mistakes like `iiiinclude studio.h`, `Int main`,
+  // or `pritnf("hi")` are surfaced before the compiler runs.
+
+  const levenshtein = (a: string, b: string): number => {
+    if (a === b) return 0;
+    if (!a.length) return b.length;
+    if (!b.length) return a.length;
+    const dp: number[] = Array(b.length + 1).fill(0).map((_, i) => i);
+    for (let i = 1; i <= a.length; i++) {
+      let prev = dp[0]; dp[0] = i;
+      for (let j = 1; j <= b.length; j++) {
+        const tmp = dp[j];
+        dp[j] = a[i - 1] === b[j - 1]
+          ? prev
+          : 1 + Math.min(prev, dp[j], dp[j - 1]);
+        prev = tmp;
+      }
+    }
+    return dp[b.length];
+  };
+
+  const collapseRuns = (w: string) => w.replace(/([A-Za-z])\1{2,}/g, '$1');
+
+  const closestMatch = (word: string, dict: readonly string[], maxDist = 2): string | null => {
+    const lc = word.toLowerCase();
+    if (dict.includes(lc)) return null; // already correct (case aside)
+    const collapsed = collapseRuns(lc);
+    if (collapsed !== lc && dict.includes(collapsed)) return collapsed;
+    let best: string | null = null; let bestD = maxDist + 1;
+    const cap = word.length <= 4 ? 1 : maxDist;
+    for (const k of dict) {
+      if (Math.abs(k.length - lc.length) > cap) continue;
+      const d = levenshtein(lc, k);
+      if (d < bestD) { bestD = d; best = k; if (d === 1) break; }
+    }
+    return bestD <= cap ? best : null;
+  };
+
+  // Common preprocessor directives (C/C++)
+  const PP_DIRECTIVES = ['include', 'define', 'undef', 'ifdef', 'ifndef',
+    'endif', 'if', 'else', 'elif', 'pragma', 'error', 'warning', 'line', 'import'] as const;
+
+  // Common C/C++ standard headers
+  const C_HEADERS = ['stdio.h', 'stdlib.h', 'string.h', 'math.h', 'time.h',
+    'ctype.h', 'assert.h', 'errno.h', 'limits.h', 'float.h', 'stddef.h',
+    'stdint.h', 'stdbool.h', 'stdarg.h', 'signal.h', 'setjmp.h', 'locale.h',
+    'iostream', 'vector', 'string', 'map', 'set', 'algorithm', 'memory',
+    'fstream', 'sstream', 'cmath', 'cstdio', 'cstdlib', 'cstring', 'unordered_map',
+    'unordered_set', 'queue', 'stack', 'deque', 'list', 'array', 'utility',
+    'functional', 'numeric', 'iterator', 'chrono', 'thread', 'mutex'] as const;
+
+  // Case-sensitive keyword tables per family
+  const KW_BY_FAMILY: Record<string, readonly string[]> = {
+    c: ['int', 'char', 'void', 'return', 'if', 'else', 'while', 'for', 'do',
+        'switch', 'case', 'break', 'continue', 'default', 'struct', 'union',
+        'enum', 'typedef', 'sizeof', 'static', 'const', 'extern', 'unsigned',
+        'signed', 'short', 'long', 'float', 'double', 'main', 'printf',
+        'scanf', 'malloc', 'free', 'fprintf', 'sprintf', 'strlen', 'strcpy',
+        'strcmp', 'memcpy', 'memset', 'fopen', 'fclose', 'class', 'public',
+        'private', 'protected', 'namespace', 'using', 'template', 'typename',
+        'virtual', 'override', 'new', 'delete', 'nullptr', 'true', 'false',
+        'cout', 'cin', 'endl', 'std'],
+    python: ['def', 'return', 'if', 'elif', 'else', 'while', 'for', 'in',
+        'not', 'and', 'or', 'import', 'from', 'as', 'class', 'try', 'except',
+        'finally', 'raise', 'with', 'lambda', 'pass', 'break', 'continue',
+        'True', 'False', 'None', 'print', 'input', 'len', 'range', 'int',
+        'str', 'float', 'list', 'dict', 'set', 'tuple', 'self'],
+    js: ['const', 'let', 'var', 'function', 'return', 'if', 'else', 'while',
+        'for', 'do', 'switch', 'case', 'break', 'continue', 'default', 'class',
+        'extends', 'new', 'this', 'super', 'import', 'export', 'from', 'as',
+        'async', 'await', 'try', 'catch', 'finally', 'throw', 'typeof',
+        'instanceof', 'true', 'false', 'null', 'undefined', 'console', 'log'],
+    jvm: ['public', 'private', 'protected', 'static', 'final', 'void', 'int',
+        'long', 'short', 'char', 'byte', 'boolean', 'float', 'double', 'class',
+        'interface', 'extends', 'implements', 'return', 'if', 'else', 'while',
+        'for', 'do', 'switch', 'case', 'break', 'continue', 'new', 'this',
+        'super', 'import', 'package', 'try', 'catch', 'finally', 'throw',
+        'throws', 'true', 'false', 'null', 'System', 'String', 'main'],
+    go: ['package', 'import', 'func', 'var', 'const', 'type', 'struct',
+        'interface', 'return', 'if', 'else', 'for', 'range', 'switch', 'case',
+        'default', 'break', 'continue', 'go', 'chan', 'map', 'fmt', 'Println',
+        'true', 'false', 'nil'],
+    rust: ['fn', 'let', 'mut', 'const', 'static', 'struct', 'enum', 'trait',
+        'impl', 'pub', 'use', 'mod', 'return', 'if', 'else', 'while', 'for',
+        'loop', 'match', 'break', 'continue', 'true', 'false', 'None', 'Some',
+        'Ok', 'Err', 'println', 'print'],
+  };
+
+  // Reserve identifier-scan work for known families only.
+  const kwList = KW_BY_FAMILY[family];
+
+  // 1) Preprocessor directive typos: `#include`, `#pragma`, `#iiiiinclude`, etc.
+  if (family === 'c') {
+    const ppRe = /^\s*#\s*([A-Za-z_][A-Za-z0-9_]*)/gm;
+    let m: RegExpExecArray | null;
+    while ((m = ppRe.exec(src))) {
+      const word = m[1];
+      const lc = word.toLowerCase();
+      if ((PP_DIRECTIVES as readonly string[]).includes(lc)) {
+        if (word !== lc) {
+          const idx = m.index + m[0].indexOf(word);
+          const p = loc(lines, idx, idx);
+          push(out, p.line, p.column, word.length,
+            `Preprocessor directive '#${word}' is case-sensitive — use '#${lc}'.`,
+            'CaseSensitiveError', 'error', `Change to '#${lc}'.`, `#${word}`);
+        }
+        continue;
+      }
+      const suggestion = closestMatch(word, PP_DIRECTIVES as readonly string[], 2);
+      if (suggestion) {
+        const idx = m.index + m[0].indexOf(word);
+        const p = loc(lines, idx, idx);
+        push(out, p.line, p.column, word.length,
+          `Unknown preprocessor directive '#${word}'. Did you mean '#${suggestion}'?`,
+          'TypoError', 'error', `Replace with '#${suggestion}'.`, `#${word}`);
+      }
+    }
+
+    // 2) Header-name typos inside #include <...> / "..."
+    const incRe = /^\s*#\s*include\s*[<"]([^>"\n]+)[>"]/gm;
+    while ((m = incRe.exec(src))) {
+      const hdr = m[1].trim();
+      const lc = hdr.toLowerCase();
+      if ((C_HEADERS as readonly string[]).includes(lc)) {
+        if (hdr !== lc && /\.h$/i.test(hdr)) {
+          const idx = m.index + m[0].indexOf(hdr);
+          const p = loc(lines, idx, idx);
+          push(out, p.line, p.column, hdr.length,
+            `Header name '${hdr}' is case-sensitive on most systems — use '${lc}'.`,
+            'CaseSensitiveError', 'warning', `Rename to '${lc}'.`, hdr);
+        }
+        continue;
+      }
+      const suggestion = closestMatch(lc, C_HEADERS as readonly string[], 2);
+      if (suggestion) {
+        const idx = m.index + m[0].indexOf(hdr);
+        const p = loc(lines, idx, idx);
+        push(out, p.line, p.column, hdr.length,
+          `Unknown header '${hdr}'. Did you mean '${suggestion}'?`,
+          'TypoError', 'error', `Replace with '${suggestion}'.`, hdr);
+      }
+    }
+  }
+
+  // 3) Keyword typos & case-sensitivity for identifiers appearing in code.
+  // Only flag standalone words (not property accesses like `foo.Int`) and only
+  // when they clearly look like a typo — either a repeated-letter run collapses
+  // to a keyword, or edit distance ≤ 2 AND the word is not used elsewhere as a
+  // legit identifier in the same file.
+  if (kwList && kwList.length) {
+    // Mask out preprocessor / include / import lines and #include header text
+    // so identifier scan doesn't flag legitimate header names.
+    let scanSrc = src;
+    scanSrc = scanSrc.replace(/^\s*#\s*(?:include|define|import|pragma|if|ifdef|ifndef|else|elif|endif|undef|error|warning|line)\b.*$/gm, (l) => ' '.repeat(l.length));
+    if (family === 'python' || family === 'js') {
+      scanSrc = scanSrc.replace(/^\s*(?:import|from)\b.*$/gm, (l) => ' '.repeat(l.length));
+    }
+    // Set of definition-context keywords whose *next* identifier is a name
+    // (function name, class name, variable name) — should not be flagged.
+    const DEF_CTX = new Set([
+      'def', 'class', 'fn', 'func', 'function', 'struct', 'enum', 'typedef',
+      'namespace', 'interface', 'trait', 'impl', 'package', 'module',
+      'int', 'void', 'char', 'float', 'double', 'long', 'short', 'unsigned',
+      'signed', 'bool', 'boolean', 'string', 'let', 'var', 'const', 'val',
+      'auto', 'new', 'goto', 'label',
+    ]);
+    const idRe = /(^|[^A-Za-z0-9_.$])([A-Za-z_][A-Za-z0-9_]{2,})/g;
+    const seen = new Map<string, number>();
+    // First pass: count identifier frequencies on the masked source
+    {
+      let m: RegExpExecArray | null;
+      const countRe = /[A-Za-z_][A-Za-z0-9_]*/g;
+      while ((m = countRe.exec(scanSrc))) {
+        seen.set(m[0], (seen.get(m[0]) || 0) + 1);
+      }
+    }
+    const kwLcSet = new Set(kwList.map((k) => k.toLowerCase()));
+    let m: RegExpExecArray | null;
+    const reported = new Set<string>();
+    while ((m = idRe.exec(scanSrc))) {
+      const word = m[2];
+      if (word.length < 3 || word.length > 16) continue;
+      // Skip identifiers that follow a definition-context keyword (they are names, not typos)
+      const before = scanSrc.slice(Math.max(0, m.index - 24), m.index + m[1].length);
+      const prevTok = (before.match(/([A-Za-z_][A-Za-z0-9_]*)\s*$/) || [])[1];
+      if (prevTok && DEF_CTX.has(prevTok.toLowerCase())) continue;
+      const key = `${m.index}:${word}`;
+      if (reported.has(key)) continue;
+      const lc = word.toLowerCase();
+      // exact keyword match — check case
+      if (kwList.includes(word)) continue;
+      if (kwLcSet.has(lc)) {
+        // family python: True/False/None are case-sensitive already in list
+        const idx = m.index + m[1].length;
+        const p = loc(lines, idx, idx);
+        push(out, p.line, p.column, word.length,
+          `'${word}' looks like the keyword '${lc}' but is case-sensitive.`,
+          'CaseSensitiveError', 'warning', `Use '${lc}'.`, word);
+        reported.add(key);
+        continue;
+      }
+      // Repeated-letter typo: iiiinclude → include, prrrintf → printf
+      const collapsed = collapseRuns(lc);
+      if (collapsed !== lc && kwLcSet.has(collapsed)) {
+        const idx = m.index + m[1].length;
+        const p = loc(lines, idx, idx);
+        push(out, p.line, p.column, word.length,
+          `'${word}' has repeated letters — did you mean '${collapsed}'?`,
+          'TypoError', 'error', `Replace with '${collapsed}'.`, word);
+        reported.add(key);
+        continue;
+      }
+      // Edit-distance suggestion, only if identifier is unique in file
+      if ((seen.get(word) || 0) > 1) continue;
+      const suggestion = closestMatch(word, kwList, word.length <= 4 ? 1 : 2);
+      if (suggestion && suggestion !== lc) {
+        const idx = m.index + m[1].length;
+        const p = loc(lines, idx, idx);
+        push(out, p.line, p.column, word.length,
+          `Unknown identifier '${word}'. Did you mean '${suggestion}'?`,
+          'TypoError', 'warning', `Replace with '${suggestion}'.`, word);
+        reported.add(key);
+      }
+    }
+  }
+
   return out;
 }
 
@@ -443,4 +670,6 @@ export const RUNTIME_RISK_LEGEND = [
   'File handle leaks',
   'Python mutable default args',
   'JS loose equality (excluding idiomatic == null)',
+  'Typo detection (repeated letters, edit distance, wrong headers)',
+  'Case-sensitivity checks for keywords & preprocessor directives',
 ];
