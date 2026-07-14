@@ -578,22 +578,42 @@ export function detectRuntimeRisks(code: string, language?: string | null): Find
   // to a keyword, or edit distance ≤ 2 AND the word is not used elsewhere as a
   // legit identifier in the same file.
   if (kwList && kwList.length) {
+    // Mask out preprocessor / include / import lines and #include header text
+    // so identifier scan doesn't flag legitimate header names.
+    let scanSrc = src;
+    scanSrc = scanSrc.replace(/^\s*#\s*(?:include|define|import|pragma|if|ifdef|ifndef|else|elif|endif|undef|error|warning|line)\b.*$/gm, (l) => ' '.repeat(l.length));
+    if (family === 'python' || family === 'js') {
+      scanSrc = scanSrc.replace(/^\s*(?:import|from)\b.*$/gm, (l) => ' '.repeat(l.length));
+    }
+    // Set of definition-context keywords whose *next* identifier is a name
+    // (function name, class name, variable name) — should not be flagged.
+    const DEF_CTX = new Set([
+      'def', 'class', 'fn', 'func', 'function', 'struct', 'enum', 'typedef',
+      'namespace', 'interface', 'trait', 'impl', 'package', 'module',
+      'int', 'void', 'char', 'float', 'double', 'long', 'short', 'unsigned',
+      'signed', 'bool', 'boolean', 'string', 'let', 'var', 'const', 'val',
+      'auto', 'new', 'goto', 'label',
+    ]);
     const idRe = /(^|[^A-Za-z0-9_.$])([A-Za-z_][A-Za-z0-9_]{2,})/g;
     const seen = new Map<string, number>();
     // First pass: count identifier frequencies on the masked source
     {
       let m: RegExpExecArray | null;
       const countRe = /[A-Za-z_][A-Za-z0-9_]*/g;
-      while ((m = countRe.exec(src))) {
+      while ((m = countRe.exec(scanSrc))) {
         seen.set(m[0], (seen.get(m[0]) || 0) + 1);
       }
     }
     const kwLcSet = new Set(kwList.map((k) => k.toLowerCase()));
     let m: RegExpExecArray | null;
     const reported = new Set<string>();
-    while ((m = idRe.exec(src))) {
+    while ((m = idRe.exec(scanSrc))) {
       const word = m[2];
       if (word.length < 3 || word.length > 16) continue;
+      // Skip identifiers that follow a definition-context keyword (they are names, not typos)
+      const before = scanSrc.slice(Math.max(0, m.index - 24), m.index + m[1].length);
+      const prevTok = (before.match(/([A-Za-z_][A-Za-z0-9_]*)\s*$/) || [])[1];
+      if (prevTok && DEF_CTX.has(prevTok.toLowerCase())) continue;
       const key = `${m.index}:${word}`;
       if (reported.has(key)) continue;
       const lc = word.toLowerCase();
