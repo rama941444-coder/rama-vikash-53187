@@ -13,9 +13,10 @@ import { detectLanguage, isAutoDetect } from '@/lib/languageDetect';
 import { HighlightedOverlay } from '@/lib/syntaxHighlight';
 import { validateLive, isRegisteredLanguage, unsupportedLanguageNotice } from '@/lib/liveSyntaxValidator';
 import { detectRuntimeRisks } from '@/lib/runtimeRiskHeuristics';
-import Editor from '@monaco-editor/react';
+import Editor, { type Monaco } from '@monaco-editor/react';
 import type * as MonacoNS from 'monaco-editor';
 import { toMonacoLang } from '@/components/MonacoNotepad';
+import { useMonacoDiagnostics } from '@/hooks/useMonacoDiagnostics';
 
 interface LiveCodeIDEProps {
   onAnalysisComplete: (data: any) => void;
@@ -81,7 +82,17 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
   const [treeSitterReady, setTreeSitterReady] = useState(false);
   const treeSitterLangRef = useRef<string>('');
   const monacoEditorRef = useRef<MonacoNS.editor.IStandaloneCodeEditor | null>(null);
-  const monacoNsRef = useRef<any>(null);
+  const monacoNsRef = useRef<Monaco | null>(null);
+  const [monacoReadyKey, setMonacoReadyKey] = useState(0);
+  useMonacoDiagnostics({
+    code,
+    language: isAutoDetect(language) ? (detected || 'plaintext') : language,
+    editorRef: monacoEditorRef,
+    monacoRef: monacoNsRef,
+    owner: 'slide5-live',
+    readyKey: monacoReadyKey,
+    externalFindings: errors,
+  });
 
   // Sync with persisted code
   useEffect(() => {
@@ -105,32 +116,6 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       onCodeChange(code);
     }
   }, [code, onCodeChange, persistedCode]);
-
-  // Sync error list into Monaco as red/amber wavy underlines (setModelMarkers)
-  useEffect(() => {
-    const editor = monacoEditorRef.current;
-    const monaco = monacoNsRef.current;
-    if (!editor || !monaco) return;
-    const model = editor.getModel();
-    if (!model) return;
-    const markers = errors
-      .filter((e) => Number.isFinite(e.line) && e.line > 0)
-      .map((e) => {
-        const lineText = code.split('\n')[e.line - 1] || '';
-        const startCol = Math.max(1, e.column || 1);
-        const endCol = Math.max(startCol + 1, lineText.length + 1);
-        return {
-          startLineNumber: e.line,
-          startColumn: startCol,
-          endLineNumber: e.line,
-          endColumn: endCol,
-          message: `${e.type}: ${e.message}${e.suggestion ? `\n💡 ${e.suggestion}` : ''}`,
-          severity: e.severity === 'error' ? 8 : 4, // MarkerSeverity: Error=8, Warning=4
-          source: 'slide5-live',
-        };
-      });
-    monaco.editor.setModelMarkers(model, 'slide5-live', markers);
-  }, [errors, code]);
 
   // Auto-detect language from notepad content (debounced)
   useEffect(() => {
@@ -800,13 +785,14 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     }
   }, [language]);
 
-  // Instant local detection (5ms debounce)
+  // Smooth local detection: debounce the heavy validator/marker update so Monaco
+  // can keep normal keypress/cursor handling responsive while the user types.
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (code.trim()) {
       debounceRef.current = setTimeout(() => {
         detectErrorsLocal(code);
-      }, 5);
+      }, 400);
     } else {
       setErrors([]);
       setCorrectedCode('');
@@ -1491,6 +1477,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
             onMount={(editor, monaco) => {
               monacoEditorRef.current = editor;
               monacoNsRef.current = monaco;
+              setMonacoReadyKey((key) => key + 1);
               editor.onDidChangeCursorPosition((e) => {
                 setCursorPosition({ line: e.position.lineNumber, column: e.position.column });
               });
