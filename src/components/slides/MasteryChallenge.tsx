@@ -1,12 +1,11 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import Editor from '@monaco-editor/react';
+import Editor, { type Monaco } from '@monaco-editor/react';
 import type * as MonacoNS from 'monaco-editor';
 import { toMonacoLang } from '@/components/MonacoNotepad';
 import { AlertCircle, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
-import { validateLive } from '@/lib/liveSyntaxValidator';
-import { detectRuntimeRisks } from '@/lib/runtimeRiskHeuristics';
+import { useMonacoDiagnostics } from '@/hooks/useMonacoDiagnostics';
 
 interface MasteryChallengeProps {
   userCodeFromSlide2?: string;
@@ -632,46 +631,18 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
   const stdinRef = useRef<HTMLInputElement>(null);
   const outputRef = useRef<HTMLDivElement>(null);
   const monacoEditorRef = useRef<MonacoNS.editor.IStandaloneCodeEditor | null>(null);
-  const monacoNsRef = useRef<any>(null);
-  const [liveFindings, setLiveFindings] = useState<Array<{line:number;column:number;message:string;severity:'error'|'warning';type:string;suggestion?:string}>>([]);
+  const monacoNsRef = useRef<Monaco | null>(null);
+  const [monacoReadyKey, setMonacoReadyKey] = useState(0);
+  const liveFindings = useMonacoDiagnostics({
+    code,
+    language: lang,
+    editorRef: monacoEditorRef,
+    monacoRef: monacoNsRef,
+    owner: 'slide6-live',
+    readyKey: monacoReadyKey,
+    debounceMs: 400,
+  });
   const [rulePanelOpen, setRulePanelOpen] = useState(true);
-
-  // Slide 6 live per-keystroke diagnostics (syntax + math/logic/runtime heuristics)
-  useEffect(() => {
-    const t = setTimeout(() => {
-      const editor = monacoEditorRef.current;
-      const monaco = monacoNsRef.current;
-      if (!editor || !monaco) { setLiveFindings([]); return; }
-      const model = editor.getModel();
-      if (!model) { setLiveFindings([]); return; }
-      let findings: any[] = [];
-      try { findings = findings.concat(validateLive(code, lang) || []); } catch {}
-      try { findings = findings.concat(detectRuntimeRisks(code, lang) || []); } catch {}
-      const markers = findings
-        .filter((e) => Number.isFinite(e.line) && e.line > 0)
-        .map((e) => {
-          const lt = code.split('\n')[e.line - 1] || '';
-          const startCol = Math.max(1, e.column || 1);
-          const endCol = Math.max(startCol + 1, e.endColumn || lt.length + 1);
-          return {
-            startLineNumber: e.line,
-            startColumn: startCol,
-            endLineNumber: e.endLine || e.line,
-            endColumn: endCol,
-            message: `${e.type}: ${e.message}${e.suggestion ? `\n💡 ${e.suggestion}` : ''}`,
-            severity: e.severity === 'error' ? 8 : 4,
-            source: 'slide6-live',
-          };
-        });
-      monaco.editor.setModelMarkers(model, 'slide6-live', markers);
-      setLiveFindings(
-        findings
-          .filter((e) => Number.isFinite(e.line) && e.line > 0)
-          .map((e) => ({ line: e.line, column: e.column || 1, message: e.message, severity: e.severity, type: e.type, suggestion: e.suggestion }))
-      );
-    }, 400);
-    return () => clearTimeout(t);
-  }, [code, lang]);
 
   // Stable Monaco options to avoid re-applying on every keystroke.
   const monacoOptions = useMemo<MonacoNS.editor.IStandaloneEditorConstructionOptions>(() => ({
@@ -1525,6 +1496,7 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
                     onMount={(editor, monaco) => {
                       monacoEditorRef.current = editor;
                       monacoNsRef.current = monaco;
+                      setMonacoReadyKey((key) => key + 1);
                     }}
                     options={monacoOptions}
                   />
