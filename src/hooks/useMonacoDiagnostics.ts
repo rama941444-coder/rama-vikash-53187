@@ -108,7 +108,7 @@ export function useMonacoDiagnostics({
         };
       });
 
-      const markerSignature = `${model.uri.toString()}\n${findingSignature(deduped)}`;
+      const markerSignature = `${model.uri.toString()}\n${model.getVersionId()}\n${findingSignature(deduped)}`;
       if (markerSignature !== lastMarkerSignatureRef.current) {
         monaco.editor.setModelMarkers(model, owner, markers);
         lastMarkerSignatureRef.current = markerSignature;
