@@ -633,7 +633,7 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
   const monacoEditorRef = useRef<MonacoNS.editor.IStandaloneCodeEditor | null>(null);
   const monacoNsRef = useRef<Monaco | null>(null);
   const [monacoReadyKey, setMonacoReadyKey] = useState(0);
-  const liveFindings = useMonacoDiagnostics({
+  const { findings: liveFindings, isPending: liveDiagnosticsPending, lastRunMs: liveDiagnosticsTimeMs } = useMonacoDiagnostics({
     code,
     language: lang,
     editorRef: monacoEditorRef,
