@@ -1537,6 +1537,12 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
                     )}
                   </div>
                 )}
+                {liveDiagnosticsPending && (
+                  <div style={{borderTop:`1px solid ${S.border}`,background:'#0a0e17',padding:'6px 14px',fontSize:10,color:'#f59e0b',fontFamily:"'Space Mono',monospace",textTransform:'uppercase'}}>Analyzing diagnostics…</div>
+                )}
+                {!liveDiagnosticsPending && liveDiagnosticsTimeMs > 0 && liveFindings.length === 0 && (
+                  <div style={{borderTop:`1px solid ${S.border}`,background:'#0a0e17',padding:'6px 14px',fontSize:10,color:S.green,fontFamily:"'Space Mono',monospace",textTransform:'uppercase'}}>Diagnostics clean · {liveDiagnosticsTimeMs.toFixed(1)}ms</div>
+                )}
 
                 {/* OUTPUT - Dark Black */}
                 <div style={{borderTop:`1px solid ${S.border}`}}>
