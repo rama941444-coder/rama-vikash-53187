@@ -27,6 +27,12 @@ interface UseMonacoDiagnosticsArgs {
   externalFindings?: MonacoDiagnosticFinding[];
 }
 
+export interface MonacoDiagnosticsResult {
+  findings: MonacoDiagnosticFinding[];
+  isPending: boolean;
+  lastRunMs: number;
+}
+
 const normalizeFinding = (finding: any): MonacoDiagnosticFinding | null => {
   const line = Number(finding?.line);
   if (!Number.isFinite(line) || line < 1) return null;
@@ -58,8 +64,10 @@ export function useMonacoDiagnostics({
   debounceMs = 400,
   maxMarkers = 300,
   externalFindings,
-}: UseMonacoDiagnosticsArgs): MonacoDiagnosticFinding[] {
+}: UseMonacoDiagnosticsArgs): MonacoDiagnosticsResult {
   const [findings, setFindings] = useState<MonacoDiagnosticFinding[]>([]);
+  const [isPending, setIsPending] = useState(false);
+  const [lastRunMs, setLastRunMs] = useState(0);
   const lastMarkerSignatureRef = useRef('');
   const lastFindingSignatureRef = useRef('');
   const runSeqRef = useRef(0);
@@ -118,15 +126,20 @@ export function useMonacoDiagnostics({
     };
 
     if (externalFindings) {
+      setIsPending(false);
       applyDiagnostics(externalFindings);
       return;
     }
 
     const seq = ++runSeqRef.current;
+    setIsPending(!!code.trim());
     const timer: ReturnType<typeof setTimeout> = setTimeout(() => {
       if (seq !== runSeqRef.current) return;
+      const started = performance.now();
       if (!code.trim()) {
         applyDiagnostics([]);
+        setLastRunMs(0);
+        setIsPending(false);
         return;
       }
 
@@ -135,6 +148,8 @@ export function useMonacoDiagnostics({
       try { next = next.concat(validateLive(code, activeLanguage) || []); } catch {}
       try { next = next.concat(detectRuntimeRisks(code, activeLanguage) || []); } catch {}
       applyDiagnostics(next);
+      setLastRunMs(performance.now() - started);
+      setIsPending(false);
     }, debounceMs);
 
     return () => clearTimeout(timer);
@@ -148,5 +163,5 @@ export function useMonacoDiagnostics({
     };
   }, [monacoRef, owner]);
 
-  return findings;
+  return { findings, isPending, lastRunMs };
 }

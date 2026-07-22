@@ -199,6 +199,26 @@ export function validateLive(code: string, language: string): LiveError[] {
           'PreprocessorError', 'error', trimmed, "Prefix with '#'.");
       }
 
+      const headerMatch = line.match(/#\s*[A-Za-z_][A-Za-z0-9_]*\s*[<"]([^>"\n]+)[>"]/);
+      if (headerMatch) {
+        const header = headerMatch[1].trim();
+        const headerFixes: Record<string, string> = {
+          'studio.h': 'stdio.h',
+          'stdoi.h': 'stdio.h',
+          'stidio.h': 'stdio.h',
+          'stdlibs.h': 'stdlib.h',
+          'stringg.h': 'string.h',
+          'maths.h': 'math.h',
+        };
+        const fix = headerFixes[header.toLowerCase()];
+        if (fix) {
+          const headerColumn = line.indexOf(header) + 1;
+          push(out, lineNum, headerColumn || 1, header.length,
+            `Unknown C/C++ header '${header}'. Did you mean '${fix}'?`,
+            'HeaderTypoError', 'error', header, `Replace with '${fix}'.`);
+        }
+      }
+
       scan(codeOnly, lineNum, /\b[A-Za-z_]\w*\b/, (m) => {
         const tok = m[0];
         const lower = tok.toLowerCase();

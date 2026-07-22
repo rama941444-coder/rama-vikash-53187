@@ -81,12 +81,14 @@ interface Props {
   className?: string;
   /** Optional live findings to render below the editor as a rule-explanation panel. */
   findings?: NotepadFinding[];
+  diagnosticsPending?: boolean;
+  diagnosticsTimeMs?: number;
   /** Called when the user clicks a finding row (e.g. jump to line). */
   onFindingClick?: (f: NotepadFinding) => void;
 }
 
 const MonacoNotepad = forwardRef<MonacoNotepadHandle, Props>(function MonacoNotepad(
-  { value, onChange, placeholder, maxLines = 300000, language, height = 400, headerLabel = 'Monaco Code Editor', onMount, onCursorChange, className, findings, onFindingClick },
+  { value, onChange, placeholder, maxLines = 300000, language, height = 400, headerLabel = 'Monaco Code Editor', onMount, onCursorChange, className, findings, diagnosticsPending, diagnosticsTimeMs, onFindingClick },
   ref,
 ) {
   const [isMinimized, setIsMinimized] = useState(false);
@@ -235,6 +237,11 @@ const MonacoNotepad = forwardRef<MonacoNotepadHandle, Props>(function MonacoNote
           <span className={`text-xs ${dark ? 'text-gray-500' : 'text-gray-500'}`}>Lines: {lineCount.toLocaleString()} / {maxLines.toLocaleString()}</span>
           <span className="text-xs text-gray-500">|</span>
           <span className="text-xs text-cyan-500">Monaco · {monacoLang}</span>
+          {diagnosticsPending ? (
+            <span className="text-xs text-amber-400 animate-pulse">Analyzing…</span>
+          ) : typeof diagnosticsTimeMs === 'number' && diagnosticsTimeMs > 0 ? (
+            <span className="text-xs text-emerald-500">Diagnostics {diagnosticsTimeMs.toFixed(1)}ms</span>
+          ) : null}
         </div>
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="sm" onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}

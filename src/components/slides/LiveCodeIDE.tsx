@@ -61,6 +61,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
   const [correctedCode, setCorrectedCode] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isDetecting, setIsDetecting] = useState(false);
+  const [isDiagnosticsQueued, setIsDiagnosticsQueued] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [cursorPosition, setCursorPosition] = useState({ line: 1, column: 1 });
   const [detectionTime, setDetectionTime] = useState(0);
@@ -790,10 +791,13 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (code.trim()) {
+      setIsDiagnosticsQueued(true);
       debounceRef.current = setTimeout(() => {
+        setIsDiagnosticsQueued(false);
         detectErrorsLocal(code);
       }, 400);
     } else {
+      setIsDiagnosticsQueued(false);
       setErrors([]);
       setCorrectedCode('');
       setAiErrors([]);
@@ -1024,6 +1028,20 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     const codeLines = code.split('\n');
     const lineIndex = error.line - 1;
 
+    const finishFix = (nextCode: string, title = '✅ Fix Applied', description = `Fixed issue on line ${error.line}`) => {
+      setCode(nextCode);
+      setErrors((prev) => prev.filter((item) => item !== error && !(item.line === error.line && item.column === error.column && item.message === error.message && item.type === error.type)));
+      setCorrectedCode('');
+      setAiCorrectedCode('');
+      toast({ title, description });
+    };
+
+    const extractQuotedReplacement = (text?: string) => {
+      if (!text) return '';
+      const match = text.match(/(?:Replace with|Replace .* with|Change to|Use|Capitalize as)\s+['"]([^'"]+)['"]/i);
+      return match?.[1] || '';
+    };
+
     // Case 1: Direct wrongCode → correctCode replacement (typos, known fixes)
     if (error.wrongCode && error.correctCode) {
       if (lineIndex >= 0 && lineIndex < codeLines.length) {
@@ -1034,11 +1052,27 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
           // Replace the specific wrong part within the line
           codeLines[lineIndex] = codeLines[lineIndex].replace(error.wrongCode, error.correctCode);
         }
-        setCode(codeLines.join('\n'));
-        toast({
-          title: "✅ Fix Applied",
-          description: `Fixed error on line ${error.line}: ${error.suggestion || error.message}`,
-        });
+        finishFix(codeLines.join('\n'), '✅ Fix Applied', `Fixed error on line ${error.line}: ${error.suggestion || error.message}`);
+        return;
+      }
+    }
+
+    // Case 1b: Rule-based diagnostics often provide wrongCode + suggestion
+    // instead of full corrected code. Convert common suggestions into edits.
+    if (error.wrongCode && error.suggestion && lineIndex >= 0 && lineIndex < codeLines.length) {
+      const replacement = extractQuotedReplacement(error.suggestion);
+      if (replacement && codeLines[lineIndex].includes(error.wrongCode)) {
+        codeLines[lineIndex] = codeLines[lineIndex].replace(error.wrongCode, replacement);
+        finishFix(codeLines.join('\n'), '✅ Fix Applied', `Replaced '${error.wrongCode}' with '${replacement}' on line ${error.line}`);
+        return;
+      }
+    }
+
+    // Case 1c: Missing semicolon diagnostics should edit the Monaco model.
+    if ((error.message.includes("expected ';'") || error.suggestion?.includes("Append ';'")) && lineIndex >= 0 && lineIndex < codeLines.length) {
+      if (!codeLines[lineIndex].trimEnd().endsWith(';')) {
+        codeLines[lineIndex] = `${codeLines[lineIndex].trimEnd()};`;
+        finishFix(codeLines.join('\n'), '✅ Fix Applied', `Added ';' on line ${error.line}`);
         return;
       }
     }
@@ -1051,11 +1085,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
         const col = Math.min(error.column - 1, codeLines[lineIndex].length);
         const line = codeLines[lineIndex];
         codeLines[lineIndex] = line.substring(0, col) + missingToken + line.substring(col);
-        setCode(codeLines.join('\n'));
-        toast({
-          title: "✅ Fix Applied",
-          description: `Inserted missing '${missingToken}' on line ${error.line}`,
-        });
+        finishFix(codeLines.join('\n'), '✅ Fix Applied', `Inserted missing '${missingToken}' on line ${error.line}`);
         return;
       }
     }
@@ -1065,11 +1095,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       if (lineIndex >= 0 && lineIndex < codeLines.length) {
         const quoteChar = error.message.includes('single') ? "'" : '"';
         codeLines[lineIndex] = codeLines[lineIndex] + quoteChar;
-        setCode(codeLines.join('\n'));
-        toast({
-          title: "✅ Fix Applied",
-          description: `Added closing ${quoteChar} on line ${error.line}`,
-        });
+        finishFix(codeLines.join('\n'), '✅ Fix Applied', `Added closing ${quoteChar} on line ${error.line}`);
         return;
       }
     }
@@ -1095,8 +1121,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       // Avoid stacking annotations
       if (!codeLines[lineIndex].includes(`${cmt} 💡`)) {
         codeLines[lineIndex] = `${codeLines[lineIndex]}  ${cmt} 💡 ${error.suggestion}`;
-        setCode(codeLines.join('\n'));
-        toast({ title: '💡 Suggestion Applied', description: `Line ${error.line}: ${error.suggestion}` });
+        finishFix(codeLines.join('\n'), '💡 Suggestion Applied', `Line ${error.line}: ${error.suggestion}`);
       } else {
         toast({ title: 'Already annotated', description: `Line ${error.line} already has the suggestion.` });
       }
@@ -1375,6 +1400,11 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
             <span className="text-xs text-gray-400">
               {lineCount.toLocaleString()} / {maxLines.toLocaleString()} lines
             </span>
+            {isDiagnosticsQueued && !isDetecting && (
+              <span className="text-xs text-amber-400 animate-pulse flex items-center gap-1">
+                <Zap className="w-3 h-3" /> Analyzing...
+              </span>
+            )}
             {isDetecting && (
               <span className="text-xs text-blue-400 animate-pulse flex items-center gap-1">
                 <Zap className="w-3 h-3" /> Local...
