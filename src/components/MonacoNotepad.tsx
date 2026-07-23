@@ -238,7 +238,7 @@ const MonacoNotepad = forwardRef<MonacoNotepadHandle, Props>(function MonacoNote
           <span className="text-xs text-gray-500">|</span>
           <span className="text-xs text-cyan-500">Monaco · {monacoLang}</span>
           {diagnosticsPending ? (
-            <span className="text-xs text-amber-400 animate-pulse">Analyzing…</span>
+            <span className="text-xs text-amber-400">Analyzing…</span>
           ) : typeof diagnosticsTimeMs === 'number' && diagnosticsTimeMs > 0 ? (
             <span className="text-xs text-emerald-500">Diagnostics {diagnosticsTimeMs.toFixed(1)}ms</span>
           ) : null}
