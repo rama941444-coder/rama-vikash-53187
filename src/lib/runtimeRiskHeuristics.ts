@@ -192,6 +192,43 @@ export function detectRuntimeRisks(code: string, language?: string | null): Find
     }
   }
 
+  // --- Division / modulo by variable that is provably zero.
+  // Track final assigned value of simple `name = <literal>` (or typed decls like
+  // `int name = 0;`, `let name = 0`, `name := 0` in Go). If the last value is 0,
+  // flag every `/ name` and `% name` usage past that assignment.
+  {
+    const assignRe = /(?:^|[\s;{(,])(?:(?:int|long|short|float|double|unsigned|const|let|var|auto|static|final|val)\s+)?([A-Za-z_][A-Za-z_0-9]*)\s*(?::=|=)\s*(-?\d+(?:\.\d+)?)\b/g;
+    const lastVal = new Map<string, { value: number; offset: number }>();
+    let am: RegExpExecArray | null;
+    while ((am = assignRe.exec(src))) {
+      const name = am[1];
+      // Skip language keywords that could match (rare after the exclusion above).
+      if (/^(if|else|for|while|return|true|false|null|None|True|False|new|delete)$/.test(name)) continue;
+      lastVal.set(name, { value: Number(am[2]), offset: am.index });
+    }
+    const zeroVars = new Set<string>();
+    lastVal.forEach((v, k) => { if (v.value === 0) zeroVars.add(k); });
+    if (zeroVars.size > 0) {
+      const usageRe = /([\/%])\s*([A-Za-z_][A-Za-z_0-9]*)\b/g;
+      let um: RegExpExecArray | null;
+      while ((um = usageRe.exec(src))) {
+        const op = um[1];
+        const name = um[2];
+        if (!zeroVars.has(name)) continue;
+        const info = lastVal.get(name)!;
+        if (um.index <= info.offset) continue; // usage before the zero-assignment
+        const p = loc(lines, um.index, um.index);
+        const isMod = op === '%';
+        push(out, p.line, p.column, um[0].length,
+          `${isMod ? 'Modulo' : 'Division'} by variable '${name}' which is assigned 0 above — will produce ${isMod ? 'a runtime error' : 'Infinity / NaN / crash'}.`,
+          isMod ? 'ModuloByZeroError' : 'DivisionByZeroError',
+          'error',
+          `Guard with 'if (${name} !== 0)' before dividing, or reassign '${name}' to a non-zero value.`,
+          um[0]);
+      }
+    }
+  }
+
   // --- Math errors ------------------------------------------------------------
 
   // Modulo by zero literal: `a % 0`
