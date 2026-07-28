@@ -1401,17 +1401,17 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
               {lineCount.toLocaleString()} / {maxLines.toLocaleString()} lines
             </span>
             {isDiagnosticsQueued && !isDetecting && (
-              <span className="text-xs text-amber-400 animate-pulse flex items-center gap-1">
+              <span className="text-xs text-amber-400 flex items-center gap-1">
                 <Zap className="w-3 h-3" /> Analyzing...
               </span>
             )}
             {isDetecting && (
-              <span className="text-xs text-blue-400 animate-pulse flex items-center gap-1">
+              <span className="text-xs text-blue-400 flex items-center gap-1">
                 <Zap className="w-3 h-3" /> Local...
               </span>
             )}
             {isAiDetecting && (
-              <span className="text-xs text-purple-400 animate-pulse flex items-center gap-1">
+              <span className="text-xs text-purple-400 flex items-center gap-1">
                 <Sparkles className="w-3 h-3" /> AI Analyzing...
               </span>
             )}
