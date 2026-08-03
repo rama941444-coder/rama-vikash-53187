@@ -13,9 +13,10 @@ import { detectLanguage, isAutoDetect } from '@/lib/languageDetect';
 import { HighlightedOverlay } from '@/lib/syntaxHighlight';
 import { validateLive, isRegisteredLanguage, unsupportedLanguageNotice } from '@/lib/liveSyntaxValidator';
 import { detectRuntimeRisks } from '@/lib/runtimeRiskHeuristics';
-import Editor from '@monaco-editor/react';
+import Editor, { type Monaco } from '@monaco-editor/react';
 import type * as MonacoNS from 'monaco-editor';
 import { toMonacoLang } from '@/components/MonacoNotepad';
+import { useMonacoDiagnostics } from '@/hooks/useMonacoDiagnostics';
 
 interface LiveCodeIDEProps {
   onAnalysisComplete: (data: any) => void;
@@ -60,6 +61,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
   const [correctedCode, setCorrectedCode] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isDetecting, setIsDetecting] = useState(false);
+  const [isDiagnosticsQueued, setIsDiagnosticsQueued] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [cursorPosition, setCursorPosition] = useState({ line: 1, column: 1 });
   const [detectionTime, setDetectionTime] = useState(0);
@@ -81,7 +83,17 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
   const [treeSitterReady, setTreeSitterReady] = useState(false);
   const treeSitterLangRef = useRef<string>('');
   const monacoEditorRef = useRef<MonacoNS.editor.IStandaloneCodeEditor | null>(null);
-  const monacoNsRef = useRef<any>(null);
+  const monacoNsRef = useRef<Monaco | null>(null);
+  const [monacoReadyKey, setMonacoReadyKey] = useState(0);
+  useMonacoDiagnostics({
+    code,
+    language: isAutoDetect(language) ? (detected || 'plaintext') : language,
+    editorRef: monacoEditorRef,
+    monacoRef: monacoNsRef,
+    owner: 'slide5-live',
+    readyKey: monacoReadyKey,
+    externalFindings: errors,
+  });
 
   // Sync with persisted code
   useEffect(() => {
@@ -105,32 +117,6 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       onCodeChange(code);
     }
   }, [code, onCodeChange, persistedCode]);
-
-  // Sync error list into Monaco as red/amber wavy underlines (setModelMarkers)
-  useEffect(() => {
-    const editor = monacoEditorRef.current;
-    const monaco = monacoNsRef.current;
-    if (!editor || !monaco) return;
-    const model = editor.getModel();
-    if (!model) return;
-    const markers = errors
-      .filter((e) => Number.isFinite(e.line) && e.line > 0)
-      .map((e) => {
-        const lineText = code.split('\n')[e.line - 1] || '';
-        const startCol = Math.max(1, e.column || 1);
-        const endCol = Math.max(startCol + 1, lineText.length + 1);
-        return {
-          startLineNumber: e.line,
-          startColumn: startCol,
-          endLineNumber: e.line,
-          endColumn: endCol,
-          message: `${e.type}: ${e.message}${e.suggestion ? `\n💡 ${e.suggestion}` : ''}`,
-          severity: e.severity === 'error' ? 8 : 4, // MarkerSeverity: Error=8, Warning=4
-          source: 'slide5-live',
-        };
-      });
-    monaco.editor.setModelMarkers(model, 'slide5-live', markers);
-  }, [errors, code]);
 
   // Auto-detect language from notepad content (debounced)
   useEffect(() => {
@@ -800,14 +786,18 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     }
   }, [language]);
 
-  // Instant local detection (5ms debounce)
+  // Smooth local detection: debounce the heavy validator/marker update so Monaco
+  // can keep normal keypress/cursor handling responsive while the user types.
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (code.trim()) {
+      setIsDiagnosticsQueued(true);
       debounceRef.current = setTimeout(() => {
+        setIsDiagnosticsQueued(false);
         detectErrorsLocal(code);
-      }, 5);
+      }, 400);
     } else {
+      setIsDiagnosticsQueued(false);
       setErrors([]);
       setCorrectedCode('');
       setAiErrors([]);
@@ -1038,6 +1028,20 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     const codeLines = code.split('\n');
     const lineIndex = error.line - 1;
 
+    const finishFix = (nextCode: string, title = '✅ Fix Applied', description = `Fixed issue on line ${error.line}`) => {
+      setCode(nextCode);
+      setErrors((prev) => prev.filter((item) => item !== error && !(item.line === error.line && item.column === error.column && item.message === error.message && item.type === error.type)));
+      setCorrectedCode('');
+      setAiCorrectedCode('');
+      toast({ title, description });
+    };
+
+    const extractQuotedReplacement = (text?: string) => {
+      if (!text) return '';
+      const match = text.match(/(?:Replace with|Replace .* with|Change to|Use|Capitalize as)\s+['"]([^'"]+)['"]/i);
+      return match?.[1] || '';
+    };
+
     // Case 1: Direct wrongCode → correctCode replacement (typos, known fixes)
     if (error.wrongCode && error.correctCode) {
       if (lineIndex >= 0 && lineIndex < codeLines.length) {
@@ -1048,11 +1052,27 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
           // Replace the specific wrong part within the line
           codeLines[lineIndex] = codeLines[lineIndex].replace(error.wrongCode, error.correctCode);
         }
-        setCode(codeLines.join('\n'));
-        toast({
-          title: "✅ Fix Applied",
-          description: `Fixed error on line ${error.line}: ${error.suggestion || error.message}`,
-        });
+        finishFix(codeLines.join('\n'), '✅ Fix Applied', `Fixed error on line ${error.line}: ${error.suggestion || error.message}`);
+        return;
+      }
+    }
+
+    // Case 1b: Rule-based diagnostics often provide wrongCode + suggestion
+    // instead of full corrected code. Convert common suggestions into edits.
+    if (error.wrongCode && error.suggestion && lineIndex >= 0 && lineIndex < codeLines.length) {
+      const replacement = extractQuotedReplacement(error.suggestion);
+      if (replacement && codeLines[lineIndex].includes(error.wrongCode)) {
+        codeLines[lineIndex] = codeLines[lineIndex].replace(error.wrongCode, replacement);
+        finishFix(codeLines.join('\n'), '✅ Fix Applied', `Replaced '${error.wrongCode}' with '${replacement}' on line ${error.line}`);
+        return;
+      }
+    }
+
+    // Case 1c: Missing semicolon diagnostics should edit the Monaco model.
+    if ((error.message.includes("expected ';'") || error.suggestion?.includes("Append ';'")) && lineIndex >= 0 && lineIndex < codeLines.length) {
+      if (!codeLines[lineIndex].trimEnd().endsWith(';')) {
+        codeLines[lineIndex] = `${codeLines[lineIndex].trimEnd()};`;
+        finishFix(codeLines.join('\n'), '✅ Fix Applied', `Added ';' on line ${error.line}`);
         return;
       }
     }
@@ -1065,11 +1085,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
         const col = Math.min(error.column - 1, codeLines[lineIndex].length);
         const line = codeLines[lineIndex];
         codeLines[lineIndex] = line.substring(0, col) + missingToken + line.substring(col);
-        setCode(codeLines.join('\n'));
-        toast({
-          title: "✅ Fix Applied",
-          description: `Inserted missing '${missingToken}' on line ${error.line}`,
-        });
+        finishFix(codeLines.join('\n'), '✅ Fix Applied', `Inserted missing '${missingToken}' on line ${error.line}`);
         return;
       }
     }
@@ -1079,11 +1095,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       if (lineIndex >= 0 && lineIndex < codeLines.length) {
         const quoteChar = error.message.includes('single') ? "'" : '"';
         codeLines[lineIndex] = codeLines[lineIndex] + quoteChar;
-        setCode(codeLines.join('\n'));
-        toast({
-          title: "✅ Fix Applied",
-          description: `Added closing ${quoteChar} on line ${error.line}`,
-        });
+        finishFix(codeLines.join('\n'), '✅ Fix Applied', `Added closing ${quoteChar} on line ${error.line}`);
         return;
       }
     }
@@ -1109,8 +1121,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       // Avoid stacking annotations
       if (!codeLines[lineIndex].includes(`${cmt} 💡`)) {
         codeLines[lineIndex] = `${codeLines[lineIndex]}  ${cmt} 💡 ${error.suggestion}`;
-        setCode(codeLines.join('\n'));
-        toast({ title: '💡 Suggestion Applied', description: `Line ${error.line}: ${error.suggestion}` });
+        finishFix(codeLines.join('\n'), '💡 Suggestion Applied', `Line ${error.line}: ${error.suggestion}`);
       } else {
         toast({ title: 'Already annotated', description: `Line ${error.line} already has the suggestion.` });
       }
@@ -1389,13 +1400,18 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
             <span className="text-xs text-gray-400">
               {lineCount.toLocaleString()} / {maxLines.toLocaleString()} lines
             </span>
+            {isDiagnosticsQueued && !isDetecting && (
+              <span className="text-xs text-amber-400 flex items-center gap-1">
+                <Zap className="w-3 h-3" /> Analyzing...
+              </span>
+            )}
             {isDetecting && (
-              <span className="text-xs text-blue-400 animate-pulse flex items-center gap-1">
+              <span className="text-xs text-blue-400 flex items-center gap-1">
                 <Zap className="w-3 h-3" /> Local...
               </span>
             )}
             {isAiDetecting && (
-              <span className="text-xs text-purple-400 animate-pulse flex items-center gap-1">
+              <span className="text-xs text-purple-400 flex items-center gap-1">
                 <Sparkles className="w-3 h-3" /> AI Analyzing...
               </span>
             )}
@@ -1491,6 +1507,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
             onMount={(editor, monaco) => {
               monacoEditorRef.current = editor;
               monacoNsRef.current = monaco;
+              setMonacoReadyKey((key) => key + 1);
               editor.onDidChangeCursorPosition((e) => {
                 setCursorPosition({ line: e.position.lineNumber, column: e.position.column });
               });
