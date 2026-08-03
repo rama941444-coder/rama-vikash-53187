@@ -181,20 +181,6 @@ const MonacoNotepad = forwardRef<MonacoNotepadHandle, Props>(function MonacoNote
     }
   };
 
-  if (isMinimized) {
-    return (
-      <div className="border border-border rounded-lg p-3 bg-card flex items-center justify-between">
-        <span className="text-sm text-muted-foreground">Code Editor ({lineCount.toLocaleString()} lines)</span>
-        <Button variant="ghost" size="sm" onClick={() => {
-          setEditorMountKey((key) => key + 1);
-          setIsMinimized(false);
-        }} className="gap-1">
-          <Maximize2 className="w-4 h-4" /> Expand
-        </Button>
-      </div>
-    );
-  }
-
   const dark = theme === 'dark';
   const monacoLang = toMonacoLang(language);
 
@@ -233,6 +219,22 @@ const MonacoNotepad = forwardRef<MonacoNotepadHandle, Props>(function MonacoNote
     }
     onFindingClick?.(f);
   };
+
+  // Keep all hooks above this branch. Returning before useMemo previously
+  // changed the hook count on minimize and could leave Slide 2 blank.
+  if (isMinimized) {
+    return (
+      <div className="border border-border rounded-lg p-3 bg-card flex items-center justify-between">
+        <span className="text-sm text-muted-foreground">Code Editor ({lineCount.toLocaleString()} lines)</span>
+        <Button variant="ghost" size="sm" onClick={() => {
+          setEditorMountKey((key) => key + 1);
+          setIsMinimized(false);
+        }} className="gap-1">
+          <Maximize2 className="w-4 h-4" /> Expand
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className={`border border-border rounded-lg overflow-hidden ${dark ? 'bg-[#1e1e1e]' : 'bg-white'} ${className || ''}`}>
