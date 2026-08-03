@@ -464,6 +464,73 @@ export function detectRuntimeRisks(code: string, language?: string | null): Find
     }
   }
 
+  // --- Java/JVM semantic and OOP checks --------------------------------------
+  // These inspections run before compilation and only report constructs whose
+  // meaning is unambiguous from the current source file.
+  if (family === 'jvm') {
+    const semanticRules: Array<{
+      regex: RegExp;
+      message: (match: RegExpExecArray) => string;
+      type: string;
+      suggestion: string;
+    }> = [
+      {
+        regex: /\b(?:public\s+private|private\s+public|public\s+protected|protected\s+public|private\s+protected|protected\s+private)\b/g,
+        message: () => 'Conflicting access modifiers: a declaration can have only one of public, protected, or private.',
+        type: 'AccessModifierError',
+        suggestion: 'Keep exactly one access modifier on this declaration.',
+      },
+      {
+        regex: /\babstract\s+final\s+class\b|\bfinal\s+abstract\s+class\b/g,
+        message: () => 'A class cannot be both abstract and final: abstract requires inheritance while final forbids it.',
+        type: 'InheritanceError',
+        suggestion: 'Remove either abstract or final from the class declaration.',
+      },
+      {
+        regex: /\bclass\s+([A-Za-z_]\w*)\s+extends\s+[A-Za-z_]\w*\s*,\s*[A-Za-z_]\w*/g,
+        message: (match) => `Class '${match[1]}' cannot extend multiple classes in Java.`,
+        type: 'InheritanceError',
+        suggestion: 'Extend one class and use implements for interfaces.',
+      },
+      {
+        regex: /\b(?:private|static)\s+abstract\b|\babstract\s+(?:private|static)\b/g,
+        message: () => 'An abstract method cannot be private or static because subclasses must be able to override it.',
+        type: 'OverrideError',
+        suggestion: 'Use public/protected abstract, or remove abstract.',
+      },
+      {
+        regex: /\bfinal\s+(?:void|byte|short|int|long|float|double|boolean|char|String|[A-Z]\w*)\s+([A-Za-z_]\w*)\s*\([^)]*\)[^{;]*\{[\s\S]*?\}\s*[\s\S]*?@Override\s+(?:public|protected)?\s*(?:void|byte|short|int|long|float|double|boolean|char|String|[A-Z]\w*)\s+\1\s*\(/g,
+        message: (match) => `Method '${match[1]}' is final and cannot be overridden.`,
+        type: 'OverrideError',
+        suggestion: 'Remove final from the parent method or remove the override.',
+      },
+    ];
+
+    for (const rule of semanticRules) {
+      let match: RegExpExecArray | null;
+      while ((match = rule.regex.exec(src))) {
+        const p = loc(lines, match.index, match.index);
+        push(out, p.line, p.column, match[0].split(/\s/)[0].length,
+          rule.message(match), rule.type, 'error', rule.suggestion, match[0]);
+      }
+    }
+
+    // An abstract method declaration in a concrete Java class is illegal.
+    const concreteClassRe = /\bclass\s+([A-Za-z_]\w*)[^\{]*\{([\s\S]*?)\n\}/g;
+    let classMatch: RegExpExecArray | null;
+    while ((classMatch = concreteClassRe.exec(src))) {
+      const declarationPrefix = src.slice(Math.max(0, classMatch.index - 24), classMatch.index);
+      if (/\babstract\s*$/.test(declarationPrefix)) continue;
+      const abstractMethod = /\babstract\s+[A-Za-z_$][\w$<>, ?\[\]]*\s+[A-Za-z_$][\w$]*\s*\([^)]*\)\s*;/.exec(classMatch[2]);
+      if (!abstractMethod) continue;
+      const offset = classMatch.index + classMatch[0].indexOf(classMatch[2]) + abstractMethod.index;
+      const p = loc(lines, offset, offset);
+      push(out, p.line, p.column, abstractMethod[0].length,
+        `Concrete class '${classMatch[1]}' contains an abstract method.`,
+        'AbstractClassError', 'error', `Declare '${classMatch[1]}' abstract or implement the method body.`, abstractMethod[0]);
+    }
+  }
+
   // --- Typo / misspelling / case-sensitivity detection ---------------------
   // Character-level detection so mistakes like `iiiinclude studio.h`, `Int main`,
   // or `pritnf("hi")` are surfaced before the compiler runs.
@@ -709,4 +776,5 @@ export const RUNTIME_RISK_LEGEND = [
   'JS loose equality (excluding idiomatic == null)',
   'Typo detection (repeated letters, edit distance, wrong headers)',
   'Case-sensitivity checks for keywords & preprocessor directives',
+  'Java/JVM access-modifier, inheritance, abstract-class, and override rules',
 ];

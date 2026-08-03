@@ -85,13 +85,16 @@ interface Props {
   diagnosticsTimeMs?: number;
   /** Called when the user clicks a finding row (e.g. jump to line). */
   onFindingClick?: (f: NotepadFinding) => void;
+  /** Keep Monaco markers active while hiding the optional explanation list. */
+  showFindingsPanel?: boolean;
 }
 
 const MonacoNotepad = forwardRef<MonacoNotepadHandle, Props>(function MonacoNotepad(
-  { value, onChange, placeholder, maxLines = 300000, language, height = 400, headerLabel = 'Monaco Code Editor', onMount, onCursorChange, className, findings, diagnosticsPending, diagnosticsTimeMs, onFindingClick },
+  { value, onChange, placeholder, maxLines = 300000, language, height = 400, headerLabel = 'Monaco Code Editor', onMount, onCursorChange, className, findings, diagnosticsPending, diagnosticsTimeMs, onFindingClick, showFindingsPanel = true },
   ref,
 ) {
   const [isMinimized, setIsMinimized] = useState(false);
+  const [editorMountKey, setEditorMountKey] = useState(0);
   const [panelOpen, setPanelOpen] = useState(true);
   const [cursor, setCursor] = useState({ line: 1, column: 1 });
   const [fontSize, setFontSize] = useState<number>(() => {
@@ -182,7 +185,10 @@ const MonacoNotepad = forwardRef<MonacoNotepadHandle, Props>(function MonacoNote
     return (
       <div className="border border-border rounded-lg p-3 bg-card flex items-center justify-between">
         <span className="text-sm text-muted-foreground">Code Editor ({lineCount.toLocaleString()} lines)</span>
-        <Button variant="ghost" size="sm" onClick={() => setIsMinimized(false)} className="gap-1">
+        <Button variant="ghost" size="sm" onClick={() => {
+          setEditorMountKey((key) => key + 1);
+          setIsMinimized(false);
+        }} className="gap-1">
           <Maximize2 className="w-4 h-4" /> Expand
         </Button>
       </div>
@@ -319,6 +325,7 @@ const MonacoNotepad = forwardRef<MonacoNotepadHandle, Props>(function MonacoNote
 
       <div className="relative" style={{ height: typeof height === 'number' ? `${height}px` : height }}>
         <Editor
+          key={editorMountKey}
           height="100%"
           language={monacoLang}
           value={value}
@@ -337,7 +344,7 @@ const MonacoNotepad = forwardRef<MonacoNotepadHandle, Props>(function MonacoNote
         )}
       </div>
 
-      {findings && findings.length > 0 && (
+      {showFindingsPanel && findings && findings.length > 0 && (
         <div className={`border-t border-border/60 ${dark ? 'bg-[#161616]' : 'bg-[#f8f8f8]'}`}>
           <button
             type="button"
