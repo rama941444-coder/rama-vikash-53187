@@ -274,30 +274,6 @@ export type Database = {
       }
     }
     Views: {
-      leaderboard_profiles: {
-        Row: {
-          avatar_url: string | null
-          city: string | null
-          country: string | null
-          full_name: string | null
-          id: string | null
-        }
-        Insert: {
-          avatar_url?: string | null
-          city?: string | null
-          country?: string | null
-          full_name?: string | null
-          id?: string | null
-        }
-        Update: {
-          avatar_url?: string | null
-          city?: string | null
-          country?: string | null
-          full_name?: string | null
-          id?: string | null
-        }
-        Relationships: []
-      }
       pricing_public: {
         Row: {
           amount: number | null
