@@ -752,13 +752,14 @@ const MasteryChallenge = ({ userCodeFromSlide2, userCodeFromSlide5 }: MasteryCha
       try {
         // Get all student progress grouped by user
         const { data: allProgress } = await supabase.from('student_progress').select('user_id, points, question_title');
-        const { data: allProfiles } = await supabase.from('profiles').select('id, full_name, email');
+        const { data: allProfiles } = await supabase.from('leaderboard_profiles').select('id, full_name');
         
         if (allProgress && allProfiles) {
           const userMap: Record<string, { score: number; solved: Set<string>; name: string; email: string }> = {};
           
           for (const profile of allProfiles) {
-            userMap[profile.id] = { score: 0, solved: new Set(), name: profile.full_name || profile.email?.split('@')[0] || 'Student', email: profile.email || '' };
+            if (!profile.id) continue;
+            userMap[profile.id] = { score: 0, solved: new Set(), name: profile.full_name || 'Student', email: '' };
           }
           
           for (const p of allProgress) {
