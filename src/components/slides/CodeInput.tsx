@@ -346,6 +346,7 @@ const CodeInput = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: Cod
           language={isAutoDetect(language) ? (detected || undefined) : language}
           headerLabel="Slide 2 · Monaco Notepad"
           findings={findings}
+          showFindingsPanel={false}
           diagnosticsPending={diagnosticsPending}
           diagnosticsTimeMs={diagnosticsTimeMs}
           onMount={(editor, monaco) => {

@@ -35,4 +35,28 @@ describe('Monaco live diagnostics stress path', () => {
 
     expect(findings.filter((f) => f.severity === 'error')).toEqual([]);
   });
+
+  it('detects Java OOP semantic errors before compilation', () => {
+    const code = `public private class Broken {
+  private abstract void hidden();
+}
+abstract final class Closed {}
+class Child extends Parent, Other {}`;
+    const findings = detectRuntimeRisks(code, 'Java');
+    const types = findings.map((finding) => finding.type);
+    expect(types).toContain('AccessModifierError');
+    expect(types).toContain('OverrideError');
+    expect(types).toContain('InheritanceError');
+  });
+
+  it('does not add semantic red lines to valid Java OOP code', () => {
+    const code = `abstract class Parent {
+  protected abstract void run();
+}
+class Child extends Parent {
+  @Override public void run() {}
+}`;
+    const findings = detectRuntimeRisks(code, 'Java');
+    expect(findings.filter((finding) => finding.type.endsWith('Error'))).toEqual([]);
+  });
 });
