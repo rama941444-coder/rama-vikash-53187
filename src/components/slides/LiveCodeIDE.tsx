@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import LanguageSelector from '@/components/LanguageSelector';
 import { supabase } from '@/integrations/supabase/client';
 import { treeSitterService, type TreeSitterError } from '@/lib/treeSitterService';
+import { runSemanticRules, SEMANTIC_RULE_COUNT } from '@/lib/semanticRuleEngine';
 import { detectLanguage, isAutoDetect } from '@/lib/languageDetect';
 import { HighlightedOverlay } from '@/lib/syntaxHighlight';
 import { validateLive, isRegisteredLanguage, unsupportedLanguageNotice } from '@/lib/liveSyntaxValidator';
