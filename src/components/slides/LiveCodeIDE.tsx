@@ -407,10 +407,25 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       });
     }
 
-    // === TREE-SITTER INCREMENTAL PARSING (extended registry only) ===
+    // === SEMGREP-STYLE SEMANTIC RULE ENGINE (all languages, 100% offline) ===
+    // Logical errors, encapsulation/access-modifier violations, overflow /
+    // underflow, data-structure bounds and security rules — before compiling.
+    try {
+      runSemanticRules(codeText, activeLang || language).forEach((e) => detectedErrors.push({
+        line: e.line,
+        column: e.column,
+        message: e.message,
+        severity: e.severity,
+        type: e.type,
+        wrongCode: e.wrongCode,
+        suggestion: e.suggestion,
+      }));
+    } catch {}
+
+    // === TREE-SITTER INCREMENTAL AST PARSING (every supported grammar) ===
     let treeSitterUsed = false;
-    if (treeSitterReady && !isRegisteredLanguage(activeLang)) {
-      const langNorm = language.toLowerCase().replace(/\s+/g, '');
+    if (treeSitterReady) {
+      const langNorm = (activeLang || language).toLowerCase().replace(/\s+/g, '');
       const tsLang = langNorm === 'auto-detect' ? '' : langNorm;
       
       if (tsLang && treeSitterService.isLanguageSupported(tsLang)) {
@@ -425,8 +440,11 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
         if (treeSitterLangRef.current === tsLang) {
           const tsErrors = treeSitterService.parse(codeText, tsLang);
           treeSitterUsed = true;
-          
+          const seenSyntax = new Set(
+            detectedErrors.filter((e) => e.severity === 'error').map((e) => `${e.line}:${e.column}`),
+          );
           tsErrors.forEach(tsErr => {
+            if (seenSyntax.has(`${tsErr.line}:${tsErr.column}`)) return;
             detectedErrors.push({
               line: tsErr.line,
               column: tsErr.column,
