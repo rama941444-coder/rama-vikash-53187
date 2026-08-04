@@ -226,7 +226,7 @@ const RULES: Rule[] = [
     type: 'LogicError', severity: 'warning', families: ['c', 'jvm', 'dotnet', 'go', 'rust'],
     pattern: /\b(?:float|double|f32|f64)\s+\w+\s*=\s*(\d+)\s*\/\s*(\d+)\s*;/g,
     message: (m) => `Integer division ${m[1]}/${m[2]} truncates before it is stored in a floating-point variable.`,
-    suggestion: `Write ${'`'}${'$'}{'{'}${'}'}${'`'}` .replace(/.*/, 'Make one operand a float, e.g. 1.0 / 2.'),
+    suggestion: 'Make one operand a float, e.g. 1.0 / 2.',
   },
   {
     id: 'literal-div-zero',
