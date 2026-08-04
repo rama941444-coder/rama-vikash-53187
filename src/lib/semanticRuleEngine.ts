@@ -48,7 +48,7 @@ export function familyOf(language?: string | null): Family {
 }
 
 /** Mask strings + comments so rules never fire inside literals. */
-function mask(src: string, family: Family): string {
+function mask(src: string, family: Family, keepStrings = false): string {
   const lineCmt = family === 'python' || family === 'shell' || family === 'ruby' ? '#'
     : family === 'sql' ? '--'
     : family === 'functional' ? '--'
@@ -68,7 +68,7 @@ function mask(src: string, family: Family): string {
       while (i < N && src[i] !== '\n') { out += ' '; i++; }
       continue;
     }
-    if (c === '"' || c === "'" || c === '`') {
+    if (!keepStrings && (c === '"' || c === "'" || c === '`')) {
       out += c; i++;
       while (i < N && src[i] !== c) {
         if (src[i] === '\\' && i + 1 < N) { out += '  '; i += 2; continue; }
@@ -90,6 +90,8 @@ interface Rule {
   pattern: RegExp;
   message: (m: RegExpExecArray) => string;
   suggestion?: string;
+  /** scan a comment-stripped copy that KEEPS string literals (needed for SQL/secret rules) */
+  raw?: boolean;
   /** extra confirmation on the whole masked source; rule fires only if true */
   guard?: (src: string, m: RegExpExecArray) => boolean;
 }
@@ -209,7 +211,7 @@ const RULES: Rule[] = [
   {
     id: 'unsigned-underflow',
     type: 'UnderflowWarning', severity: 'warning', families: ['c', 'rust', 'go'],
-    pattern: /\b(?:unsigned|size_t|u8|u16|u32|u64|uint\w*)\s+(\w+)\s*=\s*0\s*;[\s\S]{0,200}?\b\1\s*--/g,
+    pattern: /\b(?:unsigned|size_t|u8|u16|u32|u64|uint\w*)\s+(?:int\s+|long\s+|short\s+|char\s+)?(\w+)\s*=\s*0\s*;[\s\S]{0,200}?\b\1\s*--/g,
     message: (m) => `Unsigned variable '${m[1]}' starts at 0 and is decremented — this underflows to a huge value.`,
     suggestion: 'Guard the decrement or use a signed type.',
   },
@@ -300,14 +302,14 @@ const RULES: Rule[] = [
 
   /* ------------- SECURITY (semgrep-style) ------------- */
   {
-    id: 'sql-injection-concat',
+    id: 'sql-injection-concat', raw: true,
     type: 'SecurityError', severity: 'error', families: '*',
     pattern: /\b(?:execute|query|executeQuery|rawQuery|exec)\s*\(\s*(?:"|')?[^)]*\b(?:SELECT|INSERT|UPDATE|DELETE)\b[^)]*(?:\+|\$\{|%s|\.format\(|f")/gi,
     message: () => `SQL query built by string concatenation — SQL injection risk.`,
     suggestion: 'Use parameterized queries / prepared statements.',
   },
   {
-    id: 'command-injection',
+    id: 'command-injection', raw: true,
     type: 'SecurityError', severity: 'error', families: '*',
     pattern: /\b(?:system|exec|popen|shell_exec|os\.system|subprocess\.(?:call|run|Popen)|child_process\.exec)\s*\(\s*[^)"']*(?:\+|\$\{|%s|\.format\()/g,
     message: () => `Shell command built from dynamic input — command injection risk.`,
@@ -321,7 +323,7 @@ const RULES: Rule[] = [
     suggestion: 'Parse the value explicitly instead of evaluating it.',
   },
   {
-    id: 'hardcoded-secret',
+    id: 'hardcoded-secret', raw: true,
     type: 'SecurityWarning', severity: 'warning', families: '*',
     pattern: /\b(?:password|passwd|secret|api[_-]?key|token|private[_-]?key)\s*(?:=|:)\s*["'][^"'\s]{8,}["']/gi,
     message: () => `Hardcoded credential in source code.`,
@@ -335,21 +337,21 @@ const RULES: Rule[] = [
     suggestion: 'Use SHA-256 or bcrypt/argon2 for passwords.',
   },
   {
-    id: 'insecure-random-crypto',
+    id: 'insecure-random-crypto', raw: true,
     type: 'SecurityWarning', severity: 'warning', families: '*',
     pattern: /\b(?:Math\.random|rand\s*\(\s*\)|random\.random\s*\(\s*\))[^;\n]{0,60}\b(?:token|key|password|salt|nonce)\b/gi,
     message: () => `Non-cryptographic RNG used for a security value.`,
     suggestion: 'Use a CSPRNG (crypto.randomBytes / secrets module).',
   },
   {
-    id: 'unsafe-deserialize',
+    id: 'unsafe-deserialize', raw: true,
     type: 'SecurityError', severity: 'error', families: ['python', 'php', 'jvm', 'ruby'],
     pattern: /\b(?:pickle\.loads|yaml\.load\s*\((?![^)]*Loader)|unserialize|readObject)\s*\(/g,
     message: () => `Unsafe deserialization of untrusted data allows remote code execution.`,
     suggestion: 'Use a safe loader (yaml.safe_load / JSON).',
   },
   {
-    id: 'tls-verify-disabled',
+    id: 'tls-verify-disabled', raw: true,
     type: 'SecurityError', severity: 'error', families: '*',
     pattern: /\b(?:verify\s*=\s*False|rejectUnauthorized\s*:\s*false|InsecureSkipVerify\s*:\s*true|CURLOPT_SSL_VERIFYPEER\s*,\s*(?:0|false))/gi,
     message: () => `TLS certificate verification disabled — traffic can be intercepted.`,
@@ -425,18 +427,20 @@ export function runSemanticRules(code: string, language?: string | null): LiveEr
   const src = code.length > MAX_CHARS ? code.slice(0, MAX_CHARS) : code;
   const family = familyOf(language);
   const masked = mask(src, family);
+  const rawSrc = mask(src, family, true);
   const seen = new Set<string>();
 
   for (const rule of RULES) {
     if (rule.families !== '*' && !rule.families.includes(family)) continue;
     const re = new RegExp(rule.pattern.source, rule.pattern.flags.includes('g') ? rule.pattern.flags : rule.pattern.flags + 'g');
+    const scanned = rule.raw ? rawSrc : masked;
     let m: RegExpExecArray | null;
     let guardCount = 0;
-    while ((m = re.exec(masked)) !== null) {
+    while ((m = re.exec(scanned)) !== null) {
       if (m[0].length === 0) { re.lastIndex++; continue; }
       if (++guardCount > 60) break;
-      if (rule.guard && !rule.guard(masked, m)) continue;
-      const { line, column } = lineColFromIndex(masked, m.index);
+      if (rule.guard && !rule.guard(scanned, m)) continue;
+      const { line, column } = lineColFromIndex(scanned, m.index);
       const key = `${rule.id}:${line}:${column}`;
       if (seen.has(key)) continue;
       seen.add(key);
