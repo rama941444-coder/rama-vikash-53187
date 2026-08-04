@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import LanguageSelector from '@/components/LanguageSelector';
 import { supabase } from '@/integrations/supabase/client';
 import { treeSitterService, type TreeSitterError } from '@/lib/treeSitterService';
+import { runSemanticRules, SEMANTIC_RULE_COUNT } from '@/lib/semanticRuleEngine';
 import { detectLanguage, isAutoDetect } from '@/lib/languageDetect';
 import { HighlightedOverlay } from '@/lib/syntaxHighlight';
 import { validateLive, isRegisteredLanguage, unsupportedLanguageNotice } from '@/lib/liveSyntaxValidator';
@@ -397,20 +398,28 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
         wrongCode: e.wrongCode,
         suggestion: e.suggestion,
       }));
-    } else if (activeLang && !isAutoDetect(language)) {
-      detectedErrors.push({
-        line: 1,
-        column: 1,
-        message: unsupportedLanguageNotice(activeLang),
-        severity: 'warning',
-        type: 'NeedsAIModel',
-      });
     }
 
-    // === TREE-SITTER INCREMENTAL PARSING (extended registry only) ===
+
+    // === SEMGREP-STYLE SEMANTIC RULE ENGINE (all languages, 100% offline) ===
+    // Logical errors, encapsulation/access-modifier violations, overflow /
+    // underflow, data-structure bounds and security rules — before compiling.
+    try {
+      runSemanticRules(codeText, activeLang || language).forEach((e) => detectedErrors.push({
+        line: e.line,
+        column: e.column,
+        message: e.message,
+        severity: e.severity,
+        type: e.type,
+        wrongCode: e.wrongCode,
+        suggestion: e.suggestion,
+      }));
+    } catch {}
+
+    // === TREE-SITTER INCREMENTAL AST PARSING (every supported grammar) ===
     let treeSitterUsed = false;
-    if (treeSitterReady && !isRegisteredLanguage(activeLang)) {
-      const langNorm = language.toLowerCase().replace(/\s+/g, '');
+    if (treeSitterReady) {
+      const langNorm = (activeLang || language).toLowerCase().replace(/\s+/g, '');
       const tsLang = langNorm === 'auto-detect' ? '' : langNorm;
       
       if (tsLang && treeSitterService.isLanguageSupported(tsLang)) {
@@ -425,8 +434,11 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
         if (treeSitterLangRef.current === tsLang) {
           const tsErrors = treeSitterService.parse(codeText, tsLang);
           treeSitterUsed = true;
-          
+          const seenSyntax = new Set(
+            detectedErrors.filter((e) => e.severity === 'error').map((e) => `${e.line}:${e.column}`),
+          );
           tsErrors.forEach(tsErr => {
+            if (seenSyntax.has(`${tsErr.line}:${tsErr.column}`)) return;
             detectedErrors.push({
               line: tsErr.line,
               column: tsErr.column,
@@ -1417,7 +1429,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
             )}
             {detectionTime > 0 && !isDetecting && !isAiDetecting && (
               <span className="text-xs text-green-400">
-                ⚡ {detectionTime.toFixed(2)}ms {treeSitterReady && treeSitterLangRef.current ? '🌳 Tree-sitter' : '⚙️ Regex'} {aiErrors.length > 0 ? '• AI ✓' : ''}
+                ⚡ {detectionTime.toFixed(2)}ms {treeSitterReady && treeSitterLangRef.current ? '🌳 AST' : '⚙️ Rules'} • {SEMANTIC_RULE_COUNT} semantic rules {aiErrors.length > 0 ? '• AI ✓' : ''}
               </span>
             )}
           </div>
