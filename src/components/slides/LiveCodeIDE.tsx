@@ -1722,6 +1722,22 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
 
       {/* Console Output Panels */}
       <div className="space-y-4">
+        {/* Offline profiling, grammar coverage and rule-pack configuration */}
+        <DiagnosticsLabPanel
+          config={rulePackConfig}
+          onConfigChange={(next) => { setRulePackConfig(next); saveRulePackConfig(next); }}
+          language={isAutoDetect(language) ? (detected || language) : language}
+          benchmarkSource={code}
+          runDiagnostics={(snapshot) => {
+            const lang = isAutoDetect(language) ? (detected || 'C') : language;
+            const out: unknown[] = [];
+            try { out.push(...validateLive(snapshot, lang)); } catch {}
+            try { out.push(...detectRuntimeRisks(snapshot, lang)); } catch {}
+            try { out.push(...runSemanticRules(snapshot, lang)); } catch {}
+            return out;
+          }}
+        />
+
         {/* Compiler-Style Error Console */}
         {errors.length > 0 && (
           <div className="bg-[#0d1117] border-2 border-red-500/50 rounded-xl overflow-hidden shadow-lg shadow-red-500/10">
