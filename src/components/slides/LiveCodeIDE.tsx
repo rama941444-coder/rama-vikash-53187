@@ -18,6 +18,11 @@ import Editor, { type Monaco } from '@monaco-editor/react';
 import type * as MonacoNS from 'monaco-editor';
 import { toMonacoLang } from '@/components/MonacoNotepad';
 import { useMonacoDiagnostics } from '@/hooks/useMonacoDiagnostics';
+import DiagnosticsLabPanel from '@/components/slides/DiagnosticsLabPanel';
+import { loadRulePackConfig, saveRulePackConfig, applySeverity, type RulePackConfig } from '@/lib/rulePackConfig';
+import { onboardGrammars } from '@/lib/grammarRegistry';
+import { readLspFindings, hasLanguageServer } from '@/lib/lspBridge';
+import { recordSample } from '@/lib/diagnosticsProfiler';
 
 interface LiveCodeIDEProps {
   onAnalysisComplete: (data: any) => void;
@@ -82,6 +87,9 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
   const { toast } = useToast();
 
   const [treeSitterReady, setTreeSitterReady] = useState(false);
+  const [rulePackConfig, setRulePackConfig] = useState<RulePackConfig>(() => loadRulePackConfig());
+  const rulePackRef = useRef(rulePackConfig);
+  rulePackRef.current = rulePackConfig;
   const treeSitterLangRef = useRef<string>('');
   const monacoEditorRef = useRef<MonacoNS.editor.IStandaloneCodeEditor | null>(null);
   const monacoNsRef = useRef<Monaco | null>(null);
@@ -105,6 +113,8 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
 
   // Initialize Tree-sitter WASM
   useEffect(() => {
+    const added = onboardGrammars();
+    if (added) console.log(`🌳 Grammar onboarding registered ${added} additional language aliases`);
     treeSitterService.init().then(ok => {
       setTreeSitterReady(ok);
       if (ok) console.log('🌳 Tree-sitter WASM initialized');
@@ -376,7 +386,12 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     // registry we run rich casing + bracket rules. If not, we emit a single
     // console note telling the user the AI model is required for that language.
     const activeLang = isAutoDetect(language) ? (detected || '') : language;
-    if (activeLang && isRegisteredLanguage(activeLang)) {
+    const packs = rulePackRef.current;
+    let astMs = 0;
+    let rulesMs = 0;
+    let lspMs = 0;
+    const rulesStart = performance.now();
+    if (packs.enabled.syntax !== false && activeLang && isRegisteredLanguage(activeLang)) {
       const liveErrs = validateLive(codeText, activeLang);
       liveErrs.forEach((e) => detectedErrors.push({
         line: e.line,
@@ -388,7 +403,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
         suggestion: e.suggestion,
       }));
       // Heuristic runtime-risk warnings (memory leaks, overflow, infinite loops, etc.)
-      const risks = detectRuntimeRisks(codeText, activeLang);
+      const risks = packs.enabled.runtime === false ? [] : detectRuntimeRisks(codeText, activeLang);
       risks.forEach((e) => detectedErrors.push({
         line: e.line,
         column: e.column,
@@ -405,7 +420,8 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     // Logical errors, encapsulation/access-modifier violations, overflow /
     // underflow, data-structure bounds and security rules — before compiling.
     try {
-      runSemanticRules(codeText, activeLang || language).forEach((e) => detectedErrors.push({
+      const semantic = packs.enabled.semantic === false ? [] : runSemanticRules(codeText, activeLang || language);
+      semantic.forEach((e) => detectedErrors.push({
         line: e.line,
         column: e.column,
         message: e.message,
@@ -415,10 +431,12 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
         suggestion: e.suggestion,
       }));
     } catch {}
+    rulesMs = performance.now() - rulesStart;
 
     // === TREE-SITTER INCREMENTAL AST PARSING (every supported grammar) ===
     let treeSitterUsed = false;
-    if (treeSitterReady) {
+    if (treeSitterReady && packs.enabled.ast !== false) {
+      const astStart = performance.now();
       const langNorm = (activeLang || language).toLowerCase().replace(/\s+/g, '');
       const tsLang = langNorm === 'auto-detect' ? '' : langNorm;
       
@@ -451,6 +469,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
           });
         }
       }
+      astMs = performance.now() - astStart;
     }
     
     // Only run legacy regex fallback for languages not covered by the strict live validator.
@@ -745,9 +764,58 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       setCorrectedCode('');
     }
 
-    setErrors(detectedErrors);
+    // === PRIMARY SOURCE: Monaco language servers (LSP) when one owns the model ===
+    let engine: 'LSP' | 'AST' | 'Rules' = treeSitterUsed ? 'AST' : 'Rules';
+    if (packs.enabled.lsp !== false) {
+      const lspStart = performance.now();
+      try {
+        const model = monacoEditorRef.current?.getModel();
+        if (model && hasLanguageServer(model.getLanguageId())) {
+          const lspFindings = readLspFindings(monacoNsRef.current, monacoEditorRef.current, ['slide5-live']);
+          if (lspFindings.length) {
+            engine = 'LSP';
+            const seenLsp = new Set(detectedErrors.map((e) => `${e.line}:${e.column}:${e.message}`));
+            lspFindings.forEach((f) => {
+              const key = `${f.line}:${f.column}:${f.message}`;
+              if (seenLsp.has(key)) return;
+              seenLsp.add(key);
+              detectedErrors.unshift({
+                line: f.line,
+                column: f.column,
+                message: f.message,
+                severity: f.severity,
+                type: f.type,
+                suggestion: f.suggestion,
+              });
+            });
+          }
+        }
+      } catch {}
+      lspMs = performance.now() - lspStart;
+    }
+
+    // Per-language severity overrides (syntax errors always remain errors).
+    const finalErrors = detectedErrors
+      .map((e) =>
+        e.type === 'SyntaxError'
+          ? e
+          : (applySeverity(e, packs, activeLang || language) as CodeError | null),
+      )
+      .filter(Boolean) as CodeError[];
+
+    setErrors(finalErrors);
     const endTime = performance.now();
     setDetectionTime(endTime - startTime);
+    recordSample({
+      totalMs: endTime - startTime,
+      astMs,
+      rulesMs,
+      lspMs,
+      chars: codeText.length,
+      lines: codeLines.length,
+      findings: finalErrors.length,
+      engine,
+    });
     setIsDetecting(false);
   }, [language, detected, getCompilerName, treeSitterReady]);
 
@@ -1654,6 +1722,22 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
 
       {/* Console Output Panels */}
       <div className="space-y-4">
+        {/* Offline profiling, grammar coverage and rule-pack configuration */}
+        <DiagnosticsLabPanel
+          config={rulePackConfig}
+          onConfigChange={(next) => { setRulePackConfig(next); saveRulePackConfig(next); }}
+          language={isAutoDetect(language) ? (detected || language) : language}
+          benchmarkSource={code}
+          runDiagnostics={(snapshot) => {
+            const lang = isAutoDetect(language) ? (detected || 'C') : language;
+            const out: unknown[] = [];
+            try { out.push(...validateLive(snapshot, lang)); } catch {}
+            try { out.push(...detectRuntimeRisks(snapshot, lang)); } catch {}
+            try { out.push(...runSemanticRules(snapshot, lang)); } catch {}
+            return out;
+          }}
+        />
+
         {/* Compiler-Style Error Console */}
         {errors.length > 0 && (
           <div className="bg-[#0d1117] border-2 border-red-500/50 rounded-xl overflow-hidden shadow-lg shadow-red-500/10">

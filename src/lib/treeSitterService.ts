@@ -323,6 +323,25 @@ class TreeSitterService {
     return !!LANGUAGE_GRAMMAR_MAP[normalized];
   }
 
+  /**
+   * Automated grammar onboarding: register extra language names/aliases onto
+   * an existing tree-sitter grammar without touching the base map.
+   */
+  registerAliases(aliases: Record<string, string>) {
+    let added = 0;
+    for (const [name, grammar] of Object.entries(aliases)) {
+      const key = name.toLowerCase().trim();
+      if (!key || LANGUAGE_GRAMMAR_MAP[key]) continue;
+      LANGUAGE_GRAMMAR_MAP[key] = grammar;
+      added++;
+    }
+    return added;
+  }
+
+  grammarFor(language: string): string | null {
+    return LANGUAGE_GRAMMAR_MAP[language.toLowerCase().trim()] || null;
+  }
+
   getSupportedLanguages(): string[] {
     return Object.keys(LANGUAGE_GRAMMAR_MAP);
   }
