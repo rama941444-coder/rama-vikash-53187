@@ -27,7 +27,10 @@ const DiagnosticsLabPanel = ({ config, onConfigChange, language, runDiagnostics,
   const [bench, setBench] = useState<BenchmarkResult | null>(null);
   const [benchRunning, setBenchRunning] = useState(false);
 
-  useEffect(() => subscribeProfiler(() => forceRender((n) => n + 1)), []);
+  useEffect(() => {
+    const unsubscribe = subscribeProfiler(() => forceRender((n) => n + 1));
+    return () => { unsubscribe(); };
+  }, []);
 
   const stats = getStats();
   const coverage = useMemo(() => verifyGrammarOnboarding(), []);
