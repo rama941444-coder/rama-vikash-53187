@@ -386,7 +386,12 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     // registry we run rich casing + bracket rules. If not, we emit a single
     // console note telling the user the AI model is required for that language.
     const activeLang = isAutoDetect(language) ? (detected || '') : language;
-    if (activeLang && isRegisteredLanguage(activeLang)) {
+    const packs = rulePackRef.current;
+    let astMs = 0;
+    let rulesMs = 0;
+    let lspMs = 0;
+    const rulesStart = performance.now();
+    if (packs.enabled.syntax !== false && activeLang && isRegisteredLanguage(activeLang)) {
       const liveErrs = validateLive(codeText, activeLang);
       liveErrs.forEach((e) => detectedErrors.push({
         line: e.line,
@@ -398,7 +403,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
         suggestion: e.suggestion,
       }));
       // Heuristic runtime-risk warnings (memory leaks, overflow, infinite loops, etc.)
-      const risks = detectRuntimeRisks(codeText, activeLang);
+      const risks = packs.enabled.runtime === false ? [] : detectRuntimeRisks(codeText, activeLang);
       risks.forEach((e) => detectedErrors.push({
         line: e.line,
         column: e.column,
@@ -415,7 +420,8 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     // Logical errors, encapsulation/access-modifier violations, overflow /
     // underflow, data-structure bounds and security rules — before compiling.
     try {
-      runSemanticRules(codeText, activeLang || language).forEach((e) => detectedErrors.push({
+      const semantic = packs.enabled.semantic === false ? [] : runSemanticRules(codeText, activeLang || language);
+      semantic.forEach((e) => detectedErrors.push({
         line: e.line,
         column: e.column,
         message: e.message,
@@ -425,10 +431,12 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
         suggestion: e.suggestion,
       }));
     } catch {}
+    rulesMs = performance.now() - rulesStart;
 
     // === TREE-SITTER INCREMENTAL AST PARSING (every supported grammar) ===
     let treeSitterUsed = false;
-    if (treeSitterReady) {
+    if (treeSitterReady && packs.enabled.ast !== false) {
+      const astStart = performance.now();
       const langNorm = (activeLang || language).toLowerCase().replace(/\s+/g, '');
       const tsLang = langNorm === 'auto-detect' ? '' : langNorm;
       
@@ -461,6 +469,7 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
           });
         }
       }
+      astMs = performance.now() - astStart;
     }
     
     // Only run legacy regex fallback for languages not covered by the strict live validator.
