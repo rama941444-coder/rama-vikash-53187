@@ -18,6 +18,11 @@ import Editor, { type Monaco } from '@monaco-editor/react';
 import type * as MonacoNS from 'monaco-editor';
 import { toMonacoLang } from '@/components/MonacoNotepad';
 import { useMonacoDiagnostics } from '@/hooks/useMonacoDiagnostics';
+import DiagnosticsLabPanel from '@/components/slides/DiagnosticsLabPanel';
+import { loadRulePackConfig, saveRulePackConfig, applySeverity, type RulePackConfig } from '@/lib/rulePackConfig';
+import { onboardGrammars } from '@/lib/grammarRegistry';
+import { readLspFindings, hasLanguageServer } from '@/lib/lspBridge';
+import { recordSample } from '@/lib/diagnosticsProfiler';
 
 interface LiveCodeIDEProps {
   onAnalysisComplete: (data: any) => void;
@@ -82,6 +87,9 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
   const { toast } = useToast();
 
   const [treeSitterReady, setTreeSitterReady] = useState(false);
+  const [rulePackConfig, setRulePackConfig] = useState<RulePackConfig>(() => loadRulePackConfig());
+  const rulePackRef = useRef(rulePackConfig);
+  rulePackRef.current = rulePackConfig;
   const treeSitterLangRef = useRef<string>('');
   const monacoEditorRef = useRef<MonacoNS.editor.IStandaloneCodeEditor | null>(null);
   const monacoNsRef = useRef<Monaco | null>(null);
@@ -105,6 +113,8 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
 
   // Initialize Tree-sitter WASM
   useEffect(() => {
+    const added = onboardGrammars();
+    if (added) console.log(`🌳 Grammar onboarding registered ${added} additional language aliases`);
     treeSitterService.init().then(ok => {
       setTreeSitterReady(ok);
       if (ok) console.log('🌳 Tree-sitter WASM initialized');
