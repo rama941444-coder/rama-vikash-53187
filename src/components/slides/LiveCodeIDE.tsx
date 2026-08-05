@@ -764,9 +764,58 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       setCorrectedCode('');
     }
 
-    setErrors(detectedErrors);
+    // === PRIMARY SOURCE: Monaco language servers (LSP) when one owns the model ===
+    let engine: 'LSP' | 'AST' | 'Rules' = treeSitterUsed ? 'AST' : 'Rules';
+    if (packs.enabled.lsp !== false) {
+      const lspStart = performance.now();
+      try {
+        const model = monacoEditorRef.current?.getModel();
+        if (model && hasLanguageServer(model.getLanguageId())) {
+          const lspFindings = readLspFindings(monacoNsRef.current, monacoEditorRef.current, ['slide5-live']);
+          if (lspFindings.length) {
+            engine = 'LSP';
+            const seenLsp = new Set(detectedErrors.map((e) => `${e.line}:${e.column}:${e.message}`));
+            lspFindings.forEach((f) => {
+              const key = `${f.line}:${f.column}:${f.message}`;
+              if (seenLsp.has(key)) return;
+              seenLsp.add(key);
+              detectedErrors.unshift({
+                line: f.line,
+                column: f.column,
+                message: f.message,
+                severity: f.severity,
+                type: f.type,
+                suggestion: f.suggestion,
+              });
+            });
+          }
+        }
+      } catch {}
+      lspMs = performance.now() - lspStart;
+    }
+
+    // Per-language severity overrides (syntax errors always remain errors).
+    const finalErrors = detectedErrors
+      .map((e) =>
+        e.type === 'SyntaxError'
+          ? e
+          : (applySeverity(e, packs, activeLang || language) as CodeError | null),
+      )
+      .filter(Boolean) as CodeError[];
+
+    setErrors(finalErrors);
     const endTime = performance.now();
     setDetectionTime(endTime - startTime);
+    recordSample({
+      totalMs: endTime - startTime,
+      astMs,
+      rulesMs,
+      lspMs,
+      chars: codeText.length,
+      lines: codeLines.length,
+      findings: finalErrors.length,
+      engine,
+    });
     setIsDetecting(false);
   }, [language, detected, getCompilerName, treeSitterReady]);
 
