@@ -1572,6 +1572,14 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
                 ⚡ {detectionTime.toFixed(2)}ms {treeSitterReady && treeSitterLangRef.current ? '🌳 AST' : '⚙️ Rules'} • {SEMANTIC_RULE_COUNT} semantic rules {aiErrors.length > 0 ? '• AI ✓' : ''}
               </span>
             )}
+            {detectionTime > 0 && !isDetecting && (
+              <span
+                className="text-xs text-cyan-400"
+                title={lspFallbackReason ? `LSP fallback: ${lspFallbackReason}` : 'Diagnostic source'}
+              >
+                src: {diagnosticSource}{lspFallbackReason ? ' (fallback)' : ''} • cache {(cacheHitRate * 100).toFixed(0)}%
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {errorCount > 0 && (
