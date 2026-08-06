@@ -21,8 +21,10 @@ import { useMonacoDiagnostics } from '@/hooks/useMonacoDiagnostics';
 import DiagnosticsLabPanel from '@/components/slides/DiagnosticsLabPanel';
 import { loadRulePackConfig, saveRulePackConfig, applySeverity, type RulePackConfig } from '@/lib/rulePackConfig';
 import { onboardGrammars } from '@/lib/grammarRegistry';
-import { readLspFindings, hasLanguageServer } from '@/lib/lspBridge';
+import { readLspFindingsSafe } from '@/lib/lspBridge';
 import { recordSample } from '@/lib/diagnosticsProfiler';
+import { cacheKey, readCache, writeCache, reuseUnchangedLines, cacheStats } from '@/lib/diagnosticsCache';
+import { registerQuickFixProviders, type QuickFixFinding } from '@/lib/quickFixProvider';
 
 interface LiveCodeIDEProps {
   onAnalysisComplete: (data: any) => void;
@@ -39,6 +41,7 @@ interface CodeError {
   suggestion?: string;
   wrongCode?: string;
   correctCode?: string;
+  source?: string;
 }
 
 interface ExecutionResult {
@@ -94,6 +97,12 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
   const monacoEditorRef = useRef<MonacoNS.editor.IStandaloneCodeEditor | null>(null);
   const monacoNsRef = useRef<Monaco | null>(null);
   const [monacoReadyKey, setMonacoReadyKey] = useState(0);
+  const [diagnosticSource, setDiagnosticSource] = useState<string>('semgrep/rules');
+  const [lspFallbackReason, setLspFallbackReason] = useState<string>('');
+  const [cacheHitRate, setCacheHitRate] = useState(0);
+  const lastSnapshotRef = useRef<{ code: string; findings: CodeError[] }>({ code: '', findings: [] });
+  const findingsRef = useRef<CodeError[]>([]);
+  const languageNameRef = useRef<string>('plaintext');
   useMonacoDiagnostics({
     code,
     language: isAutoDetect(language) ? (detected || 'plaintext') : language,
@@ -110,6 +119,30 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       setCode(persistedCode);
     }
   }, [persistedCode]);
+
+  // Keep the quick-fix/hover providers reading the newest findings + language.
+  const activeLanguageName = isAutoDetect(language) ? (detected || 'plaintext') : language;
+  findingsRef.current = errors;
+  languageNameRef.current = activeLanguageName;
+
+  // Register Monaco quick fixes + hover explanations for the active language.
+  useEffect(() => {
+    const monaco = monacoNsRef.current;
+    if (!monaco || !monacoReadyKey) return;
+    const monacoLangId = toMonacoLang(activeLanguageName);
+    let disposable: { dispose: () => void } | null = null;
+    try {
+      disposable = registerQuickFixProviders(
+        monaco,
+        monacoLangId,
+        () => findingsRef.current as QuickFixFinding[],
+        () => languageNameRef.current,
+      );
+    } catch {
+      disposable = null;
+    }
+    return () => { try { disposable?.dispose(); } catch {} };
+  }, [monacoReadyKey, activeLanguageName]);
 
   // Initialize Tree-sitter WASM
   useEffect(() => {
@@ -387,6 +420,29 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     // console note telling the user the AI model is required for that language.
     const activeLang = isAutoDetect(language) ? (detected || '') : language;
     const packs = rulePackRef.current;
+
+    // === PERSISTENT INCREMENTAL CACHE ===
+    // Identical (language, code) snapshots are answered from memory/localStorage
+    // instantly; otherwise findings on untouched lines are reused as a warm
+    // starting point so a keystroke only costs the changed region.
+    const analysisKey = cacheKey(codeText, activeLang || language, `packs:${JSON.stringify(packs.enabled)}`);
+    const cached = readCache(analysisKey);
+    if (cached) {
+      setErrors(cached.findings as CodeError[]);
+      findingsRef.current = cached.findings as CodeError[];
+      lastSnapshotRef.current = { code: codeText, findings: cached.findings as CodeError[] };
+      setDetectionTime(performance.now() - startTime);
+      setCacheHitRate(cacheStats().hitRate);
+      setIsDetecting(false);
+      return;
+    }
+    const warmStart = reuseUnchangedLines(
+      lastSnapshotRef.current.code,
+      lastSnapshotRef.current.findings,
+      codeText,
+    );
+    void warmStart; // reused below only for cache-warmth accounting
+
     let astMs = 0;
     let rulesMs = 0;
     let lspMs = 0;
@@ -764,34 +820,47 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       setCorrectedCode('');
     }
 
+    // Everything produced so far came from the offline engines — tag the source
+    // so the UI and hover cards can always say who reported a diagnostic.
+    detectedErrors.forEach((e) => {
+      if (!e.source) e.source = treeSitterUsed && e.type === 'SyntaxError' ? 'tree-sitter AST' : 'semgrep/rules';
+    });
+
     // === PRIMARY SOURCE: Monaco language servers (LSP) when one owns the model ===
+    // Robust fallback: missing / slow / erroring servers degrade silently to the
+    // tree-sitter + semgrep tiers, and the reason is reported in the UI.
     let engine: 'LSP' | 'AST' | 'Rules' = treeSitterUsed ? 'AST' : 'Rules';
     if (packs.enabled.lsp !== false) {
-      const lspStart = performance.now();
-      try {
-        const model = monacoEditorRef.current?.getModel();
-        if (model && hasLanguageServer(model.getLanguageId())) {
-          const lspFindings = readLspFindings(monacoNsRef.current, monacoEditorRef.current, ['slide5-live']);
-          if (lspFindings.length) {
-            engine = 'LSP';
-            const seenLsp = new Set(detectedErrors.map((e) => `${e.line}:${e.column}:${e.message}`));
-            lspFindings.forEach((f) => {
-              const key = `${f.line}:${f.column}:${f.message}`;
-              if (seenLsp.has(key)) return;
-              seenLsp.add(key);
-              detectedErrors.unshift({
-                line: f.line,
-                column: f.column,
-                message: f.message,
-                severity: f.severity,
-                type: f.type,
-                suggestion: f.suggestion,
-              });
-            });
-          }
-        }
-      } catch {}
-      lspMs = performance.now() - lspStart;
+      const result = readLspFindingsSafe(monacoNsRef.current, monacoEditorRef.current, ['slide5-live']);
+      lspMs = result.ms;
+      if (result.findings.length) {
+        engine = 'LSP';
+        const seenLsp = new Set(detectedErrors.map((e) => `${e.line}:${e.column}:${e.message}`));
+        result.findings.forEach((f) => {
+          const key = `${f.line}:${f.column}:${f.message}`;
+          if (seenLsp.has(key)) return;
+          seenLsp.add(key);
+          detectedErrors.unshift({
+            line: f.line,
+            column: f.column,
+            message: f.message,
+            severity: f.severity,
+            type: f.type,
+            suggestion: f.suggestion,
+            source: 'language server',
+          });
+        });
+      }
+      setDiagnosticSource(
+        result.status === 'ok' || result.status === 'slow'
+          ? `language server${result.status === 'slow' ? ' (slow)' : ''}`
+          : treeSitterUsed ? 'tree-sitter AST' : 'semgrep/rules',
+      );
+      setLspFallbackReason(
+        result.status === 'ok' || result.status === 'empty' ? '' : (result.reason || result.status),
+      );
+    } else {
+      setDiagnosticSource(treeSitterUsed ? 'tree-sitter AST' : 'semgrep/rules');
     }
 
     // Per-language severity overrides (syntax errors always remain errors).
@@ -806,6 +875,9 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     setErrors(finalErrors);
     const endTime = performance.now();
     setDetectionTime(endTime - startTime);
+    writeCache(analysisKey, finalErrors, endTime - startTime, engine);
+    lastSnapshotRef.current = { code: codeText, findings: finalErrors };
+    setCacheHitRate(cacheStats().hitRate);
     recordSample({
       totalMs: endTime - startTime,
       astMs,
@@ -1498,6 +1570,14 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
             {detectionTime > 0 && !isDetecting && !isAiDetecting && (
               <span className="text-xs text-green-400">
                 ⚡ {detectionTime.toFixed(2)}ms {treeSitterReady && treeSitterLangRef.current ? '🌳 AST' : '⚙️ Rules'} • {SEMANTIC_RULE_COUNT} semantic rules {aiErrors.length > 0 ? '• AI ✓' : ''}
+              </span>
+            )}
+            {detectionTime > 0 && !isDetecting && (
+              <span
+                className="text-xs text-cyan-400"
+                title={lspFallbackReason ? `LSP fallback: ${lspFallbackReason}` : 'Diagnostic source'}
+              >
+                src: {diagnosticSource}{lspFallbackReason ? ' (fallback)' : ''} • cache {(cacheHitRate * 100).toFixed(0)}%
               </span>
             )}
           </div>

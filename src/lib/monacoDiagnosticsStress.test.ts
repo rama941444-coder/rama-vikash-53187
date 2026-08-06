@@ -60,3 +60,26 @@ class Child extends Parent {
     expect(findings.filter((finding) => finding.type.endsWith('Error'))).toEqual([]);
   });
 });
+describe('Java static-context detection', () => {
+  it('flags a non-static method called from main', () => {
+    const code = `public class A {
+  void greet() {}
+  public static void main(String[] args) {
+    greet();
+  }
+}`;
+    const findings = detectRuntimeRisks(code, 'Java');
+    expect(findings.some((f) => f.type === 'StaticContextError')).toBe(true);
+  });
+
+  it('does not flag static calls from main', () => {
+    const code = `public class A {
+  static void greet() {}
+  public static void main(String[] args) {
+    greet();
+  }
+}`;
+    const findings = detectRuntimeRisks(code, 'Java');
+    expect(findings.some((f) => f.type === 'StaticContextError')).toBe(false);
+  });
+});
