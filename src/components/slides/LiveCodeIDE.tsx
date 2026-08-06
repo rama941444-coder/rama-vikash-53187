@@ -767,34 +767,47 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
       setCorrectedCode('');
     }
 
+    // Everything produced so far came from the offline engines — tag the source
+    // so the UI and hover cards can always say who reported a diagnostic.
+    detectedErrors.forEach((e) => {
+      if (!e.source) e.source = treeSitterUsed && e.type === 'SyntaxError' ? 'tree-sitter AST' : 'semgrep/rules';
+    });
+
     // === PRIMARY SOURCE: Monaco language servers (LSP) when one owns the model ===
+    // Robust fallback: missing / slow / erroring servers degrade silently to the
+    // tree-sitter + semgrep tiers, and the reason is reported in the UI.
     let engine: 'LSP' | 'AST' | 'Rules' = treeSitterUsed ? 'AST' : 'Rules';
     if (packs.enabled.lsp !== false) {
-      const lspStart = performance.now();
-      try {
-        const model = monacoEditorRef.current?.getModel();
-        if (model && hasLanguageServer(model.getLanguageId())) {
-          const lspFindings = readLspFindings(monacoNsRef.current, monacoEditorRef.current, ['slide5-live']);
-          if (lspFindings.length) {
-            engine = 'LSP';
-            const seenLsp = new Set(detectedErrors.map((e) => `${e.line}:${e.column}:${e.message}`));
-            lspFindings.forEach((f) => {
-              const key = `${f.line}:${f.column}:${f.message}`;
-              if (seenLsp.has(key)) return;
-              seenLsp.add(key);
-              detectedErrors.unshift({
-                line: f.line,
-                column: f.column,
-                message: f.message,
-                severity: f.severity,
-                type: f.type,
-                suggestion: f.suggestion,
-              });
-            });
-          }
-        }
-      } catch {}
-      lspMs = performance.now() - lspStart;
+      const result = readLspFindingsSafe(monacoNsRef.current, monacoEditorRef.current, ['slide5-live']);
+      lspMs = result.ms;
+      if (result.findings.length) {
+        engine = 'LSP';
+        const seenLsp = new Set(detectedErrors.map((e) => `${e.line}:${e.column}:${e.message}`));
+        result.findings.forEach((f) => {
+          const key = `${f.line}:${f.column}:${f.message}`;
+          if (seenLsp.has(key)) return;
+          seenLsp.add(key);
+          detectedErrors.unshift({
+            line: f.line,
+            column: f.column,
+            message: f.message,
+            severity: f.severity,
+            type: f.type,
+            suggestion: f.suggestion,
+            source: 'language server',
+          });
+        });
+      }
+      setDiagnosticSource(
+        result.status === 'ok' || result.status === 'slow'
+          ? `language server${result.status === 'slow' ? ' (slow)' : ''}`
+          : treeSitterUsed ? 'tree-sitter AST' : 'semgrep/rules',
+      );
+      setLspFallbackReason(
+        result.status === 'ok' || result.status === 'empty' ? '' : (result.reason || result.status),
+      );
+    } else {
+      setDiagnosticSource(treeSitterUsed ? 'tree-sitter AST' : 'semgrep/rules');
     }
 
     // Per-language severity overrides (syntax errors always remain errors).
@@ -809,6 +822,9 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     setErrors(finalErrors);
     const endTime = performance.now();
     setDetectionTime(endTime - startTime);
+    writeCache(analysisKey, finalErrors, endTime - startTime, engine);
+    lastSnapshotRef.current = { code: codeText, findings: finalErrors };
+    setCacheHitRate(cacheStats().hitRate);
     recordSample({
       totalMs: endTime - startTime,
       astMs,
