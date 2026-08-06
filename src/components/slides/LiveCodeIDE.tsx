@@ -21,8 +21,10 @@ import { useMonacoDiagnostics } from '@/hooks/useMonacoDiagnostics';
 import DiagnosticsLabPanel from '@/components/slides/DiagnosticsLabPanel';
 import { loadRulePackConfig, saveRulePackConfig, applySeverity, type RulePackConfig } from '@/lib/rulePackConfig';
 import { onboardGrammars } from '@/lib/grammarRegistry';
-import { readLspFindings, hasLanguageServer } from '@/lib/lspBridge';
+import { readLspFindingsSafe } from '@/lib/lspBridge';
 import { recordSample } from '@/lib/diagnosticsProfiler';
+import { cacheKey, readCache, writeCache, reuseUnchangedLines, cacheStats } from '@/lib/diagnosticsCache';
+import { registerQuickFixProviders, type QuickFixFinding } from '@/lib/quickFixProvider';
 
 interface LiveCodeIDEProps {
   onAnalysisComplete: (data: any) => void;
@@ -39,6 +41,7 @@ interface CodeError {
   suggestion?: string;
   wrongCode?: string;
   correctCode?: string;
+  source?: string;
 }
 
 interface ExecutionResult {
