@@ -97,6 +97,12 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
   const monacoEditorRef = useRef<MonacoNS.editor.IStandaloneCodeEditor | null>(null);
   const monacoNsRef = useRef<Monaco | null>(null);
   const [monacoReadyKey, setMonacoReadyKey] = useState(0);
+  const [diagnosticSource, setDiagnosticSource] = useState<string>('semgrep/rules');
+  const [lspFallbackReason, setLspFallbackReason] = useState<string>('');
+  const [cacheHitRate, setCacheHitRate] = useState(0);
+  const lastSnapshotRef = useRef<{ code: string; findings: CodeError[] }>({ code: '', findings: [] });
+  const findingsRef = useRef<CodeError[]>([]);
+  const languageNameRef = useRef<string>('plaintext');
   useMonacoDiagnostics({
     code,
     language: isAutoDetect(language) ? (detected || 'plaintext') : language,
