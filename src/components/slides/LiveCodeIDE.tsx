@@ -120,6 +120,30 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     }
   }, [persistedCode]);
 
+  // Keep the quick-fix/hover providers reading the newest findings + language.
+  const activeLanguageName = isAutoDetect(language) ? (detected || 'plaintext') : language;
+  findingsRef.current = errors;
+  languageNameRef.current = activeLanguageName;
+
+  // Register Monaco quick fixes + hover explanations for the active language.
+  useEffect(() => {
+    const monaco = monacoNsRef.current;
+    if (!monaco || !monacoReadyKey) return;
+    const monacoLangId = toMonacoLang(activeLanguageName);
+    let disposable: { dispose: () => void } | null = null;
+    try {
+      disposable = registerQuickFixProviders(
+        monaco,
+        monacoLangId,
+        () => findingsRef.current as QuickFixFinding[],
+        () => languageNameRef.current,
+      );
+    } catch {
+      disposable = null;
+    }
+    return () => { try { disposable?.dispose(); } catch {} };
+  }, [monacoReadyKey, activeLanguageName]);
+
   // Initialize Tree-sitter WASM
   useEffect(() => {
     const added = onboardGrammars();
