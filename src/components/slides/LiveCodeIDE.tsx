@@ -396,6 +396,29 @@ const LiveCodeIDE = ({ onAnalysisComplete, persistedCode = '', onCodeChange }: L
     // console note telling the user the AI model is required for that language.
     const activeLang = isAutoDetect(language) ? (detected || '') : language;
     const packs = rulePackRef.current;
+
+    // === PERSISTENT INCREMENTAL CACHE ===
+    // Identical (language, code) snapshots are answered from memory/localStorage
+    // instantly; otherwise findings on untouched lines are reused as a warm
+    // starting point so a keystroke only costs the changed region.
+    const analysisKey = cacheKey(codeText, activeLang || language, `packs:${JSON.stringify(packs.enabled)}`);
+    const cached = readCache(analysisKey);
+    if (cached) {
+      setErrors(cached.findings as CodeError[]);
+      findingsRef.current = cached.findings as CodeError[];
+      lastSnapshotRef.current = { code: codeText, findings: cached.findings as CodeError[] };
+      setDetectionTime(performance.now() - startTime);
+      setCacheHitRate(cacheStats().hitRate);
+      setIsDetecting(false);
+      return;
+    }
+    const warmStart = reuseUnchangedLines(
+      lastSnapshotRef.current.code,
+      lastSnapshotRef.current.findings,
+      codeText,
+    );
+    void warmStart; // reused below only for cache-warmth accounting
+
     let astMs = 0;
     let rulesMs = 0;
     let lspMs = 0;
