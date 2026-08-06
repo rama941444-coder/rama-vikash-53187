@@ -529,6 +529,52 @@ export function detectRuntimeRisks(code: string, language?: string | null): Find
         `Concrete class '${classMatch[1]}' contains an abstract method.`,
         'AbstractClassError', 'error', `Declare '${classMatch[1]}' abstract or implement the method body.`, abstractMethod[0]);
     }
+
+    // Non-static members referenced from a static context (classic javac error:
+    // "non-static method X() cannot be referenced from a static context").
+    const instanceMethods = new Set<string>();
+    const instanceFields = new Set<string>();
+    const memberRe = /^[ \t]*(?:@\w+\s*)?((?:public|protected|private|final|synchronized|native|transient|volatile|abstract|static)\s+)*([A-Za-z_$][\w$<>,\[\] ?]*)\s+([A-Za-z_$][\w$]*)\s*(\(|=|;)/gm;
+    let member: RegExpExecArray | null;
+    while ((member = memberRe.exec(src))) {
+      const mods = member[1] || '';
+      if (/\bstatic\b/.test(mods)) continue;
+      if (member[4] === '(') instanceMethods.add(member[3]);
+      else instanceFields.add(member[3]);
+    }
+
+    const staticBodyRe = /\bstatic\b[^;{]*\b([A-Za-z_$][\w$]*)\s*\([^)]*\)\s*\{/g;
+    let staticMatch: RegExpExecArray | null;
+    while ((staticMatch = staticBodyRe.exec(src))) {
+      // Extract the balanced body of this static method.
+      let depth = 0;
+      let i = staticBodyRe.lastIndex - 1;
+      const start = i;
+      for (; i < src.length; i++) {
+        if (src[i] === '{') depth++;
+        else if (src[i] === '}') { depth--; if (depth === 0) break; }
+      }
+      const body = src.slice(start + 1, i);
+      const localDecls = new Set<string>();
+      const localRe = /\b(?:[A-Za-z_$][\w$<>,\[\] ?]*)\s+([A-Za-z_$][\w$]*)\s*(?:=|;)/g;
+      let local: RegExpExecArray | null;
+      while ((local = localRe.exec(body))) localDecls.add(local[1]);
+
+      const useRe = /(^|[^.\w$])([A-Za-z_$][\w$]*)\s*(\(|\b)/g;
+      let use: RegExpExecArray | null;
+      while ((use = useRe.exec(body))) {
+        const name = use[2];
+        if (localDecls.has(name)) continue;
+        const isCall = use[3] === '(';
+        if (isCall ? !instanceMethods.has(name) : !instanceFields.has(name)) continue;
+        const offset = start + 1 + use.index + use[1].length;
+        const p = loc(lines, offset, offset);
+        push(out, p.line, p.column, name.length,
+          `Non-static ${isCall ? 'method' : 'variable'} '${name}${isCall ? '()' : ''}' cannot be referenced from a static context.`,
+          'StaticContextError', 'error',
+          `Declare '${name}' static, or create an instance of the class before using it.`, name);
+      }
+    }
   }
 
   // --- Typo / misspelling / case-sensitivity detection ---------------------
